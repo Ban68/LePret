@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fffffa; /* crema */
+  --foreground: #18240f; /* verde oscuro */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-kollektif); /* Will be set in layout.tsx */
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
