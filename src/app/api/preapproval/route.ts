@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { PreapprovalValidator } from '@/lib/validators/preapproval';
 import { z } from 'zod';
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Dummy business logic for credit line estimation
 function calculateCupo(ventasAnuales: number, ticketPromedio: number, facturasMes: number): number {
@@ -60,7 +63,19 @@ export async function POST(req: Request) {
       },
     });
 
-    // TODO: Send email notifications via Resend
+    try {
+      await resend.emails.send({
+        from: 'onboarding@resend.dev',
+        to: email,
+        subject: 'Confirmación de Preaprobación',
+        html: `<p>Hola ${razonSocial},</p>
+               <p>Hemos recibido tu solicitud de preaprobación.</p>
+               <p>Tu cupo estimado es: <strong>${cupoEstimado}</strong>.</p>
+               <p>Nos pondremos en contacto contigo pronto.</p>`,
+      });
+    } catch (error) {
+      console.error('Error sending confirmation email:', error);
+    }
 
     return NextResponse.json({
       cupoEstimado,
