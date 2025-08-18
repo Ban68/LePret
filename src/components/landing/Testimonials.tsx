@@ -47,7 +47,7 @@ export function Testimonials() {
                 <div className="p-1">
                   <Card className="bg-lp-primary-2 border-lp-sec-1/20 shadow-lg">
                     <CardContent className="flex flex-col items-start p-6">
-                      <p className="text-base text-lp-sec-3 italic">"{testimonial.quote}"</p>
+                      <p className="text-base text-lp-sec-3 italic">&ldquo;{testimonial.quote}&rdquo;</p>
                       <div className="mt-4">
                         <p className="font-bold text-lp-primary-1">{testimonial.name}</p>
                         <p className="text-sm text-lp-sec-3">{testimonial.company}</p>
