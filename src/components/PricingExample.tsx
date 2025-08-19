@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { format } from "d3-format";
 
 interface PricingExampleProps {
   monto: number;
@@ -11,8 +10,16 @@ interface PricingExampleProps {
 }
 
 export function PricingExample({ monto, plazo }: PricingExampleProps) {
-  const [amount, setAmount] = useState(monto);
+  const formatCurrency = (value: number) => "$" + value.toLocaleString("es-CO");
+
+  const [amount, setAmount] = useState(formatCurrency(monto));
   const [term, setTerm] = useState(plazo);
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, "");
+    const number = digits ? Number(digits) : 0;
+    setAmount(digits ? formatCurrency(number) : "");
+  };
 
   const calculateRate = (days: number) => {
     if (days <= 30) return 0.015;
@@ -22,7 +29,8 @@ export function PricingExample({ monto, plazo }: PricingExampleProps) {
   };
 
   const rate = calculateRate(term);
-  const toReceive = amount * (1 - rate);
+  const numericAmount = Number(amount.replace(/\D/g, "")) || 0;
+  const toReceive = Math.round(numericAmount * (1 - rate));
 
   return (
     <div className="mt-8 rounded-lg border border-lp-sec-4/50 bg-lp-primary-1/5 p-6">
@@ -31,9 +39,10 @@ export function PricingExample({ monto, plazo }: PricingExampleProps) {
           <Label htmlFor="monto">Monto de la factura (COP)</Label>
           <Input
             id="monto"
-            type="number"
+            type="text"
+            inputMode="numeric"
             value={amount}
-            onChange={(e) => setAmount(Number(e.target.value))}
+            onChange={handleAmountChange}
           />
         </div>
         <div>
@@ -53,7 +62,7 @@ export function PricingExample({ monto, plazo }: PricingExampleProps) {
         <p>
           Valor a recibir:{" "}
           <span className="font-bold text-lp-primary-1">
-            ${format(",.0f")(toReceive).replace(/,/g, ".")}
+            {formatCurrency(toReceive)}
           </span>
         </p>
       </div>
