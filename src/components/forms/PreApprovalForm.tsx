@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Toaster, toast } from "sonner";
 import { useState } from "react";
 import { format } from 'd3-format';
+import { FormError } from "./FormError";
 
 export function PreApprovalForm() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -88,7 +89,10 @@ export function PreApprovalForm() {
           <div>
             <Label htmlFor="nit">NIT</Label>
             <Input id="nit" {...form.register("nit")} />
-            {form.formState.errors.nit && <p className="text-red-500 text-sm mt-1">{form.formState.errors.nit.message}</p>}
+            <FormError
+              message={form.formState.errors.nit?.message}
+              className="mt-1"
+            />
           </div>
           <div>
             <Label htmlFor="razonSocial">Razón Social</Label>
@@ -99,26 +103,38 @@ export function PreApprovalForm() {
         <div>
           <Label htmlFor="ventasAnuales">Ventas Anuales (COP)</Label>
           <Input id="ventasAnuales" type="number" {...form.register("ventasAnuales")} />
-          {form.formState.errors.ventasAnuales && <p className="text-red-500 text-sm mt-1">{form.formState.errors.ventasAnuales.message}</p>}
+          <FormError
+            message={form.formState.errors.ventasAnuales?.message}
+            className="mt-1"
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
             <div>
                 <Label htmlFor="facturasMes"># Facturas/Mes</Label>
                 <Input id="facturasMes" type="number" {...form.register("facturasMes")} />
-                {form.formState.errors.facturasMes && <p className="text-red-500 text-sm mt-1">{form.formState.errors.facturasMes.message}</p>}
+                <FormError
+                  message={form.formState.errors.facturasMes?.message}
+                  className="mt-1"
+                />
             </div>
             <div>
                 <Label htmlFor="ticketPromedio">Ticket Promedio Factura (COP)</Label>
                 <Input id="ticketPromedio" type="number" {...form.register("ticketPromedio")} />
-                {form.formState.errors.ticketPromedio && <p className="text-red-500 text-sm mt-1">{form.formState.errors.ticketPromedio.message}</p>}
+                <FormError
+                  message={form.formState.errors.ticketPromedio?.message}
+                  className="mt-1"
+                />
             </div>
         </div>
 
         <div>
           <Label htmlFor="email">Email de Contacto</Label>
           <Input id="email" type="email" {...form.register("email")} />
-          {form.formState.errors.email && <p className="text-red-500 text-sm mt-1">{form.formState.errors.email.message}</p>}
+          <FormError
+            message={form.formState.errors.email?.message}
+            className="mt-1"
+          />
         </div>
 
         <div>
@@ -132,7 +148,7 @@ export function PreApprovalForm() {
             Acepto la <a href="/legal/privacidad" target="_blank" className="underline">política de tratamiento de datos</a>.
           </Label>
         </div>
-        {form.formState.errors.consent && <p className="text-red-500 text-sm">{form.formState.errors.consent.message}</p>}
+        <FormError message={form.formState.errors.consent?.message} />
 
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
