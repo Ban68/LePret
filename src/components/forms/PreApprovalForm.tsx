@@ -109,28 +109,19 @@ export function PreApprovalForm() {
         <div>
           <Label htmlFor="ventasAnuales">Ventas Anuales (COP)</Label>
           <Input id="ventasAnuales" type="number" min={1} {...form.register("ventasAnuales")} />
-          <FormError
-            message={form.formState.errors.ventasAnuales?.message}
-            className="mt-1"
-          />
+
         </div>
 
         <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
             <div>
                 <Label htmlFor="facturasMes"># Facturas/Mes</Label>
                 <Input id="facturasMes" type="number" min={0} {...form.register("facturasMes")} />
-                <FormError
-                  message={form.formState.errors.facturasMes?.message}
-                  className="mt-1"
-                />
+
             </div>
             <div>
                 <Label htmlFor="ticketPromedio">Ticket Promedio Factura (COP)</Label>
                 <Input id="ticketPromedio" type="number" min={1} {...form.register("ticketPromedio")} />
-                <FormError
-                  message={form.formState.errors.ticketPromedio?.message}
-                  className="mt-1"
-                />
+
             </div>
         </div>
 

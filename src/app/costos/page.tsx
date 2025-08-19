@@ -1,3 +1,5 @@
+import { PricingExample } from '@/components/PricingExample';
+
 export default function CostosPage() {
   return (
     <div className="py-20 sm:py-24">
@@ -27,7 +29,7 @@ export default function CostosPage() {
           <p>
             No hay cargos por estudio de crédito, comisiones por desembolso, ni penalidades por prepago. Solo pagas por el servicio de anticipo de tu factura.
           </p>
-          {/* TODO: Add interactive pricing explainer if time permits */}
+          <PricingExample monto={10000000} plazo={30} />
         </div>
       </div>
     </div>

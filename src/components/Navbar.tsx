@@ -1,12 +1,28 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Logo } from './Logo';
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsMenuOpen(false);
+      }
+    };
+
+    if (isMenuOpen) {
+      document.addEventListener("keydown", handleEsc);
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [isMenuOpen]);
 
   const navLinks = [
     { href: "/soluciones/factoring-electronico", label: "Factoring" },
@@ -47,6 +63,8 @@ export function Navbar() {
               className="md:hidden"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               aria-label="Toggle menu"
+              aria-expanded={isMenuOpen}
+              aria-controls="mobile-menu"
             >
               <svg
                 className="h-6 w-6 text-lp-primary-1"
@@ -70,7 +88,10 @@ export function Navbar() {
 
       {/* Mobile Navigation Menu */}
       {isMenuOpen && (
-        <div className="md:hidden absolute top-16 left-0 w-full bg-lp-primary-2/95 backdrop-blur-sm shadow-lg z-40">
+        <div
+          id="mobile-menu"
+          className="md:hidden absolute top-16 left-0 w-full bg-lp-primary-2/95 backdrop-blur-sm shadow-lg z-40"
+        >
           <nav className="container mx-auto flex flex-col items-center space-y-4 py-8">
             {navLinks.map((link) => (
               <Link
