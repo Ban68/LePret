@@ -33,8 +33,12 @@ export function Footer() {
           <div>
             <h3 className="font-colette text-lg font-semibold text-lp-primary-1">Contacto</h3>
             <ul className="mt-4 space-y-2 text-sm text-lp-sec-3">
-              <li>Email: contacto@lepret.co</li>
-              <li>Teléfono: +57 300 123 4567</li>
+              <li>
+                Email: <a href="mailto:info@lepretcapital.com" className="text-lp-sec-3 hover:text-lp-primary-1 transition-colors">info@lepretcapital.com</a>
+              </li>
+              <li>
+                Teléfono: <a href="tel:+573162793379" className="text-lp-sec-3 hover:text-lp-primary-1 transition-colors">+57 316 2793379</a>
+              </li>
               <li>Bogotá, Colombia</li>
             </ul>
           </div>
