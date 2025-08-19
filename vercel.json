@@ -1,0 +1,5 @@
+{
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "runtime": "nodejs20.x"
+}
