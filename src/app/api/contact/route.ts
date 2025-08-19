@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { ContactValidator } from '@/lib/validators/contact';
 import { z } from 'zod';
