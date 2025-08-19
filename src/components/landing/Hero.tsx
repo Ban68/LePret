@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 
 export function Hero() {
@@ -20,10 +21,15 @@ export function Hero() {
           </Button>
         </div>
         <div className="mt-16 flow-root">
-            {/* Placeholder for mockup dashboard */}
             <div className="rounded-2xl bg-lp-sec-4 p-2 ring-1 ring-inset ring-lp-sec-1/10 lg:p-4">
-                <div className="bg-white rounded-xl shadow-2xl ring-1 ring-gray-900/10 h-96 flex items-center justify-center">
-                    <p className="text-lp-sec-1">Dashboard Mockup</p>
+                <div className="bg-white rounded-xl shadow-2xl ring-1 ring-gray-900/10 h-96 overflow-hidden">
+                    <Image
+                      src="/liquidez.png"
+                      alt="Dashboard Mockup"
+                      width={1024}
+                      height={768}
+                      className="h-full w-full object-cover"
+                    />
                 </div>
             </div>
         </div>
