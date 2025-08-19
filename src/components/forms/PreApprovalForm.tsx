@@ -32,9 +32,15 @@ export function PreApprovalForm() {
   });
 
   const onSubmit = async (data: PreapprovalFormValues) => {
-    setIsLoading(true);
     setError(null);
     setResult(null);
+
+    if (data.ventasAnuales < 1 || data.facturasMes < 0 || data.ticketPromedio < 1) {
+      setError('Por favor ingresa valores válidos.');
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
       const response = await fetch('/api/preapproval', {
@@ -98,19 +104,19 @@ export function PreApprovalForm() {
         
         <div>
           <Label htmlFor="ventasAnuales">Ventas Anuales (COP)</Label>
-          <Input id="ventasAnuales" type="number" {...form.register("ventasAnuales")} />
+          <Input id="ventasAnuales" type="number" min={1} {...form.register("ventasAnuales")} />
           {form.formState.errors.ventasAnuales && <p className="text-red-500 text-sm mt-1">{form.formState.errors.ventasAnuales.message}</p>}
         </div>
 
         <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
             <div>
                 <Label htmlFor="facturasMes"># Facturas/Mes</Label>
-                <Input id="facturasMes" type="number" {...form.register("facturasMes")} />
+                <Input id="facturasMes" type="number" min={0} {...form.register("facturasMes")} />
                 {form.formState.errors.facturasMes && <p className="text-red-500 text-sm mt-1">{form.formState.errors.facturasMes.message}</p>}
             </div>
             <div>
                 <Label htmlFor="ticketPromedio">Ticket Promedio Factura (COP)</Label>
-                <Input id="ticketPromedio" type="number" {...form.register("ticketPromedio")} />
+                <Input id="ticketPromedio" type="number" min={1} {...form.register("ticketPromedio")} />
                 {form.formState.errors.ticketPromedio && <p className="text-red-500 text-sm mt-1">{form.formState.errors.ticketPromedio.message}</p>}
             </div>
         </div>
