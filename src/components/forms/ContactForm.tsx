@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Toaster, toast } from "sonner";
 import { useState } from "react";
+import { FormError } from "./FormError";
 
 export function ContactForm() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -57,13 +58,19 @@ export function ContactForm() {
         <div>
           <Label htmlFor="nombre">Nombre Completo</Label>
           <Input id="nombre" {...form.register("nombre")} />
-          {form.formState.errors.nombre && <p className="text-red-500 text-sm mt-1">{form.formState.errors.nombre.message}</p>}
+          <FormError
+            message={form.formState.errors.nombre?.message}
+            className="mt-1"
+          />
         </div>
         
         <div>
           <Label htmlFor="email">Email de Contacto</Label>
           <Input id="email" type="email" {...form.register("email")} />
-          {form.formState.errors.email && <p className="text-red-500 text-sm mt-1">{form.formState.errors.email.message}</p>}
+          <FormError
+            message={form.formState.errors.email?.message}
+            className="mt-1"
+          />
         </div>
 
         <div>
@@ -74,7 +81,10 @@ export function ContactForm() {
         <div>
           <Label htmlFor="mensaje">Mensaje</Label>
           <Textarea id="mensaje" rows={5} {...form.register("mensaje")} />
-          {form.formState.errors.mensaje && <p className="text-red-500 text-sm mt-1">{form.formState.errors.mensaje.message}</p>}
+          <FormError
+            message={form.formState.errors.mensaje?.message}
+            className="mt-1"
+          />
         </div>
 
         <Button type="submit" disabled={isLoading} className="w-full" size="lg">
