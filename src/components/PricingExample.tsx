@@ -35,7 +35,7 @@ export function PricingExample({ monto, plazo }: PricingExampleProps) {
   return (
     <div className="mt-8 rounded-lg border border-lp-sec-4/50 bg-lp-primary-1/5 p-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
+        <div className="space-y-2">
           <Label htmlFor="monto">Monto de la factura (COP)</Label>
           <Input
             id="monto"
@@ -45,7 +45,7 @@ export function PricingExample({ monto, plazo }: PricingExampleProps) {
             onChange={handleAmountChange}
           />
         </div>
-        <div>
+        <div className="space-y-2">
           <Label htmlFor="plazo">Plazo (días)</Label>
           <Input
             id="plazo"
