@@ -1,8 +1,8 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { PreapprovalValidator, PreapprovalRequest } from "@/lib/validators/preapproval";
+import { PreapprovalValidator, type PreapprovalFormValues } from "@/lib/validators/preapproval";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,21 +17,21 @@ export function PreApprovalForm() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ cupoEstimado: number; message: string; nextSteps: string } | null>(null);
 
-  const form = useForm<PreapprovalRequest>({
-    resolver: zodResolver(PreapprovalValidator),
+  const form = useForm<PreapprovalFormValues>({
+    resolver: zodResolver(PreapprovalValidator) as Resolver<PreapprovalFormValues>,
     defaultValues: {
       nit: "",
       razonSocial: "",
-      ventasAnuales: undefined,
-      facturasMes: undefined,
-      ticketPromedio: undefined,
+      ventasAnuales: 0,
+      facturasMes: 0,
+      ticketPromedio: 0,
       email: "",
       telefono: "",
       consent: false,
     },
   });
 
-  const onSubmit = async (data: PreapprovalRequest) => {
+  const onSubmit = async (data: PreapprovalFormValues) => {
     setIsLoading(true);
     setError(null);
     setResult(null);
