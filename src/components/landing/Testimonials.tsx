@@ -1,4 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   Carousel,
   CarouselContent,
@@ -25,9 +26,13 @@ const testimonials = [
   },
 ];
 
-export function Testimonials() {
+interface TestimonialsProps {
+  backgroundClass?: string;
+}
+
+export function Testimonials({ backgroundClass = "" }: TestimonialsProps) {
   return (
-    <section className="py-20 sm:py-32 bg-lp-sec-2">
+    <section className={cn("py-20 sm:py-32", backgroundClass)}>
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h2 className="font-colette text-3xl font-bold tracking-tight text-neutral-800 sm:text-4xl">

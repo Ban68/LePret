@@ -7,6 +7,7 @@ import {
   LifeBuoy,
   type LucideIcon,
 } from 'lucide-react';
+import { cn } from "@/lib/utils";
 
 const benefits: {
   name: string;
@@ -51,9 +52,13 @@ const benefits: {
   },
 ];
 
-export function Benefits() {
+interface BenefitsProps {
+  backgroundClass?: string;
+}
+
+export function Benefits({ backgroundClass = "" }: BenefitsProps) {
   return (
-    <section className="py-20 sm:py-32 bg-lp-sec-4">
+    <section className={cn("py-20 sm:py-32", backgroundClass)}>
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h2 className="font-colette text-3xl font-bold tracking-tight text-lp-primary-1 sm:text-4xl">
