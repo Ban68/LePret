@@ -1,39 +1,40 @@
-import Link from 'next/link';
-import Image from 'next/image';
-import { Button } from '@/components/ui/button';
+import Image from "next/image"
+import { Btn } from "@/components/ui/btn"
+import { Section } from "@/components/layout/Section"
 
-export function Hero() {
+export default function Hero() {
   return (
-    <section className="py-20 sm:py-32 bg-lp-primary-2">
-      <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
-        <h1 className="font-colette text-4xl font-bold tracking-tight text-lp-primary-1 sm:text-5xl lg:text-6xl">
-          Liquidez inmediata para tus facturas electrónicas
-        </h1>
-        <p className="mt-6 text-lg leading-8 text-lp-sec-3 max-w-2xl mx-auto">
-          Proceso 100% en línea. Preaprobación en minutos. Desembolso ágil. Sin afectar tu capacidad de crédito.
-        </p>
-        <div className="mt-10 flex items-center justify-center gap-x-6">
-          <Button asChild size="lg">
-            <Link href="/preaprobacion">Conocer mi cupo</Link>
-          </Button>
-          <Button asChild variant="link" className="text-lp-primary-1">
-            <Link href="/contacto">Hablar con un asesor <span aria-hidden="true">→</span></Link>
-          </Button>
+    <Section className="bg-lp-primary2">
+      <div className="py-16 md:py-24 grid lg:grid-cols-2 gap-10 items-center">
+        <div>
+          <h1 className="h1">Liquidez inmediata para tus <span className="whitespace-nowrap">facturas electrónicas</span></h1>
+          <p className="lead mt-4">Proceso 100% en línea. Preaprobación en minutos. Desembolso ágil. Sin afectar tu capacidad de crédito.</p>
+          <ul className="mt-6 space-y-2 text-neutral-700">
+            <li>• Conectado a facturación electrónica (DIAN/RADIAN)</li>
+            <li>• Fondos en 24–48 horas</li>
+            <li>• Transparencia y costos claros</li>
+          </ul>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Btn>Conocer mi cupo</Btn>
+            <Btn variant="ghost">Hablar con un asesor →</Btn>
+          </div>
         </div>
-        <div className="mt-16 flow-root">
-            <div className="rounded-2xl bg-lp-sec-4 p-2 ring-1 ring-inset ring-lp-sec-1/10 lg:p-4">
-                <div className="bg-white rounded-xl shadow-2xl ring-1 ring-gray-900/10 h-96 overflow-hidden">
-                    <Image
-                      src="/liquidez.png"
-                      alt="Dashboard Mockup"
-                      width={1024}
-                      height={768}
-                      className="h-full w-full object-cover"
-                    />
-                </div>
-            </div>
+
+        <div className="relative">
+          {/* Fondo suave detrás de la imagen */}
+          <div className="absolute inset-6 -z-10 rounded-3xl bg-lp-sec4/70 blur-2xl" />
+          <div className="rounded-3xl border border-lp-sec1/40 bg-white shadow-card overflow-hidden">
+            <Image
+              src="/liquidez.png"   // tu imagen en /public
+              alt="Liquidez, agilidad y simplicidad"
+              width={1200}
+              height={700}
+              className="w-full h-auto"
+              priority
+            />
+          </div>
         </div>
       </div>
-    </section>
-  );
+    </Section>
+  )
 }
