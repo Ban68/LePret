@@ -39,7 +39,7 @@ export function Footer() {
               <li>
                 Teléfono: <a href="tel:+573162793379" className="hover:underline transition-colors">+57 316 2793379</a>
               </li>
-              <li>Bogotá, Colombia</li>
+              <li>Santa Marta, Colombia</li>
             </ul>
           </div>
         </div>
