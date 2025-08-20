@@ -1,33 +1,24 @@
 @import "tailwindcss";
 
-/* --- LePrêt color variables --- */
-:root {
-  /* Base palette sourced from Tailwind config */
-  --lp-primary-1: #18240f; /* verde oscuro */
-  --lp-primary-2: #fffffa; /* crema (casi blanco) */
-  --lp-sec-1: #afb6a6; /* gris verdoso */
-  --lp-sec-2: #ead4ff; /* lila claro */
-  --lp-sec-3: #5d3f3c; /* vino/marrón */
-  --lp-sec-4: #f2ede1; /* beige */
+@theme inline {
+  /* LePrêt color variables */
+  --color-lp-primary-1: #18240f; /* VERDE OSCURO (Color Principal 1) */
+  --color-lp-primary-2: #fffffa; /* CREMA (Color Principal 2) */
+  --color-lp-sec-1: #afb6a6;     /* Gris verdoso */
+  --color-lp-sec-2: #afb6a6;     /* Gris verdoso */
+  --color-lp-sec-3: #5d3f3c;     /* Vino/Marrón */
+  --color-lp-sec-4: #f2ede1;     /* Beige */
 
   /* Shadcn/ui theme variables */
-  --background: var(--lp-primary-2);
-  --foreground: var(--lp-primary-1);
+  --color-background: var(--color-lp-primary-2);
+  --color-foreground: var(--color-lp-primary-1);
 
-  /* Legacy helpers */
-  --lp-bg: var(--lp-primary-2);
-  --lp-fg: var(--lp-primary-1);
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-kollektif); /* Will be set in layout.tsx */
 }
 
 body {
-  background: var(--lp-bg);
-  color: var(--lp-fg);
+  background: var(--color-background);
+  color: var(--color-foreground);
 }
 
 /* Jerarquía */

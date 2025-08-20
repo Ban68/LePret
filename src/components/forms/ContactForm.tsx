@@ -56,7 +56,7 @@ export function ContactForm() {
       <Toaster richColors />
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div>
-          <Label htmlFor="nombre">Nombre Completo</Label>
+          <Label htmlFor="nombre" className="mb-2">Nombre Completo</Label>
           <Input id="nombre" {...form.register("nombre")} />
           <FormError
             message={form.formState.errors.nombre?.message}
@@ -65,7 +65,7 @@ export function ContactForm() {
         </div>
         
         <div>
-          <Label htmlFor="email">Email de Contacto</Label>
+          <Label htmlFor="email" className="mb-2">Email de Contacto</Label>
           <Input id="email" type="email" {...form.register("email")} />
           <FormError
             message={form.formState.errors.email?.message}
@@ -74,12 +74,12 @@ export function ContactForm() {
         </div>
 
         <div>
-          <Label htmlFor="telefono">Teléfono (Opcional)</Label>
+          <Label htmlFor="telefono" className="mb-2">Teléfono (Opcional)</Label>
           <Input id="telefono" {...form.register("telefono")} />
         </div>
 
         <div>
-          <Label htmlFor="mensaje">Mensaje</Label>
+          <Label htmlFor="mensaje" className="mb-2">Mensaje</Label>
           <Textarea id="mensaje" rows={5} {...form.register("mensaje")} />
           <FormError
             message={form.formState.errors.mensaje?.message}

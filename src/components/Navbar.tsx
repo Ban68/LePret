@@ -33,11 +33,11 @@ export function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b border-lp-sec-4/50 bg-lp-primary-2/80 backdrop-blur-sm">
+      <header className="sticky top-0 z-50 w-full border-b border-lp-sec-4/50 bg-lp-primary-1 backdrop-blur-sm">
         <div className="container mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center space-x-2" onClick={() => setIsMenuOpen(false)}>
             <Logo />
-            <span className="font-colette text-xl font-bold text-lp-primary-1">
+            <span className="font-colette text-xl font-bold text-lp-primary-2">
               LePrêt Capital
             </span>
           </Link>
@@ -45,7 +45,7 @@ export function Navbar() {
           {/* Desktop Navigation */}
           <nav className="hidden items-center space-x-6 md:flex">
             {navLinks.map((link) => (
-              <Link key={link.href} href={link.href} className="text-sm font-medium text-lp-primary-1/80 transition-colors hover:text-lp-primary-1">
+              <Link key={link.href} href={link.href} className="text-sm font-medium text-lp-primary-2/80 transition-colors hover:text-lp-primary-2">
                 {link.label}
               </Link>
             ))}
@@ -53,7 +53,7 @@ export function Navbar() {
 
           <div className="flex items-center space-x-4">
             <div className="hidden md:block">
-              <Button asChild>
+              <Button asChild className="text-lp-primary-2">
                 <Link href="/preaprobacion">Conocer mi cupo</Link>
               </Button>
             </div>
@@ -67,7 +67,7 @@ export function Navbar() {
               aria-controls="mobile-menu"
             >
               <svg
-                className="h-6 w-6 text-lp-primary-1"
+                className="h-6 w-6 text-lp-primary-2"
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -97,7 +97,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-lg font-medium text-lp-primary-1 transition-colors hover:text-lp-sec-3"
+                className="text-lg font-medium text-lp-primary-2 transition-colors hover:text-lp-sec-3"
                 onClick={() => setIsMenuOpen(false)}
               >
                 {link.label}
