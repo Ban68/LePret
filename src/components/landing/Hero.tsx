@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
+
 import { Button } from '@/components/ui/button';
 import { Section } from '@/components/layout/Section';
 
@@ -31,6 +32,7 @@ export function Hero() {
               className="h-full w-full object-cover"
             />
           </div>
+
         </div>
       </div>
     </Section>
