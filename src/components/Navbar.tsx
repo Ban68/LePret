@@ -35,7 +35,7 @@ export function Navbar() {
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-lp-sec-4/50 bg-lp-primary-1 backdrop-blur-sm">
-        <div className="container mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="container mx-auto flex h-16 max-w-7xl items-center justify-center">
           <Link href="/" className="flex items-center space-x-2" onClick={() => setIsMenuOpen(false)}>
             <Logo />
             <Image src="/LePretSinFondo.png" alt="LePrêt Capital" width={281} height={281} className="mt-[-15px]" />
