@@ -10,24 +10,14 @@ export default function Home() {
   return (
     <>
       <Hero />
-      <section className="py-20 sm:py-32 bg-lp-sec-2">
-        <HowItWorks />
-      </section>
-      <section className="py-20 sm:py-32 bg-lp-sec-4">
-        <Benefits />
-      </section>
-      <section className="py-20 sm:py-32 bg-lp-primary-2">
-        <TrustMetrics />
-      </section>
-      <section className="py-20 sm:py-24 bg-lp-sec-1">
-        <Allies />
-      </section>
-      <section className="py-20 sm:py-32 bg-lp-sec-3">
-        <Testimonials />
-      </section>
-      <section className="py-20 sm:py-32 bg-white">
-        <Faq />
-      </section>
+
+      <HowItWorks backgroundClass="bg-lp-sec-4" />
+      <Benefits backgroundClass="bg-lp-sec-4" />
+      <TrustMetrics backgroundClass="bg-lp-primary-2" />
+      <Allies backgroundClass="bg-lp-primary-2" />
+      <Testimonials backgroundClass="bg-lp-sec-2" />
+      <Faq backgroundClass="bg-lp-primary-2" />
+
     </>
   );
 }

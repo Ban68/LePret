@@ -4,6 +4,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
 
 const faqs = [
   {
@@ -28,13 +29,19 @@ const faqs = [
   },
 ];
 
-export function Faq() {
+interface FaqProps {
+  backgroundClass?: string;
+}
+
+export function Faq({ backgroundClass = "" }: FaqProps) {
   return (
+
     <div className="container mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
       <div className="text-center">
         <h2 className="font-colette text-3xl font-bold tracking-tight text-lp-primary-1 sm:text-4xl">
           Preguntas Frecuentes
         </h2>
+
       </div>
       <Accordion type="single" collapsible className="w-full mt-16">
         {faqs.map((faq, index) => (

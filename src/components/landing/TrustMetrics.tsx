@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+
 const metrics = [
   { name: 'Facturas financiadas', value: '+1,200' },
   { name: 'Fondos desembolsados', value: '+$15M' },
@@ -5,8 +7,13 @@ const metrics = [
   { name: 'Tiempo de aprobación', value: '<24h' },
 ];
 
-export function TrustMetrics() {
+interface TrustMetricsProps {
+  backgroundClass?: string;
+}
+
+export function TrustMetrics({ backgroundClass = "" }: TrustMetricsProps) {
   return (
+
     <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <div className="grid grid-cols-1 gap-x-8 gap-y-16 text-center lg:grid-cols-4">
         {metrics.map((metric) => (
@@ -17,6 +24,7 @@ export function TrustMetrics() {
             <p className="mt-1 text-base leading-7 text-lp-sec-3">{metric.name}</p>
           </div>
         ))}
+
       </div>
     </div>
   );

@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+
 const allies = [
   'Colombia Fintech',
   'ISO 27001 (en proceso)',
@@ -6,8 +8,13 @@ const allies = [
   'CCB',
 ];
 
-export function Allies() {
+interface AlliesProps {
+  backgroundClass?: string;
+}
+
+export function Allies({ backgroundClass = "" }: AlliesProps) {
   return (
+
     <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <h2 className="text-center font-colette text-2xl font-semibold leading-8 text-lp-primary-1">
         Con la confianza y el respaldo de
@@ -18,6 +25,7 @@ export function Allies() {
             <p className="text-lg text-lp-sec-3 font-semibold">{ally}</p>
           </div>
         ))}
+
       </div>
     </div>
   );
