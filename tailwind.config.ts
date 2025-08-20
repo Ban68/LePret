@@ -9,12 +9,23 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        'lp-primary-1': '#18240f',
-        'lp-primary-2': '#fffffa',
-        'lp-sec-1': '#afb6a6',
-        'lp-sec-2': '#ead4ff',
-        'lp-sec-3': '#5d3f3c',
-        'lp-sec-4': '#f2ede1',
+        lp: {
+          primary1: "#18240f", // verde oscuro
+          primary2: "#fffffa", // crema (casi blanco)
+          sec1: "#afb6a6", // gris verdoso
+          sec2: "#ead4ff", // lila claro
+          sec3: "#5d3f3c", // vino/marrón
+          sec4: "#f2ede1", // beige
+        },
+      },
+      borderRadius: {
+        xl: "1rem",
+        "2xl": "1.25rem",
+        "3xl": "1.5rem",
+      },
+      boxShadow: {
+        card: "0 12px 24px -12px rgba(0,0,0,0.18)",
+        soft: "0 8px 14px -8px rgba(0,0,0,0.12)",
       },
       fontFamily: {
         colette: ['var(--font-colette)'],
