@@ -10,12 +10,12 @@ const config: Config = {
     extend: {
       colors: {
         lp: {
-          primary1: "#18240f", // verde oscuro
-          primary2: "#fffffa", // crema (casi blanco)
-          sec1: "#afb6a6", // gris verdoso
-          sec2: "#ead4ff", // lila claro
-          sec3: "#5d3f3c", // vino/marrón
-          sec4: "#f2ede1", // beige
+          "primary-1": "#18240f", // verde oscuro
+          "primary-2": "#fffffa", // crema (casi blanco)
+          "sec-1": "#afb6a6", // gris verdoso
+          "sec-2": "#ead4ff", // lila claro
+          "sec-3": "#5d3f3c", // vino/marrón
+          "sec-4": "#f2ede1", // beige
         },
         // shadcn/ui theme
         primary: "#18240f",

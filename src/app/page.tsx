@@ -10,19 +10,19 @@ export default function Home() {
   return (
     <>
       <Hero />
-      <section className="py-20 bg-lp-sec4">
+      <section className="py-20 bg-lp-sec-4">
         <HowItWorks />
       </section>
       <section className="py-20">
         <Benefits />
       </section>
-      <section className="py-20 bg-lp-sec4">
+      <section className="py-20 bg-lp-sec-4">
         <TrustMetrics />
       </section>
       <section className="py-20">
         <Allies />
       </section>
-      <section className="py-20 bg-lp-sec4">
+      <section className="py-20 bg-lp-sec-4">
         <Testimonials />
       </section>
       <section className="py-20">
