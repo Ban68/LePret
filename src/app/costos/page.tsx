@@ -7,7 +7,7 @@ export default function CostosPage() {
         <h1 className="font-colette text-3xl font-bold tracking-tight text-lp-primary-1 sm:text-4xl text-center">
           Transparencia de Costos
         </h1>
-        <div className="mt-10 text-lg leading-8 text-lp-sec-3 space-y-6">
+        <div className="mt-10 text-lg leading-8 text-lp-sec-3 space-y-6 text-justify">
           <p>
             En LePrêt Capital, creemos en la transparencia total. Nuestros costos son claros y sin letra pequeña, para que siempre sepas exactamente cuánto pagarás.
           </p>
