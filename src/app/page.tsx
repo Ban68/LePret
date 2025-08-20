@@ -10,12 +10,24 @@ export default function Home() {
   return (
     <>
       <Hero />
-      <HowItWorks />
-      <Benefits />
-      <TrustMetrics />
-      <Allies />
-      <Testimonials />
-      <Faq />
+      <section className="py-20 bg-lp-sec4">
+        <HowItWorks />
+      </section>
+      <section className="py-20">
+        <Benefits />
+      </section>
+      <section className="py-20 bg-lp-sec4">
+        <TrustMetrics />
+      </section>
+      <section className="py-20">
+        <Allies />
+      </section>
+      <section className="py-20 bg-lp-sec4">
+        <Testimonials />
+      </section>
+      <section className="py-20">
+        <Faq />
+      </section>
     </>
   );
 }

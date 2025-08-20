@@ -17,6 +17,15 @@ const config: Config = {
           sec3: "#5d3f3c", // vino/marrón
           sec4: "#f2ede1", // beige
         },
+        // shadcn/ui theme
+        primary: "#18240f",
+        "primary-foreground": "#fffffa",
+        secondary: "#afb6a6",
+        "secondary-foreground": "#18240f",
+        accent: "#f2ede1",
+        "accent-foreground": "#18240f",
+        background: "#fffffa",
+        foreground: "#18240f",
       },
       borderRadius: {
         xl: "1rem",
