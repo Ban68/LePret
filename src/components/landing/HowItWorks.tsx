@@ -1,3 +1,5 @@
+import { Card, CardContent } from "@/components/ui/card";
+
 const steps = [
   {
     name: 'Regístrate y conecta',
@@ -18,7 +20,7 @@ const steps = [
 
 export function HowItWorks() {
   return (
-    <section className="py-20 sm:py-32 bg-lp-primary-2">
+    <section className="py-20 sm:py-32 bg-lp-sec-4">
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h2 className="font-colette text-3xl font-bold tracking-tight text-lp-primary-1 sm:text-4xl">
@@ -30,13 +32,22 @@ export function HowItWorks() {
         </div>
         <div className="mt-16 grid grid-cols-1 gap-8 md:grid-cols-3 md:gap-12">
           {steps.map((step) => (
-            <div key={step.name} className="text-center">
-              <div className="flex items-center justify-center">
-                <span className="text-4xl font-bold font-colette text-lp-primary-1">{step.icon}</span>
-              </div>
-              <h3 className="mt-5 font-colette text-xl font-semibold text-lp-primary-1">{step.name}</h3>
-              <p className="mt-2 text-base text-lp-sec-3">{step.description}</p>
-            </div>
+            <Card
+              key={step.name}
+              className="text-center rounded-2xl border-lp-sec-1/40 bg-white"
+            >
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-center">
+                  <span className="text-4xl font-bold font-colette text-lp-primary-1">
+                    {step.icon}
+                  </span>
+                </div>
+                <h3 className="mt-5 font-colette text-xl font-semibold text-lp-primary-1">
+                  {step.name}
+                </h3>
+                <p className="mt-2 text-base text-lp-sec-3">{step.description}</p>
+              </CardContent>
+            </Card>
           ))}
         </div>
       </div>
