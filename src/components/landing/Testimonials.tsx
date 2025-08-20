@@ -27,10 +27,10 @@ const testimonials = [
 
 export function Testimonials() {
   return (
-    <section className="py-20 sm:py-32 bg-lp-sec-4">
+    <section className="py-20 sm:py-32 bg-lp-sec-2">
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center">
-          <h2 className="font-colette text-3xl font-bold tracking-tight text-lp-primary-1 sm:text-4xl">
+          <h2 className="font-colette text-3xl font-bold tracking-tight text-neutral-800 sm:text-4xl">
             Lo que dicen nuestros clientes
           </h2>
         </div>
@@ -45,12 +45,12 @@ export function Testimonials() {
             {testimonials.map((testimonial, index) => (
               <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
                 <div className="p-1">
-                  <Card className="bg-lp-primary-2 border-lp-sec-1/20 shadow-lg">
+                  <Card className="bg-white shadow-lg">
                     <CardContent className="flex flex-col items-start p-6">
-                      <p className="text-base text-lp-sec-3 italic">&ldquo;{testimonial.quote}&rdquo;</p>
+                      <p className="text-base text-neutral-800 italic">&ldquo;{testimonial.quote}&rdquo;</p>
                       <div className="mt-4">
-                        <p className="font-bold text-lp-primary-1">{testimonial.name}</p>
-                        <p className="text-sm text-lp-sec-3">{testimonial.company}</p>
+                        <p className="font-bold text-neutral-900">{testimonial.name}</p>
+                        <p className="text-sm text-neutral-700">{testimonial.company}</p>
                       </div>
                     </CardContent>
                   </Card>
