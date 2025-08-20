@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Logo } from './Logo';
+import Image from 'next/image';
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -17,7 +18,7 @@ export function Navbar() {
 
     if (isMenuOpen) {
       document.addEventListener("keydown", handleEsc);
-    }
+    };
 
     return () => {
       document.removeEventListener("keydown", handleEsc);
@@ -37,9 +38,7 @@ export function Navbar() {
         <div className="container mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center space-x-2" onClick={() => setIsMenuOpen(false)}>
             <Logo />
-            <span className="font-colette text-xl font-bold text-lp-primary-2">
-              LePrêt Capital
-            </span>
+            <Image src="/LePretSinFondo.png" alt="LePrêt Capital" width={281} height={281} className="mt-[-15px]" />
           </Link>
           
           {/* Desktop Navigation */}
