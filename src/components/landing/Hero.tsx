@@ -1,9 +1,13 @@
+
 import Image from "next/image"
 import { Btn } from "@/components/ui/btn"
 import { Section } from "@/components/layout/Section"
 
+
+
 export default function Hero() {
   return (
+
     <Section className="bg-lp-primary2">
       <div className="py-16 md:py-24 grid lg:grid-cols-2 gap-10 items-center">
         <div>
@@ -37,4 +41,5 @@ export default function Hero() {
       </div>
     </Section>
   )
+
 }
