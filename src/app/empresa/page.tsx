@@ -5,7 +5,7 @@ export default function EmpresaPage() {
         <h1 className="font-colette text-3xl font-bold tracking-tight text-lp-primary-1 sm:text-4xl text-center">
           Quiénes Somos
         </h1>
-        <div className="mt-10 text-lg leading-8 text-lp-sec-3 space-y-6">
+        <div className="mt-10 text-lg leading-8 text-lp-sec-3 space-y-6 text-justify">
           <p>
             En LePrêt Capital, somos una fintech colombiana dedicada a impulsar el crecimiento de las PYMES a través de soluciones de liquidez ágiles y transparentes. Nuestra misión es transformar la forma en que las empresas acceden a capital de trabajo, eliminando la complejidad y la burocracia de los procesos tradicionales.
           </p>
