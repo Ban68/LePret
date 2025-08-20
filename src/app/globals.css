@@ -15,3 +15,21 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/* --- LePrêt tokens / helpers --- */
+:root {
+  --lp-bg: #fffffa;
+  --lp-fg: #18240f;
+}
+
+body { background: var(--lp-bg); color: var(--lp-fg); }
+
+/* Jerarquía */
+.h1{ @apply font-semibold tracking-tight text-[40px] leading-tight md:text-5xl; }
+.h2{ @apply font-semibold tracking-tight text-3xl md:text-4xl; }
+.h3{ @apply font-semibold tracking-tight text-xl md:text-2xl; }
+.lead{ @apply text-lg md:text-xl text-neutral-700; }
+
+/* Contenedor estándar */
+.section { @apply px-4 sm:px-6 lg:px-8; }
+.section-inner { @apply mx-auto w-full max-w-6xl; }
