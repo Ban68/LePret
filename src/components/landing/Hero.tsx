@@ -23,13 +23,13 @@ export function Hero() {
       </div>
       <div className="mt-16 flow-root">
         <div className="rounded-2xl bg-lp-sec-4 p-2 ring-1 ring-inset ring-lp-sec-1/10 lg:p-4">
-          <div className="bg-white rounded-xl shadow-2xl ring-1 ring-gray-900/10 h-96 overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl ring-1 ring-gray-900/10 overflow-hidden">
             <Image
               src="/liquidez.png"
               alt="Dashboard Mockup"
               width={1024}
               height={768}
-              className="h-full w-full object-contain"
+              className="w-full object-contain"
             />
           </div>
 
