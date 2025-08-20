@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Button } from '@/components/ui/button';
+import { Btn } from '@/components/ui/btn';
 
 export function Hero() {
   return (
@@ -13,12 +13,12 @@ export function Hero() {
           Proceso 100% en línea. Preaprobación en minutos. Desembolso ágil. Sin afectar tu capacidad de crédito.
         </p>
         <div className="mt-10 flex items-center justify-center gap-x-6">
-          <Button asChild size="lg">
+          <Btn asChild size="lg">
             <Link href="/preaprobacion">Conocer mi cupo</Link>
-          </Button>
-          <Button asChild variant="link" className="text-lp-primary-1">
+          </Btn>
+          <Btn asChild variant="link" className="text-lp-primary-1">
             <Link href="/contacto">Hablar con un asesor <span aria-hidden="true">→</span></Link>
-          </Button>
+          </Btn>
         </div>
         <div className="mt-16 flow-root">
             <div className="rounded-2xl bg-lp-sec-4 p-2 ring-1 ring-inset ring-lp-sec-1/10 lg:p-4">
