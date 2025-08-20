@@ -1,4 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 const steps = [
   {
@@ -18,9 +19,13 @@ const steps = [
   },
 ];
 
-export function HowItWorks() {
+interface HowItWorksProps {
+  backgroundClass?: string;
+}
+
+export function HowItWorks({ backgroundClass = "" }: HowItWorksProps) {
   return (
-    <section className="py-20 sm:py-32 bg-lp-sec-4">
+    <section className={cn("py-20 sm:py-32", backgroundClass)}>
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h2 className="font-colette text-3xl font-bold tracking-tight text-lp-primary-1 sm:text-4xl">

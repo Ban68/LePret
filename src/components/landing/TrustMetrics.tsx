@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+
 const metrics = [
   { name: 'Facturas financiadas', value: '+1,200' },
   { name: 'Fondos desembolsados', value: '+$15M' },
@@ -5,9 +7,13 @@ const metrics = [
   { name: 'Tiempo de aprobación', value: '<24h' },
 ];
 
-export function TrustMetrics() {
+interface TrustMetricsProps {
+  backgroundClass?: string;
+}
+
+export function TrustMetrics({ backgroundClass = "" }: TrustMetricsProps) {
   return (
-    <section className="py-20 sm:py-32 bg-lp-primary-2">
+    <section className={cn("py-20 sm:py-32", backgroundClass)}>
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-x-8 gap-y-16 text-center lg:grid-cols-4">
           {metrics.map((metric) => (
