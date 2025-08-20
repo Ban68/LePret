@@ -1,8 +1,22 @@
 @import "tailwindcss";
 
+/* --- LePrêt color variables --- */
 :root {
-  --background: #fffffa; /* crema */
-  --foreground: #18240f; /* verde oscuro */
+  /* Base palette sourced from Tailwind config */
+  --lp-primary-1: #18240f; /* verde oscuro */
+  --lp-primary-2: #fffffa; /* crema (casi blanco) */
+  --lp-sec-1: #afb6a6; /* gris verdoso */
+  --lp-sec-2: #ead4ff; /* lila claro */
+  --lp-sec-3: #5d3f3c; /* vino/marrón */
+  --lp-sec-4: #f2ede1; /* beige */
+
+  /* Shadcn/ui theme variables */
+  --background: var(--lp-primary-2);
+  --foreground: var(--lp-primary-1);
+
+  /* Legacy helpers */
+  --lp-bg: var(--lp-primary-2);
+  --lp-fg: var(--lp-primary-1);
 }
 
 @theme inline {
@@ -12,17 +26,9 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--lp-bg);
+  color: var(--lp-fg);
 }
-
-/* --- LePrêt tokens / helpers --- */
-:root {
-  --lp-bg: #fffffa;
-  --lp-fg: #18240f;
-}
-
-body { background: var(--lp-bg); color: var(--lp-fg); }
 
 /* Jerarquía */
 .h1{ @apply font-semibold tracking-tight text-[40px] leading-tight md:text-5xl; }
