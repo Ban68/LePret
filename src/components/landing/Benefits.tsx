@@ -70,7 +70,11 @@ export function Benefits({ backgroundClass = "" }: BenefitsProps) {
         </div>
         <div className="mt-16 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
           {benefits.map((benefit) => (
-            <div key={benefit.name} className="flex items-start gap-4">
+            <div
+              key={benefit.name}
+              tabIndex={0}
+              className="flex items-start gap-4 rounded-lg transition hover:shadow-lg hover:-translate-y-1 focus-visible:outline-none focus-visible:shadow-lg focus-visible:-translate-y-1"
+            >
               <div className="flex h-12 w-12 flex-none items-center justify-center rounded-lg bg-lp-primary-2">
                 <benefit.icon className="size-6 text-lp-primary-1" aria-hidden="true" />
               </div>
