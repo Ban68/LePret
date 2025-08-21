@@ -23,7 +23,14 @@ export function Allies({ backgroundClass = "" }: AlliesProps) {
         <div className="mx-auto mt-10 grid max-w-lg grid-cols-2 items-center gap-x-8 gap-y-10 sm:max-w-xl sm:grid-cols-3 lg:mx-0 lg:max-w-none">
           {allies.map((ally) => (
             <div key={ally.alt} className="flex justify-center">
-              <Image src={ally.src} alt={ally.alt} width={120} height={60} />
+              <Image
+                src={ally.src}
+                alt={ally.alt}
+                width={120}
+                height={60}
+                loading="lazy"
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 120px"
+              />
             </div>
           ))}
         </div>
