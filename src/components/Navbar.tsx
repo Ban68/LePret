@@ -42,9 +42,13 @@ export function Navbar() {
           </Link>
           
           {/* Desktop Navigation */}
-          <nav className="hidden items-center space-x-6 md:flex ml-36">
+          <nav className="hidden items-center space-x-4 md:flex ml-36">
             {navLinks.map((link) => (
-              <Link key={link.href} href={link.href} className="text-sm font-medium text-lp-primary-2/80 transition-colors hover:text-lp-primary-2">
+              <Link
+                key={link.href}
+                href={link.href}
+                className="rounded-md px-3 py-2 text-sm font-medium text-lp-primary-2/80 transition-colors hover:bg-lp-primary-2/10 hover:text-lp-primary-2"
+              >
                 {link.label}
               </Link>
             ))}
@@ -96,7 +100,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-lg font-medium text-lp-primary-2 transition-colors hover:text-lp-sec-3"
+                className="w-full rounded-md px-4 py-2 text-lg font-medium text-lp-primary-2 transition-colors hover:bg-lp-primary-1/10"
                 onClick={() => setIsMenuOpen(false)}
               >
                 {link.label}
