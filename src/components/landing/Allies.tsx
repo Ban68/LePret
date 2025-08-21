@@ -1,11 +1,12 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 const allies = [
-  'Colombia Fintech',
-  'ISO 27001 (en proceso)',
-  'RADIAN-ready',
-  'Superintendencia de Sociedades',
-  'CCB',
+  { src: "/file.svg", alt: "Colombia Fintech" },
+  { src: "/window.svg", alt: "ISO 27001 (en proceso)" },
+  { src: "/globe.svg", alt: "RADIAN-ready" },
+  { src: "/next.svg", alt: "Superintendencia de Sociedades" },
+  { src: "/vercel.svg", alt: "CCB" },
 ];
 
 interface AlliesProps {
@@ -21,8 +22,8 @@ export function Allies({ backgroundClass = "" }: AlliesProps) {
         </h2>
         <div className="mx-auto mt-10 grid max-w-lg grid-cols-2 items-center gap-x-8 gap-y-10 sm:max-w-xl sm:grid-cols-3 lg:mx-0 lg:max-w-none">
           {allies.map((ally) => (
-            <div key={ally} className="flex justify-center">
-              <p className="text-lg text-lp-sec-3 font-semibold">{ally}</p>
+            <div key={ally.alt} className="flex justify-center">
+              <Image src={ally.src} alt={ally.alt} width={120} height={60} />
             </div>
           ))}
         </div>
