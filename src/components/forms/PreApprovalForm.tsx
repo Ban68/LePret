@@ -94,7 +94,7 @@ export function PreApprovalForm() {
         <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
           <div>
             <Label htmlFor="nit" className="mb-2">NIT</Label>
-            <Input id="nit" {...form.register("nit")} />
+            <Input id="nit" autoComplete="off" {...form.register("nit")} />
             <FormError
               message={form.formState.errors.nit?.message}
               className="mt-1"
@@ -102,32 +102,32 @@ export function PreApprovalForm() {
           </div>
           <div>
             <Label htmlFor="razonSocial" className="mb-2">Razón Social</Label>
-            <Input id="razonSocial" {...form.register("razonSocial")} />
+            <Input id="razonSocial" autoComplete="organization" {...form.register("razonSocial")} />
           </div>
         </div>
         
         <div>
           <Label htmlFor="ventasAnuales" className="mb-2">Ventas Anuales (COP)</Label>
-          <Input id="ventasAnuales" type="number" min={1} {...form.register("ventasAnuales")} />
+          <Input id="ventasAnuales" type="number" min={1} autoComplete="off" {...form.register("ventasAnuales")} />
 
         </div>
 
         <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
             <div>
                 <Label htmlFor="facturasMes" className="mb-2"># Facturas/Mes</Label>
-                <Input id="facturasMes" type="number" min={0} {...form.register("facturasMes")} />
+                <Input id="facturasMes" type="number" min={0} autoComplete="off" {...form.register("facturasMes")} />
 
             </div>
             <div>
                 <Label htmlFor="ticketPromedio" className="mb-2">Ticket Promedio Factura (COP)</Label>
-                <Input id="ticketPromedio" type="number" min={1} {...form.register("ticketPromedio")} />
+                <Input id="ticketPromedio" type="number" min={1} autoComplete="off" {...form.register("ticketPromedio")} />
 
             </div>
         </div>
 
         <div>
           <Label htmlFor="email" className="mb-2">Email de Contacto</Label>
-          <Input id="email" type="email" {...form.register("email")} />
+          <Input id="email" type="email" autoComplete="email" {...form.register("email")} />
           <FormError
             message={form.formState.errors.email?.message}
             className="mt-1"
@@ -136,7 +136,7 @@ export function PreApprovalForm() {
 
         <div>
           <Label htmlFor="telefono" className="mb-2">Teléfono de Contacto</Label>
-          <Input id="telefono" {...form.register("telefono")} />
+          <Input id="telefono" autoComplete="tel" {...form.register("telefono")} />
         </div>
 
         <div className="flex items-center space-x-2">
