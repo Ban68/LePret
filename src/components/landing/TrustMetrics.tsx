@@ -18,10 +18,10 @@ export function TrustMetrics({ backgroundClass = "" }: TrustMetricsProps) {
         <div className="grid grid-cols-1 gap-x-8 gap-y-16 text-center lg:grid-cols-4">
           {metrics.map((metric) => (
             <div key={metric.name}>
-              <p className="font-colette text-4xl font-bold tracking-tight text-lp-primary-1">
+              <p className="font-colette text-2xl sm:text-4xl font-bold tracking-tight text-lp-primary-1">
                 {metric.value}
               </p>
-              <p className="mt-1 text-base leading-7 text-lp-sec-3">{metric.name}</p>
+              <p className="mt-2 text-base leading-6 text-lp-sec-3">{metric.name}</p>
             </div>
           ))}
         </div>
