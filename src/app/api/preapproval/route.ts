@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { PreapprovalValidator } from '@/lib/validators/preapproval';
 import { z } from 'zod';
 import { Resend } from 'resend';
+import sanitizeHtml from 'sanitize-html';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -26,6 +27,9 @@ export async function POST(req: Request) {
     const validatedData = PreapprovalValidator.parse(body);
 
     const { nit, razonSocial, ventasAnuales, facturasMes, ticketPromedio, email, telefono, consent } = validatedData;
+    const safeRazonSocial = sanitizeHtml(razonSocial);
+    const safeEmail = sanitizeHtml(email);
+    const safeTelefono = sanitizeHtml(telefono);
 
     // Check if a lead with this NIT already exists
     const existingLead = await prisma.lead.findFirst({
@@ -44,9 +48,9 @@ export async function POST(req: Request) {
     const newLead = await prisma.lead.create({
       data: {
         nit,
-        razonSocial,
-        email,
-        telefono,
+        razonSocial: safeRazonSocial,
+        email: safeEmail,
+        telefono: safeTelefono,
         ventasAnuales,
         facturasMes,
         ticketPromedio,
@@ -67,9 +71,9 @@ export async function POST(req: Request) {
     try {
       await resend.emails.send({
         from: 'onboarding@resend.dev',
-        to: email,
+        to: safeEmail,
         subject: 'Confirmación de Preaprobación',
-        html: `<p>Hola ${razonSocial},</p>
+        html: `<p>Hola ${safeRazonSocial},</p>
                <p>Hemos recibido tu solicitud de preaprobación.</p>
                <p>Tu cupo estimado es: <strong>${cupoEstimado}</strong>.</p>
                <p>Nos pondremos en contacto contigo pronto.</p>`,
