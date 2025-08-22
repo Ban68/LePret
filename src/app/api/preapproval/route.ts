@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { PreapprovalValidator } from '@/lib/validators/preapproval';
 import { z } from 'zod';
 import { Resend } from 'resend';
+import { encrypt } from '@/lib/crypto';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -27,9 +28,13 @@ export async function POST(req: Request) {
 
     const { nit, razonSocial, ventasAnuales, facturasMes, ticketPromedio, email, telefono, consent } = validatedData;
 
+    // Encrypt sensitive fields before persisting
+    const encryptedNit = encrypt(nit);
+    const encryptedTelefono = telefono ? encrypt(telefono) : null;
+
     // Check if a lead with this NIT already exists
     const existingLead = await prisma.lead.findFirst({
-        where: { nit },
+        where: { nit: encryptedNit },
     });
 
     if (existingLead) {
@@ -43,10 +48,10 @@ export async function POST(req: Request) {
 
     const newLead = await prisma.lead.create({
       data: {
-        nit,
+        nit: encryptedNit,
         razonSocial,
         email,
-        telefono,
+        telefono: encryptedTelefono ?? undefined,
         ventasAnuales,
         facturasMes,
         ticketPromedio,

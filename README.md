@@ -59,9 +59,11 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
     ```
     DATABASE_URL="postgresql://user:password@host:port/database?schema=public"
     RESEND_API_KEY="re_YOUR_RESEND_API_KEY"
+    ENCRYPTION_KEY="base64_encoded_32_byte_key"
     ```
     *   `DATABASE_URL`: Cadena de conexión a tu base de datos PostgreSQL. Puedes usar servicios como Neon, Vercel Postgres, o una instancia local.
     *   `RESEND_API_KEY`: Clave API de Resend para el envío de correos. (Opcional para el funcionamiento básico, pero necesaria para notificaciones).
+    *   `ENCRYPTION_KEY`: Clave secreta base64 de 32 bytes utilizada para cifrar datos sensibles como NIT y teléfono. Puedes generar una nueva con `openssl rand -base64 32` y debe almacenarse de forma segura en tu gestor de secretos.
 
 4.  **Configurar la Base de Datos (Prisma):**
     Aplica las migraciones a tu base de datos. Esto creará las tablas `Lead` y `Preapproval`.
@@ -78,6 +80,14 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
     npm run dev
     ```
     El sitio estará disponible en `http://localhost:3000`.
+
+## Gestión de Claves de Cifrado
+
+La variable `ENCRYPTION_KEY` se usa para cifrar campos sensibles como NIT y teléfono antes de almacenarlos.
+
+- Guarda la clave únicamente en variables de entorno o en un gestor de secretos del proveedor de despliegue.
+- Restringe su acceso y rota la clave conforme a las políticas de seguridad de tu organización.
+- Si rotas la clave, conserva la anterior hasta migrar o re-cifrar los datos existentes.
 
 ## Cómo Desplegar en Vercel
 
