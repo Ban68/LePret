@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { PreapprovalValidator } from '@/lib/validators/preapproval';
 import { z } from 'zod';
 import { Resend } from 'resend';
+import { isRateLimited } from '@/lib/ratelimit';
+import { isValidOrigin } from '@/lib/security';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -21,6 +23,21 @@ function calculateCupo(ventasAnuales: number, ticketPromedio: number, facturasMe
 }
 
 export async function POST(req: Request) {
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+  if (isRateLimited(ip)) {
+    return new NextResponse(
+      JSON.stringify({ message: 'Demasiadas solicitudes.' }),
+      { status: 429 }
+    );
+  }
+
+  if (!isValidOrigin(req)) {
+    return new NextResponse(
+      JSON.stringify({ message: 'Operación no permitida.' }),
+      { status: 403 }
+    );
+  }
+
   try {
     const body = await req.json();
     const validatedData = PreapprovalValidator.parse(body);

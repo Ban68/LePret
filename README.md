@@ -91,6 +91,15 @@ Este proyecto está optimizado para despliegue en Vercel.
 
 La lógica para calcular el `cupoEstimado` se encuentra en el archivo `src/app/api/preapproval/route.ts`, dentro de la función `calculateCupo`. Puedes modificar esta función para ajustar las reglas de negocio según sea necesario.
 
+## Respuestas de Error de la API
+
+Las rutas `/api/contact` y `/api/preapproval` devuelven códigos de error cuando la solicitud no pasa las verificaciones.
+
+* **429 Too Many Requests** – Se excedió el límite de peticiones.  
+  Respuesta: `{ "message": "Demasiadas solicitudes." }`
+* **403 Forbidden** – La cabecera `Origin` o `Referer` no coincide con el host permitido.  
+  Respuesta: `{ "message": "Operación no permitida." }`
+
 ## Estructura de Directorios Clave
 
 *   `src/app`: Rutas de Next.js (páginas y API routes).
