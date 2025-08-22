@@ -5,7 +5,7 @@ export default function FactoringElectronicoPage() {
         <h1 className="font-colette text-3xl font-bold tracking-tight text-lp-primary-1 sm:text-4xl text-center">
           Factoring Electrónico
         </h1>
-        <div className="mt-10 text-lg leading-8 text-lp-sec-3 space-y-6">
+        <div className="mt-10 text-lg leading-8 text-lp-sec-3 space-y-6 text-justify">
           <p>
             El factoring electrónico es una solución financiera innovadora que permite a las empresas transformar sus facturas electrónicas por cobrar en liquidez inmediata. En LePrêt Capital, te ofrecemos un proceso ágil, transparente y 100% en línea para que accedas a los fondos que necesitas sin afectar tu capacidad de endeudamiento.
           </p>
