@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const PreapprovalValidator = z.object({
-  nit: z.string().regex(/^[0-9]{5,}$/, "NIT inválido"),
+  nit: z.string().min(5, "NIT inválido"),
   razonSocial: z.string().optional().default(""),
   ventasAnuales: z.coerce.number().positive("Ingresa un valor válido"),
   facturasMes: z.coerce.number().int().nonnegative("Ingresa un entero válido"),
