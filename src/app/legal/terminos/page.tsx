@@ -5,7 +5,7 @@ export default function TerminosPage() {
         <h1 className="font-colette text-3xl font-bold tracking-tight text-lp-primary-1 sm:text-4xl text-center">
           Términos y Condiciones
         </h1>
-        <div className="mt-10 text-lg leading-8 text-lp-sec-3 space-y-6">
+        <div className="mt-10 text-lg leading-8 text-lp-sec-3 space-y-6 text-justify">
           <p>
             Bienvenido a LePrêt Capital S.A.S. Al acceder y utilizar nuestra plataforma y servicios, usted acepta cumplir con los siguientes términos y condiciones. Le recomendamos leerlos detenidamente.
           </p>
