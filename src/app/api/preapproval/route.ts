@@ -4,10 +4,12 @@ import { prisma } from '@/lib/prisma';
 import { PreapprovalValidator } from '@/lib/validators/preapproval';
 import { z } from 'zod';
 import { Resend } from 'resend';
+
 import { isRateLimited } from '@/lib/ratelimit';
 import { isValidOrigin } from '@/lib/security';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+
+const resend = new Resend(env.RESEND_API_KEY);
 
 // Dummy business logic for credit line estimation
 function calculateCupo(ventasAnuales: number, ticketPromedio: number, facturasMes: number): number {
