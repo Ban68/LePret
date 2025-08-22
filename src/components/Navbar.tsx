@@ -100,7 +100,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="w-full rounded-md px-4 py-2 text-lg font-medium text-lp-primary-2 transition-colors hover:bg-lp-primary-1/10"
+                className="w-full rounded-md px-4 py-2 text-lg font-medium text-lp-primary-1 transition-colors hover:bg-lp-primary-1/10"
                 onClick={() => setIsMenuOpen(false)}
               >
                 {link.label}
