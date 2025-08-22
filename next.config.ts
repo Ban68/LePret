@@ -7,7 +7,7 @@ const ContentSecurityPolicy = [
   "base-uri 'self'",
   "form-action 'self'",
   "script-src 'self'",
-  "style-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
   "font-src 'self'",
 ].join("; ");
