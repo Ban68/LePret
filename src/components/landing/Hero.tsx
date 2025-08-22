@@ -14,10 +14,18 @@ export function Hero() {
         Proceso 100% en línea. Preaprobación en minutos. Desembolso ágil. Sin afectar tu capacidad de crédito.
       </p>
       <div className="mt-10 flex items-center justify-center gap-x-6">
-        <Button asChild size="lg">
+        <Button
+          asChild
+          size="lg"
+          className="bg-lp-primary-1 text-lp-primary-2 hover:opacity-90"
+        >
           <Link href="/preaprobacion">Conocer mi cupo</Link>
         </Button>
-        <Button asChild variant="link" className="text-lp-primary-1">
+        <Button
+          asChild
+          size="lg"
+          className="bg-lp-sec-3 text-lp-primary-2 hover:opacity-90"
+        >
           <Link href="/contacto">Hablar con un asesor <span aria-hidden="true">→</span></Link>
         </Button>
       </div>
