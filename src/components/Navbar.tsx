@@ -56,7 +56,10 @@ export function Navbar() {
 
           <div className="flex items-center space-x-4 ml-auto">
             <div className="hidden md:block">
-              <Button asChild className="text-lp-primary-2">
+              <Button
+                asChild
+                className="bg-lp-primary-2 text-lp-primary-1 hover:opacity-90"
+              >
                 <Link href="/preaprobacion">Conocer mi cupo</Link>
               </Button>
             </div>
@@ -106,8 +109,13 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
-            <Button asChild className="mt-4">
-              <Link href="/preaprobacion" onClick={() => setIsMenuOpen(false)}>Conocer mi cupo</Link>
+            <Button
+              asChild
+              className="mt-4 bg-lp-primary-1 text-lp-primary-2 hover:opacity-90"
+            >
+              <Link href="/preaprobacion" onClick={() => setIsMenuOpen(false)}>
+                Conocer mi cupo
+              </Link>
             </Button>
           </nav>
         </div>

@@ -149,7 +149,12 @@ export function PreApprovalForm() {
 
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
-        <Button type="submit" disabled={isLoading} className="w-full" size="lg">
+        <Button
+          type="submit"
+          disabled={isLoading}
+          className="w-full bg-lp-primary-1 text-lp-primary-2 hover:opacity-90"
+          size="lg"
+        >
           {isLoading ? "Enviando..." : "Conocer mi cupo"}
         </Button>
       </form>
