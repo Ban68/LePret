@@ -94,7 +94,13 @@ export function PreApprovalForm() {
         <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
           <div>
             <Label htmlFor="nit" className="mb-2">NIT</Label>
-            <Input id="nit" autoComplete="off" {...form.register("nit")} />
+            <Input
+              id="nit"
+              autoComplete="off"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              {...form.register("nit")}
+            />
             <FormError
               message={form.formState.errors.nit?.message}
               className="mt-1"
