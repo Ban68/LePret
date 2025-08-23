@@ -87,7 +87,7 @@ export function ContactForm() {
           />
         </div>
 
-        <Button type="submit" disabled={isLoading} className="w-full" size="lg">
+        <Button type="submit" variant="outline" disabled={isLoading} className="w-full" size="lg">
           {isLoading ? "Enviando..." : "Enviar Mensaje"}
         </Button>
       </form>
