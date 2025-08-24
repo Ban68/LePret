@@ -4,7 +4,9 @@ import { prisma } from '@/lib/prisma';
 import { PreapprovalValidator } from '@/lib/validators/preapproval';
 import { z } from 'zod';
 import { Resend } from 'resend';
-import { env } from '@/lib/env';
+
+import { Prisma } from '@prisma/client';
+
 
 const resend = new Resend(env.RESEND_API_KEY);
 
@@ -27,18 +29,6 @@ export async function POST(req: Request) {
     const validatedData = PreapprovalValidator.parse(body);
 
     const { nit, razonSocial, ventasAnuales, facturasMes, ticketPromedio, email, telefono, consent } = validatedData;
-
-    // Check if a lead with this NIT already exists
-    const existingLead = await prisma.lead.findFirst({
-        where: { nit },
-    });
-
-    if (existingLead) {
-        return new NextResponse(
-            JSON.stringify({ message: 'Ya existe una solicitud con este NIT.' }),
-            { status: 409 }
-        );
-    }
 
     const cupoEstimado = calculateCupo(ventasAnuales, ticketPromedio, facturasMes);
 
@@ -89,6 +79,13 @@ export async function POST(req: Request) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return new NextResponse(JSON.stringify({ errors: error.issues }), { status: 422 });
+    }
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return new NextResponse(
+        JSON.stringify({ message: 'No se pudo procesar la solicitud.' }),
+        { status: 409 }
+      );
     }
 
     console.error(error);

@@ -20,6 +20,7 @@ model Lead {
   source        String? // web, referral, ads
   consent       Boolean
   preapproval   Preapproval?
+  @@unique([nit])
 }
 
 model Preapproval {
