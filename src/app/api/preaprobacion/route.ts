@@ -1,4 +1,4 @@
-// src/app/api/contact/route.ts
+// src/app/api/preaprobacion/route.ts
 export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
@@ -7,17 +7,18 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // Acepta nombres de campos en español/inglés
-    const nombre   = body.name ?? body.nombre;
-    const email    = body.email ?? body.correo;
-    const telefono = body.phone ?? body.telefono ?? null;
-    const empresa  = body.company ?? body.empresa ?? null;
-    const nit      = body.nit ?? null;
-    const pais     = body.country ?? body.pais ?? null;
-    const mensaje  = body.message ?? body.mensaje ?? null;
-    const consent  = body.consent ?? body.accepted_privacy ?? false;
+    const company_name       = body.company_name ?? body.empresa ?? body.razon_social;
+    const nit                = body.nit;
+    const contact_name       = body.contact_name ?? body.nombre ?? null;
+    const email              = body.email ?? null;
+    const phone              = body.phone ?? body.telefono ?? null;
+    const monthly_sales      = body.monthly_sales ?? body.ventas_mensuales ?? null;
+    const invoices_per_month = body.invoices_per_month ?? body.facturas_mes ?? null;
+    const avg_ticket         = body.avg_ticket ?? body.ticket_promedio ?? null;
+    const factoring_type     = body.factoring_type ?? body.tipo_factoring ?? null;
+    const accepted_privacy   = body.accepted_privacy ?? body.consent ?? false;
 
-    if (!nombre || !email || !consent) {
+    if (!company_name || !nit || !accepted_privacy) {
       return NextResponse.json(
         { ok: false, error: "Faltan campos obligatorios." },
         { status: 400 }
@@ -35,15 +36,18 @@ export async function POST(req: Request) {
     const utm_content  = body.utm_content  ?? qs.get("utm_content");
     const referrer     = body.referrer     ?? req.headers.get("referer");
 
-    const { error } = await supabaseAdmin.from("contacts").insert({
-      full_name: nombre,
-      email,
-      phone: telefono,
-      company: empresa,
+    const { error } = await supabaseAdmin.from("preapprovals").insert({
+      company_name,
       nit,
-      country: pais,
-      message: mensaje,
-      consent,
+      contact_name,
+      email,
+      phone,
+      monthly_sales,
+      invoices_per_month,
+      avg_ticket,
+      factoring_type,
+      accepted_privacy,
+      status: "new",
       ip,
       user_agent: ua,
       utm_source,
@@ -55,8 +59,6 @@ export async function POST(req: Request) {
     });
 
     if (error) throw error;
-
-    // (Opcional) mantener aquí el envío de email con Resend si ya existe
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
