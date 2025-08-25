@@ -24,7 +24,7 @@ export function Hero() {
         <Button
           asChild
           size="lg"
-          className="bg-lp-sec-3 text-lp-primary-2 hover:opacity-90"
+          className="bg-lp-sec-4 text-lp-primary-1 hover:opacity-90"
         >
           <Link href="/contacto">Hablar con un asesor <span aria-hidden="true">→</span></Link>
         </Button>
