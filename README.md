@@ -79,6 +79,28 @@ Este proyecto está optimizado para despliegue en Vercel.
 2.  **Configurar Variables de Entorno:** En la configuración del proyecto en Vercel, añade las mismas variables de entorno (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`) que usaste localmente.
 3.  **Despliegue Automático:** Cada push a la rama principal (o a una PR, si configuras los preview deploys) activará un nuevo despliegue.
 
+## Supabase como Base de Datos
+
+Supabase se utiliza como capa de persistencia del proyecto y reemplaza el uso de Prisma. Todas las operaciones contra PostgreSQL se realizan mediante el SDK `@supabase/supabase-js`, por lo que no es necesario configurar ni generar clientes de Prisma.
+
+### Variables de entorno
+
+Asegúrate de definir en tu archivo `.env` las variables:
+
+```
+SUPABASE_URL="https://TU_PROYECTO.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="TU_SERVICE_ROLE_KEY"
+```
+
+Estas permiten que el servidor se conecte a tu instancia de Supabase.
+
+### Aplicar el esquema inicial
+
+1. Ingresa al panel de Supabase y abre el SQL Editor, o utiliza la CLI de Supabase.
+2. Ejecuta el contenido del archivo `docs/supabase-schema.sql` para crear las tablas requeridas.
+
+Con esto, la base de datos quedará lista para su uso en el proyecto.
+
 ## Cómo Cambiar Reglas del "Cupo Estimado"
 
 La lógica para calcular el `cupoEstimado` se encuentra en el archivo `src/app/api/preaprobacion/route.ts`, dentro de la función `calculateCupo`. Puedes modificar esta función para ajustar las reglas de negocio según sea necesario.
