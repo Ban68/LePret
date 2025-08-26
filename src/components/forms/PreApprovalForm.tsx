@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm, type Resolver } from "react-hook-form";
+import { useForm, type Resolver, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PreapprovalValidator, type PreapprovalFormValues } from "@/lib/validators/preapproval";
 import { Button } from "@/components/ui/button";
@@ -139,12 +139,22 @@ export function PreApprovalForm() {
           <Input id="telefono" autoComplete="tel" {...form.register("telefono")} />
         </div>
 
-        <div className="flex items-center space-x-2">
-          <Checkbox id="consent" {...form.register("consent")} />
-          <Label htmlFor="consent" className="text-sm font-normal">
-            Acepto la <a href="/legal/privacidad" target="_blank" className="underline">política de tratamiento de datos</a>.
-          </Label>
-        </div>
+        <Controller
+          name="consent"
+          control={form.control}
+          render={({ field }) => (
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="consent"
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
+              <Label htmlFor="consent" className="text-sm font-normal">
+                Acepto la <a href="/legal/privacidad" target="_blank" className="underline">política de tratamiento de datos</a>.
+              </Label>
+            </div>
+          )}
+        />
         <FormError message={form.formState.errors.consent?.message} />
 
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
