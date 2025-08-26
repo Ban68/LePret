@@ -91,7 +91,7 @@ export function ContactForm() {
           />
         </div>
 
-        <Button type="submit" variant="outline" disabled={isLoading} className="w-full" size="lg">
+        <Button type="submit" disabled={isLoading} className="w-full bg-lp-primary-1 text-lp-primary-2 hover:opacity-90" size="lg">
           {isLoading ? "Enviando..." : "Enviar Mensaje"}
         </Button>
       </form>
