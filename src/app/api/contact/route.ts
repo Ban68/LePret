@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     const mensaje  = body.message ?? body.mensaje ?? null;
     const consent  = body.consent ?? body.accepted_privacy ?? false;
 
-    if (!nombre || !email || !consent) {
+    if (!nombre || !email || !mensaje) {
       return NextResponse.json(
         { ok: false, error: "Faltan campos obligatorios." },
         { status: 400 }
