@@ -37,10 +37,14 @@ export function ContactForm() {
       const responseData = await response.json();
 
       if (!response.ok) {
-        throw new Error(responseData.message || 'Ocurrió un error al enviar el mensaje.');
+        throw new Error(
+          responseData.error ||
+            responseData.message ||
+            'Ocurrió un error al enviar el mensaje.'
+        );
       }
 
-      toast.success(responseData.message);
+      toast.success(responseData.message || 'Mensaje recibido');
       form.reset();
 
     } catch (err) {

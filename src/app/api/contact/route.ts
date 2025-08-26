@@ -58,7 +58,7 @@ export async function POST(req: Request) {
 
     // (Opcional) mantener aquí el envío de email con Resend si ya existe
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, message: "Mensaje recibido" });
   } catch (e: unknown) {
     const error = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ ok: false, error }, { status: 500 });
