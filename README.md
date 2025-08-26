@@ -13,7 +13,7 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
 *   **Estilos:** Tailwind CSS
 *   **Componentes UI:** shadcn/ui (basado en Radix)
 *   **Validación de Formularios:** Zod + React Hook Form
-*   **Base de Datos:** Prisma ORM + PostgreSQL (compatible con Neon o Vercel Postgres)
+*   **Base de Datos:** Supabase (PostgreSQL)
 *   **Emails:** Resend (integración preparada, requiere configuración)
 *   **Despliegue:** Vercel
 
@@ -29,7 +29,7 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
     *   Sección "Preguntas Frecuentes" (FAQ).
 *   **Preaprobación (`/preaprobacion`):
     *   Formulario de preaprobación con validación en tiempo real.
-    *   Endpoint API (`/api/preapproval`) para procesar la solicitud, calcular cupo estimado y persistir en DB.
+    *   Endpoint API (`/api/preaprobacion`) para procesar la solicitud, calcular cupo estimado y persistir en DB.
     *   Feedback inmediato al usuario con cupo estimado y próximos pasos.
 *   **Páginas de Contenido:
     *   Factoring Electrónico (`/soluciones/factoring-electronico`)
@@ -57,23 +57,15 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
 3.  **Configurar Variables de Entorno:**
     Crea un archivo `.env` en la raíz del directorio `lepret` con las siguientes variables:
     ```
-    DATABASE_URL="postgresql://user:password@host:port/database?schema=public"
+    SUPABASE_URL="https://TU_PROYECTO.supabase.co"
+    SUPABASE_SERVICE_ROLE_KEY="TU_SERVICE_ROLE_KEY"
     RESEND_API_KEY="re_YOUR_RESEND_API_KEY"
     ```
-    *   `DATABASE_URL`: Cadena de conexión a tu base de datos PostgreSQL. Puedes usar servicios como Neon, Vercel Postgres, o una instancia local.
+    *   `SUPABASE_URL`: URL de tu proyecto Supabase.
+    *   `SUPABASE_SERVICE_ROLE_KEY`: Clave de servicio de Supabase para operaciones del lado del servidor.
     *   `RESEND_API_KEY`: Clave API de Resend para el envío de correos. (Opcional para el funcionamiento básico, pero necesaria para notificaciones).
 
-4.  **Configurar la Base de Datos (Prisma):**
-    Aplica las migraciones a tu base de datos. Esto creará las tablas `Lead` y `Preapproval`.
-    ```bash
-    npx prisma migrate dev --name init
-    ```
-    Si necesitas generar el cliente de Prisma manualmente (por ejemplo, después de modificar `schema.prisma`), usa:
-    ```bash
-    npx prisma generate
-    ```
-
-5.  **Ejecutar el Servidor de Desarrollo:**
+4.  **Ejecutar el Servidor de Desarrollo:**
     ```bash
     npm run dev
     ```
@@ -84,12 +76,12 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
 Este proyecto está optimizado para despliegue en Vercel.
 
 1.  **Conectar Repositorio:** Conecta tu repositorio de GitHub/GitLab/Bitbucket a Vercel.
-2.  **Configurar Variables de Entorno:** En la configuración del proyecto en Vercel, añade las mismas variables de entorno (`DATABASE_URL`, `RESEND_API_KEY`) que usaste localmente.
+2.  **Configurar Variables de Entorno:** En la configuración del proyecto en Vercel, añade las mismas variables de entorno (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`) que usaste localmente.
 3.  **Despliegue Automático:** Cada push a la rama principal (o a una PR, si configuras los preview deploys) activará un nuevo despliegue.
 
 ## Cómo Cambiar Reglas del "Cupo Estimado"
 
-La lógica para calcular el `cupoEstimado` se encuentra en el archivo `src/app/api/preapproval/route.ts`, dentro de la función `calculateCupo`. Puedes modificar esta función para ajustar las reglas de negocio según sea necesario.
+La lógica para calcular el `cupoEstimado` se encuentra en el archivo `src/app/api/preaprobacion/route.ts`, dentro de la función `calculateCupo`. Puedes modificar esta función para ajustar las reglas de negocio según sea necesario.
 
 ## Estructura de Directorios Clave
 
@@ -99,9 +91,7 @@ La lógica para calcular el `cupoEstimado` se encuentra en el archivo `src/app/a
     *   `src/components/forms`: Formularios específicos.
     *   `src/components/landing`: Componentes de la página de inicio.
 *   `src/lib`: Utilidades y lógica de negocio.
-    *   `src/lib/prisma.ts`: Instancia del cliente de Prisma.
     *   `src/lib/validators`: Esquemas de validación Zod.
-*   `prisma`: Esquema de la base de datos.
 *   `public`: Archivos estáticos (imágenes, fuentes, `robots.txt`, `sitemap.xml`).
 
 ---

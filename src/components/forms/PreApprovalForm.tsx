@@ -44,7 +44,7 @@ export function PreApprovalForm() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/preapproval', {
+      const response = await fetch('/api/preaprobacion', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
