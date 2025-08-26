@@ -18,6 +18,19 @@ export function PreApprovalForm() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ cupoEstimado: number; message: string; nextSteps: string } | null>(null);
 
+  const formatCurrency = (value: number | string) => {
+    if (value === null || value === undefined) return '';
+    const numValue = typeof value === 'string' ? parseCurrency(value) : value;
+    if (isNaN(numValue) || numValue === 0) {
+      return '';
+    }
+    return `$${new Intl.NumberFormat('es-CO').format(numValue)}`;
+  };
+
+  const parseCurrency = (value: string) => {
+    return Number(value.replace(/[^0-9]/g, ''));
+  };
+
   const form = useForm<PreapprovalFormValues>({
     resolver: zodResolver(PreapprovalValidator) as Resolver<PreapprovalFormValues>,
     defaultValues: {
@@ -108,20 +121,55 @@ export function PreApprovalForm() {
         
         <div>
           <Label htmlFor="ventasAnuales" className="mb-2">Ventas Anuales (COP)</Label>
-          <Input id="ventasAnuales" type="number" min={1} autoComplete="off" {...form.register("ventasAnuales")} />
-
+          <Controller
+            name="ventasAnuales"
+            control={form.control}
+            render={({ field }) => (
+              <Input
+                id="ventasAnuales"
+                autoComplete="off"
+                value={formatCurrency(field.value)}
+                onChange={(e) => {
+                  field.onChange(parseCurrency(e.target.value));
+                }}
+              />
+            )}
+          />
+          <FormError
+              message={form.formState.errors.ventasAnuales?.message}
+              className="mt-1"
+            />
         </div>
 
         <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
             <div>
                 <Label htmlFor="facturasMes" className="mb-2"># Facturas/Mes</Label>
                 <Input id="facturasMes" type="number" min={0} autoComplete="off" {...form.register("facturasMes")} />
-
+                <FormError
+                  message={form.formState.errors.facturasMes?.message}
+                  className="mt-1"
+                />
             </div>
             <div>
                 <Label htmlFor="ticketPromedio" className="mb-2">Ticket Promedio Factura (COP)</Label>
-                <Input id="ticketPromedio" type="number" min={1} autoComplete="off" {...form.register("ticketPromedio")} />
-
+                <Controller
+                    name="ticketPromedio"
+                    control={form.control}
+                    render={({ field }) => (
+                        <Input
+                            id="ticketPromedio"
+                            autoComplete="off"
+                            value={formatCurrency(field.value)}
+                            onChange={(e) => {
+                                field.onChange(parseCurrency(e.target.value));
+                            }}
+                        />
+                    )}
+                />
+                <FormError
+                  message={form.formState.errors.ticketPromedio?.message}
+                  className="mt-1"
+                />
             </div>
         </div>
 
