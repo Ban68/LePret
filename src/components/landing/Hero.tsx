@@ -33,7 +33,7 @@ export function Hero() {
         <div className="rounded-2xl bg-lp-sec-4 p-2 ring-1 ring-inset ring-lp-sec-1/10 lg:p-4">
           <div className="bg-white rounded-xl shadow-2xl ring-1 ring-gray-900/10 overflow-hidden">
             <Image
-              src="/liquidez.png"
+              src="/Liquidez.png"
               alt="Dashboard Mockup"
               width={1024}
               height={768}
