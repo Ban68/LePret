@@ -37,7 +37,7 @@ export function Hero() {
               alt="Dashboard Mockup"
               width={1024}
               height={768}
-              className="w-full object-contain max-h-[500px] mx-auto"
+              className="w-full object-cover max-h-[500px] mx-auto"
             />
           </div>
 
