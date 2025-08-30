@@ -35,7 +35,7 @@ interface FaqProps {
 
 export function Faq({ backgroundClass = "" }: FaqProps) {
   return (
-    <section className={cn("py-20 sm:py-32", backgroundClass)}>
+    <section id="faq" className={cn("py-20 sm:py-32", backgroundClass)}>
       <div className="container mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h2 className="font-colette text-3xl font-bold tracking-tight text-lp-primary-1 sm:text-4xl">

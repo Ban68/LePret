@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function FactoringElectronicoPage() {
   return (
     <div className="py-20 sm:py-24">
@@ -23,12 +25,11 @@ export default function FactoringElectronicoPage() {
             <li>Facturación electrónica a otras empresas (B2B).</li>
             <li>Facturas emitidas a pagadores con buen historial crediticio.</li>
           </ul>
-          <h2 className="font-colette text-2xl font-bold text-lp-primary-1 mt-8">
-            Preguntas Frecuentes
-          </h2>
-          <p>
-            (Aquí se podría integrar un componente de FAQ específico para factoring, o enlazar a la sección de FAQ general).
-          </p>
+          <Link href="/#faq">
+            <h2 className="font-colette text-2xl font-bold text-lp-primary-1 mt-8 hover:underline cursor-pointer">
+              Preguntas Frecuentes
+            </h2>
+          </Link>
         </div>
       </div>
     </div>
