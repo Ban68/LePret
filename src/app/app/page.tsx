@@ -9,11 +9,13 @@ export default function AppPage() {
           Aquí podrás gestionar tus facturas, ver el estado de tus operaciones y acceder a tu historial.
         </p>
         <div className="mt-10">
-          <p className="text-base text-lp-sec-3">
-            (Esta es una maqueta de UI. La funcionalidad de autenticación y gestión de facturas se implementará en fases posteriores.)
-          </p>
+          <div className="flex items-center justify-center gap-4">
+            <a href="/app/operaciones" className="inline-flex rounded-md bg-lp-primary-1 px-5 py-2 text-sm font-medium text-white hover:bg-lp-primary-1/90">Ver mis operaciones</a>
+            <a href="/app/operaciones/nueva" className="inline-flex rounded-md border px-5 py-2 text-sm font-medium hover:bg-accent">Nueva operación</a>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
