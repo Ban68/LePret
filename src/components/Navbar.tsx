@@ -30,6 +30,7 @@ export function Navbar() {
     { href: "/costos", label: "Costos" },
     { href: "/empresa", label: "Empresa" },
     { href: "/contacto", label: "Contacto" },
+    { href: "/c/demo", label: "Portal" },
   ];
 
   return (
