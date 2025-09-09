@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export default function AppPage() {
   return (
     <div className="py-20 sm:py-24">
@@ -10,12 +12,11 @@ export default function AppPage() {
         </p>
         <div className="mt-10">
           <div className="flex items-center justify-center gap-4">
-            <a href="/app/operaciones" className="inline-flex rounded-md bg-lp-primary-1 px-5 py-2 text-sm font-medium text-white hover:bg-lp-primary-1/90">Ver mis operaciones</a>
-            <a href="/app/operaciones/nueva" className="inline-flex rounded-md border px-5 py-2 text-sm font-medium hover:bg-accent">Nueva operación</a>
+            <Link href="/app/operaciones" className="inline-flex rounded-md bg-lp-primary-1 px-5 py-2 text-sm font-medium text-white hover:bg-lp-primary-1/90">Ver mis operaciones</Link>
+            <Link href="/app/operaciones/nueva" className="inline-flex rounded-md border px-5 py-2 text-sm font-medium hover:bg-accent">Nueva operación</Link>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
