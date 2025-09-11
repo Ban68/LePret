@@ -1,13 +1,13 @@
 import Link from "next/link";
 
-export default function ClientPortalLayout({
+export default async function ClientPortalLayout({
   children,
   params,
 }: {
   children: React.ReactNode;
-  params: { orgId: string };
+  params: Promise<{ orgId: string }>;
 }) {
-  const { orgId } = params;
+  const { orgId } = await params;
 
   const links = [
     { href: `/c/${orgId}`, label: "Resumen" },
@@ -30,7 +30,7 @@ export default function ClientPortalLayout({
             <Link
               key={l.href}
               href={l.href}
-              className="rounded-md border border-lp-sec-4/60 px-3 py-1.5 text-sm text-lp-primary-2 hover:bg-lp-primary-2 hover:text-lp-primary-1"
+              className="rounded-md border border-lp-sec-4/60 px-3 py-1.5 text-sm text-lp-primary-1 hover:bg-lp-primary-1 hover:text-lp-primary-2"
             >
               {l.label}
             </Link>
@@ -42,4 +42,3 @@ export default function ClientPortalLayout({
     </div>
   );
 }
-

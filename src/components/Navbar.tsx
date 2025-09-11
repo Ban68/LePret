@@ -5,9 +5,18 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Logo } from './Logo';
 import Image from 'next/image';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useRouter } from 'next/navigation';
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const router = useRouter();
+  const supabase = createClientComponentClient();
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    router.replace('/');
+  };
 
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {
@@ -30,7 +39,7 @@ export function Navbar() {
     { href: "/costos", label: "Costos" },
     { href: "/empresa", label: "Empresa" },
     { href: "/contacto", label: "Contacto" },
-    { href: "/c/demo", label: "Portal" },
+    { href: "/login?redirectTo=/select-org", label: "Portal" },
   ];
 
   return (
@@ -62,6 +71,12 @@ export function Navbar() {
                 className="bg-lp-primary-2 text-lp-primary-1 hover:opacity-90"
               >
                 <Link href="/preaprobacion">Conocer mi cupo</Link>
+              </Button>
+            </div>
+
+            <div className="hidden md:block">
+              <Button onClick={signOut} variant="outline" className="border-lp-sec-4/60 text-lp-primary-2">
+                Salir
               </Button>
             </div>
 
@@ -117,6 +132,9 @@ export function Navbar() {
               <Link href="/preaprobacion" onClick={() => setIsMenuOpen(false)}>
                 Conocer mi cupo
               </Link>
+            </Button>
+            <Button onClick={() => { setIsMenuOpen(false); signOut(); }} variant="outline" className="border-lp-primary-1/40 text-lp-primary-1">
+              Salir
             </Button>
           </nav>
         </div>

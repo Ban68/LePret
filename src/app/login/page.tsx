@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 export default function LoginPage() {
   const router = useRouter();
   const search = useSearchParams();
-  const redirectTo = search.get("redirectTo") ?? "/";
+  const redirectTo = search.get("redirectTo") ?? "/select-org";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,7 +20,8 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const { error } = await supabaseBrowser.auth.signInWithPassword({ email, password });
+    const supabase = createClientComponentClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
       setError(error.message);
@@ -29,18 +30,7 @@ export default function LoginPage() {
     router.replace(redirectTo);
   };
 
-  const onMagicLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    const { error } = await supabaseBrowser.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
-    setLoading(false);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    alert("Te enviamos un enlace de acceso a tu correo.");
-  };
+  // Magic link deshabilitado por ahora (sólo email+password)
 
   return (
     <div className="py-20 sm:py-24">
@@ -60,13 +50,9 @@ export default function LoginPage() {
             <Button type="submit" disabled={loading} className="bg-lp-primary-1 text-lp-primary-2 hover:opacity-90">
               {loading ? "Accediendo..." : "Acceder"}
             </Button>
-            <Button type="button" variant="outline" onClick={onMagicLink} disabled={!email || loading}>
-              Enviar Magic Link
-            </Button>
           </div>
         </form>
       </div>
     </div>
   );
 }
-

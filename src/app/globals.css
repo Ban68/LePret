@@ -21,6 +21,9 @@ body {
   color: var(--color-foreground);
 }
 
+/* Evita que el logo del header sobresalga y tape clics del contenido */
+header.sticky { overflow: hidden; }
+
 /* Jerarquía */
 .h1{ @apply font-semibold tracking-tight text-[40px] leading-tight md:text-5xl; }
 .h2{ @apply font-semibold tracking-tight text-3xl md:text-4xl; }

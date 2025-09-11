@@ -1,0 +1,71 @@
+import { NextResponse } from "next/server";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
+
+export const runtime = "nodejs";
+
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ orgId: string }> }
+) {
+  try {
+    const { orgId } = await params;
+    const cookieStore = await cookies();
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
+    const [invAll, invFunded, reqOpen, offerOpen] = await Promise.all([
+      supabase.from('invoices').select('id, amount, created_at, status').eq('company_id', orgId),
+      supabase.from('invoices').select('id, amount, created_at, status').eq('company_id', orgId).eq('status', 'funded'),
+      supabase.from('funding_requests').select('id, requested_amount, created_at, status').eq('company_id', orgId).in('status', ['review','offered']),
+      supabase.from('offers').select('id', { count: 'exact', head: true }).eq('company_id', orgId).eq('status', 'offered'),
+    ]);
+
+    const allDates: string[] = [];
+    const addDate = (d?: string | null) => { if (!d) return; const key = d.slice(0,10); allDates.push(key); };
+    invAll.data?.forEach((r:any)=>addDate(r.created_at));
+    const lastActivity = allDates.sort().pop() || null;
+
+    // Totales
+    const invoicesCount = invAll.data?.length ?? 0;
+    const invoicesAmountTotal = (invAll.data || []).reduce((s:number,r:any)=>s+Number(r.amount||0),0);
+    const fundedCount = invFunded.data?.length ?? 0;
+    const fundedAmountTotal = (invFunded.data || []).reduce((s:number,r:any)=>s+Number(r.amount||0),0);
+    const requestsOpenCount = reqOpen.data?.length ?? 0;
+    const requestsAmountOpen = (reqOpen.data || []).reduce((s:number,r:any)=>s+Number(r.requested_amount||0),0);
+
+    // Series últimos 30 días
+    const start = new Date(Date.now() - 30*24*3600*1000);
+    function makeSeries(rows:any[], field:'created_at', valueField?:string){
+      const map = new Map<string, number>();
+      for (let i=0;i<31;i++){ const d = new Date(start.getTime()+i*24*3600*1000); const k = d.toISOString().slice(0,10); map.set(k,0); }
+      rows.forEach((r:any)=>{
+        const d = new Date(r.created_at);
+        if (d>=start){ const k=d.toISOString().slice(0,10); const v = valueField ? Number(r[valueField]||0) : 1; map.set(k,(map.get(k)||0)+v); }
+      });
+      return Array.from(map.entries()).map(([date,value])=>({date,value}));
+    }
+    const invoicesDaily = makeSeries(invAll.data||[], 'created_at');
+    const fundedDaily = makeSeries(invFunded.data||[], 'created_at');
+    const requestsDaily = makeSeries(reqOpen.data||[], 'created_at');
+
+    return NextResponse.json({
+      ok: true,
+      metrics: {
+        invoices: invoicesCount,
+        invoicesAmountTotal,
+        funded: fundedCount,
+        fundedAmountTotal,
+        requestsOpen: requestsOpenCount,
+        requestsAmountOpen,
+        offersOpen: offerOpen.count ?? 0,
+        lastActivity,
+        series: { invoicesDaily, fundedDaily, requestsDaily },
+      },
+    });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e.message ?? String(e) }, { status: 500 });
+  }
+}
