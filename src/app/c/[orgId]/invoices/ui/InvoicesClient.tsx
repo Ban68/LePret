@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
@@ -7,6 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Toaster, toast } from "sonner";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 type Invoice = {
   id: string;
@@ -30,6 +40,10 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
   const [saving, setSaving] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  
+  const [showFilters, setShowFilters] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [startDate, setStartDate] = useState<string>('');
@@ -163,168 +177,215 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-colette text-2xl font-bold text-lp-primary-1">Facturas</h1>
-
-      <Toaster richColors />
-      {/* Filtros */}
-      <div className="rounded-md border border-lp-sec-4/60 p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
-          <div className="sm:col-span-2">
-            <Label className="mb-2">Estado</Label>
-            <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="all">- Todos -</option>
-              <option value="uploaded">Cargada</option>
-              <option value="funded">Desembolsada</option>
-            </select>
-          </div>
-          <div className="sm:col-span-2">
-            <Label className="mb-2">Emision desde</Label>
-            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          </div>
-          <div className="sm:col-span-2">
-            <Label className="mb-2">Emision hasta</Label>
-            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          </div>
-          <div className="sm:col-span-3">
-            <Label className="mb-2">Monto minimo</Label>
-            <Input placeholder="Ej: 1.000.000" value={minAmount} onChange={(e) => setMinAmount(formatCurrency(e.target.value))} />
-          </div>
-          <div className="sm:col-span-3">
-            <Label className="mb-2">Monto maximo</Label>
-            <Input placeholder="Ej: 50.000.000" value={maxAmount} onChange={(e) => setMaxAmount(formatCurrency(e.target.value))} />
-          </div>
-          <div className="sm:col-span-2">
-            <Label className="mb-2">Orden</Label>
-            <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={sort} onChange={(e) => setSort(e.target.value)}>
-              <option value="created_at.desc">Recientes primero</option>
-              <option value="created_at.asc">Antiguas primero</option>
-              <option value="amount.desc">Monto (mayor a menor)</option>
-              <option value="amount.asc">Monto (menor a mayor)</option>
-            </select>
-          </div>
-          <div className="sm:col-span-2">
-            <Label className="mb-2">Tamano de pagina</Label>
-            <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={pageSize} onChange={(e) => { setPage(1); setPageSize(Number(e.target.value)); }}>
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
-          </div>
-        </div>
-        <div className="mt-3 flex items-center justify-between text-sm">
-          <div className="text-lp-sec-3">Resultados: {total}</div>
-          <button type="button" className="underline" onClick={() => { setStatusFilter('all'); setStartDate(''); setEndDate(''); setMinAmount(''); setMaxAmount(''); setSort('created_at.desc'); setPage(1); setPageSize(10); }}>Limpiar filtros</button>
+      <div className="flex items-center justify-between">
+        <h1 className="font-colette text-2xl font-bold text-lp-primary-1">Facturas</h1>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
+            {showFilters ? "Ocultar Filtros" : "Mostrar Filtros"}
+          </Button>
+          <Button onClick={() => setShowCreateForm(!showCreateForm)}>
+            {showCreateForm ? "Cancelar" : "Crear Factura"}
+          </Button>
         </div>
       </div>
-      <form onSubmit={onCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-6">
-        <div className="sm:col-span-2">
-          <Label className="mb-2">Monto (COP)</Label>
-          <Input placeholder="Ej: 1.500.000" value={amount} onChange={(e) => setAmount(formatCurrency(e.target.value))} />
-        </div>
-        <div className="sm:col-span-2">
-          <Label className="mb-2">Fecha de emision</Label>
-          <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
-        </div>
-        <div className="sm:col-span-2">
-          <Label className="mb-2">Fecha de vencimiento</Label>
-          <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-        </div>
-        <div className="sm:col-span-3">
-          <Label className="mb-2">Archivo (PDF/imagen, opcional)</Label>
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              const f = e.dataTransfer.files?.[0];
-              if (f) setFile(f);
-            }}
-            className={`rounded-md border border-dashed px-4 py-6 text-sm ${dragOver ? 'border-lp-primary-1 bg-lp-sec-4/50' : 'border-lp-sec-4/60'}`}
-          >
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                {file ? (
-                  <>
-                    <div className="font-medium text-lp-primary-1">{file.name}</div>
-                    <div className="text-xs text-lp-sec-3">{(file.size/1024/1024).toFixed(2)} MB Â| {file.type || 'archivo'}</div>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-lp-primary-1">Arrastra un archivo aqui o haz clic para seleccionar</div>
-                    <div className="text-xs text-lp-sec-3">PDF, JPG, PNG Â| hasta 10 MB</div>
-                  </>
-                )}
+
+      <Toaster richColors />
+
+      {showCreateForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Crear Nueva Factura</CardTitle>
+            <CardDescription>Completa los datos para registrar una nueva factura.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={onCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-6">
+              <div className="sm:col-span-2">
+                <Label className="mb-2">Monto (COP)</Label>
+                <Input placeholder="Ej: 1.500.000" value={amount} onChange={(e) => setAmount(formatCurrency(e.target.value))} />
               </div>
-              <label className="cursor-pointer rounded-md bg-lp-primary-1 px-3 py-2 text-xs font-medium text-lp-primary-2 hover:opacity-90">
-                Seleccionar
-                <input type="file" accept=".pdf,image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-              </label>
+              <div className="sm:col-span-2">
+                <Label className="mb-2">Fecha de emision</Label>
+                <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
+              </div>
+              <div className="sm:col-span-2">
+                <Label className="mb-2">Fecha de vencimiento</Label>
+                <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              </div>
+              <div className="sm:col-span-3">
+                <Label className="mb-2">Archivo (PDF/imagen, opcional)</Label>
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    const f = e.dataTransfer.files?.[0];
+                    if (f) setFile(f);
+                  }}
+                  className={`rounded-md border border-dashed px-4 py-6 text-sm ${dragOver ? 'border-lp-primary-1 bg-lp-sec-4/50' : 'border-lp-sec-4/60'}`}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      {file ? (
+                        <>
+                          <div className="font-medium text-lp-primary-1">{file.name}</div>
+                          <div className="text-xs text-lp-sec-3">{(file.size/1024/1024).toFixed(2)} MB | {file.type || 'archivo'}</div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-lp-primary-1">Arrastra un archivo aqui o haz clic para seleccionar</div>
+                          <div className="text-xs text-lp-sec-3">PDF, JPG, PNG | hasta 10 MB</div>
+                        </>
+                      )}
+                    </div>
+                    <label className="cursor-pointer rounded-md bg-lp-primary-1 px-3 py-2 text-xs font-medium text-lp-primary-2 hover:opacity-90">
+                      Seleccionar
+                      <input type="file" accept=".pdf,image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div className="sm:col-span-6">
+                <Button type="submit" disabled={!canSubmit} className="bg-lp-primary-1 text-lp-primary-2 hover:opacity-90">
+                  {saving ? "Creando..." : "Crear factura"}
+                </Button>
+                {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {showFilters && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Filtros</CardTitle>
+            <CardDescription>Filtra las facturas por los siguientes criterios.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
+              <div className="sm:col-span-2">
+                <Label className="mb-2">Estado</Label>
+                <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                  <option value="all">- Todos -</option>
+                  <option value="uploaded">Cargada</option>
+                  <option value="funded">Desembolsada</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <Label className="mb-2">Emision desde</Label>
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </div>
+              <div className="sm:col-span-2">
+                <Label className="mb-2">Emision hasta</Label>
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              </div>
+              <div className="sm:col-span-3">
+                <Label className="mb-2">Monto minimo</Label>
+                <Input placeholder="Ej: 1.000.000" value={minAmount} onChange={(e) => setMinAmount(formatCurrency(e.target.value))} />
+              </div>
+              <div className="sm:col-span-3">
+                <Label className="mb-2">Monto maximo</Label>
+                <Input placeholder="Ej: 50.000.000" value={maxAmount} onChange={(e) => setMaxAmount(formatCurrency(e.target.value))} />
+              </div>
+              <div className="sm:col-span-2">
+                <Label className="mb-2">Orden</Label>
+                <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={sort} onChange={(e) => setSort(e.target.value)}>
+                  <option value="created_at.desc">Recientes primero</option>
+                  <option value="created_at.asc">Antiguas primero</option>
+                  <option value="amount.desc">Monto (mayor a menor)</option>
+                  <option value="amount.asc">Monto (menor a mayor)</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <Label className="mb-2">Tamano de pagina</Label>
+                <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={pageSize} onChange={(e) => { setPage(1); setPageSize(Number(e.target.value)); }}>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="sm:col-span-6">
-          <Button type="submit" disabled={!canSubmit} className="bg-lp-primary-1 text-lp-primary-2 hover:opacity-90">
-            {saving ? "Creando..." : "Crear factura"}
-          </Button>
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-        </div>
-      </form>
+            <div className="mt-3 flex items-center justify-between text-sm">
+              <div className="text-lp-sec-3">Resultados: {total}</div>
+              <button type="button" className="underline" onClick={() => { setStatusFilter('all'); setStartDate(''); setEndDate(''); setMinAmount(''); setMaxAmount(''); setSort('created_at.desc'); setPage(1); setPageSize(10); }}>Limpiar filtros</button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <CreateRequestFromInvoices orgId={orgId} items={items} selected={selected} setSelected={setSelected} onCreated={async () => { setSelected({}); toast.success('Solicitud creada'); }} />
 
-      <div className="rounded-lg border border-lp-sec-4/60">
-        <table className="min-w-full divide-y divide-lp-sec-4/60">
-          <thead className="bg-lp-sec-4/30">
-            <tr>
-              <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">
-                <input type="checkbox" aria-label="Seleccionar todas" onChange={(e)=>{ const v=e.target.checked; const next: Record<string, boolean>={}; items.forEach(it=> next[it.id]=v); setSelected(next); }} />
-              </th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Fecha</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Vencimiento</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Monto</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Estado</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Nombre</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Archivo</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td className="px-4 py-3 text-sm" colSpan={7}>Cargando...</td></tr>
-            ) : items.length === 0 ? (
-              <tr><td className="px-4 py-3 text-sm" colSpan={7}>No hay facturas todavia.</td></tr>
-            ) : (
-              items.map((it) => (
-                <tr key={it.id} className="border-t border-lp-sec-4/60">
-                  <td className="px-4 py-2 text-sm">
-                    <input type="checkbox" checked={!!selected[it.id]} onChange={(e)=> setSelected(prev=>({ ...prev, [it.id]: e.target.checked }))} />
-                  </td>
-                  <td className="px-4 py-2 text-sm">{it.issue_date}</td>
-                  <td className="px-4 py-2 text-sm">{it.due_date}</td>
-                  <td className="px-4 py-2 text-sm">${Intl.NumberFormat('es-CO').format(it.amount)}</td>
-                  <td className="px-4 py-2 text-sm"><StatusBadge kind="invoice" status={it.status} /></td>
-                  <td className="px-4 py-2 text-sm">{basename(it.file_path)}</td>
-                  <td className="px-4 py-2 text-sm">
-                    <FileLink path={it.file_path ?? null} />
-                  </td>
-                  <td className="px-4 py-2 text-sm">
-                    <RowActions orgId={orgId} invoice={it} onChanged={load} />
-                  </td>
+      <Card>
+        <CardHeader>
+          <CardTitle>Lista de Facturas</CardTitle>
+          <CardDescription>Estas son las facturas que has cargado en la plataforma.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border border-lp-sec-4/60">
+            <table className="min-w-full divide-y divide-lp-sec-4/60">
+              <thead className="bg-lp-sec-4/30">
+                <tr>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">
+                    <input type="checkbox" aria-label="Seleccionar todas" onChange={(e)=>{ const v=e.target.checked; const next: Record<string, boolean>={}; items.forEach(it=> next[it.id]=v); setSelected(next); }} />
+                  </th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Fecha</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Vencimiento</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Monto</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Estado</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Nombre</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Archivo</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Acciones</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-      {/* Paginacion */}
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-lp-sec-3">Pagina {page} de {Math.max(1, Math.ceil(total / pageSize))}</div>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
-          <Button type="button" variant="outline" disabled={page >= Math.ceil(total / pageSize)} onClick={() => setPage((p) => p + 1)}>Siguiente</Button>
-        </div>
-      </div>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <TableSkeleton cols={8} />
+                ) : items.length === 0 ? (
+                  <tr>
+                    <td colSpan={8}>
+                      <EmptyState
+                        title="No hay facturas"
+                        description="Crea una nueva factura para empezar a operar."
+                        action={{
+                          label: "Crear Factura",
+                          onClick: () => setShowCreateForm(true),
+                        }}
+                      />
+                    </td>
+                  </tr>
+                ) : (
+                  items.map((it) => (
+                    <tr key={it.id} className="border-t border-lp-sec-4/60">
+                      <td className="px-4 py-2 text-sm">
+                        <input type="checkbox" checked={!!selected[it.id]} onChange={(e)=> setSelected(prev=>({ ...prev, [it.id]: e.target.checked }))} />
+                      </td>
+                      <td className="px-4 py-2 text-sm">{it.issue_date}</td>
+                      <td className="px-4 py-2 text-sm">{it.due_date}</td>
+                      <td className="px-4 py-2 text-sm">${Intl.NumberFormat('es-CO').format(it.amount)}</td>
+                      <td className="px-4 py-2 text-sm"><StatusBadge kind="invoice" status={it.status} /></td>
+                      <td className="px-4 py-2 text-sm">{basename(it.file_path)}</td>
+                      <td className="px-4 py-2 text-sm">
+                        <FileLink path={it.file_path ?? null} />
+                      </td>
+                      <td className="px-4 py-2 text-sm">
+                        <RowActions orgId={orgId} invoice={it} onChanged={load} />
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+        <CardFooter className="flex items-center justify-between">
+            <div className="text-sm text-lp-sec-3">Pagina {page} de {Math.max(1, Math.ceil(total / pageSize))}</div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
+              <Button type="button" variant="outline" disabled={page >= Math.ceil(total / pageSize)} onClick={() => setPage((p) => p + 1)}>Siguiente</Button>
+            </div>
+        </CardFooter>
+      </Card>
     </div>
   );
 }
@@ -473,5 +534,3 @@ function RowActions({ orgId, invoice, onChanged }: { orgId: string; invoice: Inv
     </div>
   );
 }
-
-
