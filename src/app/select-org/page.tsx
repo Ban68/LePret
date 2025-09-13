@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { OrgCreator } from "./OrgCreator";
 
 type Org = { id: string; name: string; type: string; role: string; status?: string };
 
-export default function SelectOrgPage() {
+function SelectOrgInner() {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,5 +78,13 @@ export default function SelectOrgPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SelectOrgPage() {
+  return (
+    <Suspense fallback={<div className="py-20 sm:py-24"><div className="container mx-auto max-w-2xl px-4 sm:px-6 lg:px-8"><p className="text-lp-sec-3">Cargando...</p></div></div>}>
+      <SelectOrgInner />
+    </Suspense>
   );
 }
