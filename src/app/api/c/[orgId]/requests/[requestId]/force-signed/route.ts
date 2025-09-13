@@ -37,7 +37,7 @@ export async function POST(
       const path = `${doc.company_id}/${doc.id}.pdf`;
       try {
         const { data: existing } = await supabaseAdmin.storage.from('contracts').list(doc.company_id, { limit: 1, search: `${doc.id}.pdf` });
-        const already = Array.isArray(existing) && existing.some((f: any) => f.name === `${doc.id}.pdf`);
+        const already = Array.isArray(existing) && existing.some((f) => (f as { name?: string }).name === `${doc.id}.pdf`);
         if (!already) {
           const placeholder = Buffer.from('%PDF-1.4\n% Placeholder PDF (demo)\n');
           await supabaseAdmin.storage.from('contracts').upload(path, placeholder, { contentType: 'application/pdf', upsert: true });
@@ -55,7 +55,8 @@ export async function POST(
     try { await logAudit({ company_id: orgId, actor_id: session.user.id, entity: 'request', entity_id: requestId, action: 'status_changed', data: { status: 'signed', forced: true } }); } catch {}
 
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || String(e) }, { status: 500 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

@@ -55,7 +55,7 @@ export async function POST(
         type: 'CONTRATO_MARCO',
         status: 'created',
         provider: 'PANDADOC',
-        provider_envelope_id: (envelope as any).envelopeId,
+        provider_envelope_id: (envelope as { envelopeId: string }).envelopeId,
         uploaded_by: session.user.id,
       })
       .select()
@@ -66,8 +66,8 @@ export async function POST(
     try {
       const { notifyClientContractReady } = await import("@/lib/notifications");
       const appBase = process.env.PANDADOC_APP_URL || 'https://app.pandadoc.com/a/#/documents/';
-      const appUrl = `${appBase}${(doc as any).provider_envelope_id}`;
-      await notifyClientContractReady(orgId, { signUrl: (envelope as any).signUrl || null, appUrl });
+      const appUrl = `${appBase}${(doc as { provider_envelope_id: string | null }).provider_envelope_id}`;
+      await notifyClientContractReady(orgId, { signUrl: (envelope as { signUrl?: string | null }).signUrl || null, appUrl });
     } catch {}
 
     // Auditoría
@@ -77,7 +77,8 @@ export async function POST(
     } catch {}
 
     return NextResponse.json({ ok: true, envelope, document: doc });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message ?? String(e) }, { status: 500 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

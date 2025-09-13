@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-async function isStaff(supabase: any, userId: string): Promise<boolean> {
+async function isStaff(supabase: SupabaseClient, userId: string): Promise<boolean> {
   const { data } = await supabase.from('profiles').select('is_staff').eq('user_id', userId).maybeSingle();
   return !!(data && data.is_staff);
 }
@@ -50,7 +51,8 @@ export async function POST(
     } catch {}
 
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message ?? String(e) }, { status: 500 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

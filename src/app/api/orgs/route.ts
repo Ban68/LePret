@@ -18,7 +18,12 @@ export async function GET() {
     .select("role, status, company_id, companies ( id, name, type )")
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  const orgs = (data ?? []).map((m: any) => ({
+  type MembershipWithCompany = {
+    role: string;
+    status: string;
+    companies: { id: string; name: string; type: string } | null;
+  };
+  const orgs = (data ?? []).map((m: MembershipWithCompany) => ({
     id: m.companies?.id,
     name: m.companies?.name,
     type: m.companies?.type,
@@ -51,7 +56,10 @@ export async function POST(req: Request) {
         .upsert(
           {
             user_id: session.user.id,
-            full_name: (session.user as any).user_metadata?.full_name ?? session.user.email,
+            full_name:
+              (typeof session.user.user_metadata === 'object' && session.user.user_metadata && 'full_name' in session.user.user_metadata)
+                ? String((session.user.user_metadata as Record<string, unknown>).full_name)
+                : session.user.email,
           },
           { onConflict: "user_id" }
         );
@@ -78,7 +86,7 @@ export async function POST(req: Request) {
       .insert({ user_id: session.user.id, company_id: org.id, role: "OWNER", status: 'ACTIVE' })
       .select()
       .single();
-    if (mErr && (mErr as any).code !== "23505") {
+    if (mErr && mErr.code !== "23505") {
       console.error("memberships insert error", mErr);
       throw mErr;
     }

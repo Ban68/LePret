@@ -24,7 +24,7 @@ export async function GET(
   const page = Number(url.searchParams.get('page') ?? '1');
   const offset = Math.max(0, (page - 1) * limit);
 
-  let query: any = supabase
+  let query = supabase
     .from("funding_requests")
     .select("id, invoice_id, requested_amount, status, created_at, file_path, created_by", { count: 'exact' })
     .eq("company_id", orgId);
@@ -46,7 +46,7 @@ export async function GET(
 
   // Enriquecer con facturas asociadas (múltiples)
   const reqs = data || [];
-  const reqIds = reqs.map((r: any) => r.id);
+  const reqIds = reqs.map((r) => (r as { id: string }).id);
   let byReq: Record<string, { invoice_ids: string[]; total: number }> = {};
   if (reqIds.length) {
     const fri = await supabase
@@ -73,11 +73,11 @@ export async function GET(
     });
   }
 
-  const enriched = reqs.map((r: any) => ({
+  const enriched = reqs.map((r) => ({
     ...r,
-    invoice_ids: byReq[r.id]?.invoice_ids || (r.invoice_id ? [r.invoice_id] : []),
-    invoices_count: (byReq[r.id]?.invoice_ids?.length) || (r.invoice_id ? 1 : 0),
-    invoices_total: byReq[r.id]?.total ?? (r.invoice_id ? Number(r.requested_amount || 0) : 0),
+    invoice_ids: byReq[(r as { id: string; invoice_id?: string | null }).id]?.invoice_ids || ((r as { invoice_id?: string | null }).invoice_id ? [(r as { invoice_id?: string | null }).invoice_id as string] : []),
+    invoices_count: (byReq[(r as { id: string }).id]?.invoice_ids?.length) || ((r as { invoice_id?: string | null }).invoice_id ? 1 : 0),
+    invoices_total: byReq[(r as { id: string }).id]?.total ?? ((r as { invoice_id?: string | null; requested_amount?: number | string | null }).invoice_id ? Number((r as { requested_amount?: number | string | null }).requested_amount || 0) : 0),
   }));
 
   return NextResponse.json({ ok: true, items: enriched, total: count ?? 0 });

@@ -30,8 +30,9 @@ export async function DELETE(
       .eq("company_id", orgId);
     if (upErr) throw upErr;
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message ?? String(e) }, { status: 500 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
 
@@ -66,8 +67,8 @@ export async function PUT(
     if (upErr) throw upErr;
     if (fr.file_path && fr.file_path !== file_path) await supabaseAdmin.storage.from("requests").remove([fr.file_path]);
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message ?? String(e) }, { status: 500 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
-

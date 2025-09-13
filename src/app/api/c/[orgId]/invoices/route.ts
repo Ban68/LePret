@@ -24,7 +24,7 @@ export async function GET(
   const page = Number(url.searchParams.get('page') ?? '1');
   const offset = Math.max(0, (page - 1) * limit);
 
-  let query: any = supabase
+  let query = supabase
     .from("invoices")
     .select("id, amount, issue_date, due_date, status, file_path, created_by", { count: 'exact' })
     .eq("company_id", orgId);

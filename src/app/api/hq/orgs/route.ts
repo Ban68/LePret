@@ -22,7 +22,7 @@ export async function GET() {
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
   // counts per company
-  const result = [] as any[];
+  const result: Array<{ id: string; name: string; type: string; created_at: string; invoices: number; requests: number }> = [];
   for (const c of companies || []) {
     const [{ count: invCount }, { count: reqCount }] = await Promise.all([
       supabaseAdmin.from('invoices').select('id', { count: 'exact', head: true }).eq('company_id', c.id),
@@ -33,4 +33,3 @@ export async function GET() {
 
   return NextResponse.json({ ok: true, companies: result });
 }
-

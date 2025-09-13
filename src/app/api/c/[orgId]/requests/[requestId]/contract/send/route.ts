@@ -27,13 +27,14 @@ export async function POST(
 
     try {
       await sendDocument(doc.provider_envelope_id, '[LePrêt] Contrato listo para firma', 'Por favor revisa y firma el documento.');
-    } catch (e: any) {
-      return NextResponse.json({ ok: false, error: e?.message || String(e) }, { status: 400 });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ ok: false, error: msg }, { status: 400 });
     }
 
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || String(e) }, { status: 500 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
-

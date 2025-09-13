@@ -29,13 +29,13 @@ export async function GET(
   const userIds = (rows || []).map(r => r.user_id);
   let emails: Record<string, string> = {};
   if (userIds.length) {
-    const { data: users } = await supabaseAdmin.from('auth.users' as any).select('id, email').in('id', userIds);
-    (users || []).forEach((u: any) => { emails[u.id] = u.email; });
+    const { data: users } = await supabaseAdmin.from('auth.users' as unknown as string).select('id, email').in('id', userIds);
+    (users as Array<{ id: string; email: string | null }> | null || []).forEach((u) => { emails[u.id] = u.email ?? ''; });
   }
 
   const members = (rows || []).map(r => ({
     user_id: r.user_id,
-    full_name: (r as any).profiles?.full_name ?? null,
+    full_name: (r as { profiles?: { full_name?: string | null } | null }).profiles?.full_name ?? null,
     email: emails[r.user_id] ?? null,
     role: r.role,
     status: r.status,
@@ -59,7 +59,7 @@ export async function PATCH(
   const { user_id, status, role } = body || {};
   if (!user_id || (!status && !role)) return NextResponse.json({ ok: false, error: 'Missing fields' }, { status: 400 });
 
-  const update: any = {};
+  const update: Partial<{ status: string; role: string }> = {};
   if (status) update.status = status;
   if (role) update.role = role;
 
@@ -71,4 +71,3 @@ export async function PATCH(
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
-

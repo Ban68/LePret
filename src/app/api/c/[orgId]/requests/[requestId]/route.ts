@@ -14,7 +14,7 @@ export async function PATCH(
     if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    const patch: any = {};
+    const patch: Partial<{ requested_amount: number; invoice_id: string | null; status: string }> = {};
     if (body.requested_amount !== undefined) patch.requested_amount = body.requested_amount;
     if (body.invoice_id !== undefined) patch.invoice_id = body.invoice_id;
     if (body.status !== undefined) patch.status = body.status;
@@ -26,8 +26,9 @@ export async function PATCH(
       .eq("company_id", orgId);
     if (error) throw error;
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message ?? String(e) }, { status: 500 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
 
@@ -63,8 +64,8 @@ export async function DELETE(
     if (delErr) throw delErr;
 
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message ?? String(e) }, { status: 500 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
-

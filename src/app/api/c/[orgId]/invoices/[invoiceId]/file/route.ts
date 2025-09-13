@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-async function ensureMembership(supabase: any, orgId: string) {
+async function ensureMembership(supabase: SupabaseClient, orgId: string) {
   const { data, error } = await supabase
     .from("memberships")
     .select("user_id")
@@ -46,8 +47,9 @@ export async function DELETE(
     if (upErr) throw upErr;
 
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message ?? String(e) }, { status: 500 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
 
@@ -86,8 +88,8 @@ export async function PUT(
       await supabaseAdmin.storage.from("invoices").remove([inv.file_path]);
     }
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message ?? String(e) }, { status: 500 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
-

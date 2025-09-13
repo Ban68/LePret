@@ -26,7 +26,7 @@ export async function POST(
     if (invErr) return NextResponse.json({ ok: false, error: invErr.message }, { status: 500 });
     if (!invoices || !invoices.length) return NextResponse.json({ ok: false, error: 'no_invoices_found' }, { status: 404 });
 
-    const total = invoices.reduce((acc: number, it: any) => acc + Number(it.amount || 0), 0);
+    const total = invoices.reduce((acc: number, it) => acc + Number((it as { amount?: number | string | null }).amount || 0), 0);
     if (total <= 0) return NextResponse.json({ ok: false, error: 'invalid_total' }, { status: 400 });
 
     // Crear solicitud
@@ -43,15 +43,15 @@ export async function POST(
     if (rErr) return NextResponse.json({ ok: false, error: rErr.message }, { status: 400 });
 
     // Relacionar facturas con la solicitud
-    const rows = invoices.map((inv: any) => ({ request_id: reqRow.id, invoice_id: inv.id }));
+    const rows = invoices.map((inv) => ({ request_id: reqRow.id, invoice_id: (inv as { id: string }).id }));
     const { error: friErr } = await supabase
       .from('funding_request_invoices')
       .insert(rows);
     if (friErr) return NextResponse.json({ ok: false, error: friErr.message }, { status: 400 });
 
     return NextResponse.json({ ok: true, request: reqRow, total, count: invoices.length });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || String(e) }, { status: 500 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
-
