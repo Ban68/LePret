@@ -80,7 +80,7 @@ estado: "En elaboración"
 
   * Sin Prisma, modelo en SQL + RLS.
   * E-firma abstraída (DocuSign/Zoho Sign).
-  * Auth con next-auth (Credentials + Magic Link).
+  * Auth con Supabase Auth (email/password + Magic Link).
   * Infra: Vercel + Supabase.
 
 ```mermaid
@@ -88,7 +88,7 @@ flowchart LR
   A[Cliente] -- HTTP/JSON --> B(API Next.js)
   B -- SQL --> C[(Supabase Postgres)]
   B -- Webhook --> D[E-firma Provider]
-  B -- Auth --> E[next-auth]
+  B -- Auth --> E[Supabase Auth]
 ```
 
 ## 7. Diseño de Datos
@@ -129,7 +129,7 @@ Roadmap completo: ver [docs/ROADMAP.md](./ROADMAP.md)
 | ID   | Tarea                               | Prioridad | Estimación | Dependencias | Estado    |
 | ---- | ----------------------------------- | --------- | ---------- | ------------ | --------- |
 | BK-1 | Configurar Supabase + tablas núcleo | Alta      | 3d         | Ninguna      | Pendiente |
-| BK-2 | Implementar auth con next-auth      | Alta      | 4d         | BK-1         | Pendiente |
+| BK-2 | Implementar auth con Supabase Auth Helpers | Alta      | 4d         | BK-1         | Pendiente |
 | BK-3 | Scaffold wizard nueva solicitud     | Alta      | 5d         | BK-1         | Pendiente |
 
 ## 12. Calidad y Pruebas
@@ -141,7 +141,7 @@ Roadmap completo: ver [docs/ROADMAP.md](./ROADMAP.md)
 ## 13. Seguridad y Cumplimiento
 
 * **Datos sensibles:** PII, cuentas bancarias, documentos.
-* **Autenticación:** next-auth con MFA opcional.
+* **Autenticación:** Supabase Auth con MFA opcional.
 * **Regulación:** Retención de logs 5 años, GDPR/LOPD.
 * **Controles:** RLS en BD, buckets segregados por org.
 

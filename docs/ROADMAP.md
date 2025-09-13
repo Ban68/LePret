@@ -2,7 +2,7 @@ Fase 2 — Portal de Usuarios LePrêt (Clientes →
  Inversionistas → Accionistas/Empleados)
  Stack base actualizado (según repo): Next.js 14 (App Router) + TypeScript + Tailwind +
  shadcn/ui + Zod + React Hook Form + @supabase/supabase-js (PostgreSQL con RLS); 
-Resend para emails. next-auth (Credentials + Magic Link/OAuth opcional) a incorporar
+Resend para emails. Supabase Auth (email/password + Magic Link/OAuth opcional) consolidado
  en Fase 2. React Query/Zustand opcionales para estado cliente (no imprescindibles
  ahora). Sin Prisma (no se usa en el repo). Colas: Inngest o BullMQ (posterior). Storage:
  Supabase Storage. E‑firma: DocuSign/Zoho Sign (conector abstraído).
@@ -187,7 +187,7 @@ Formulario: deudor (seleccionar/crear), condiciones factura(s), subida de archiv
 • 
 • 
 Auth: 
-/api/auth/* (next-auth)
+Autenticación: Supabase Auth con helpers de Next.js (sin /api/auth/* de NextAuth)
  Org/Members: 
 GET/POST /api/orgs , 
 GET/POST /api/orgs/:id/members
