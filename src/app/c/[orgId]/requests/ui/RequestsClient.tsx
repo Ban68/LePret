@@ -73,7 +73,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
 
   const invoiceAmountById = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const inv of invoices) map[inv.id] = Number((inv as any).amount || 0);
+    for (const inv of invoices) map[inv.id] = Number(inv.amount || 0);
     return map;
   }, [invoices]);
 
