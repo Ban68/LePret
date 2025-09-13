@@ -22,6 +22,7 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
   const [items, setItems] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
 
   const [amount, setAmount] = useState<string>("");
   const [issueDate, setIssueDate] = useState<string>("");
@@ -77,6 +78,11 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
       setError(data.error || "Error cargando facturas");
     } else {
       setItems(data.items || []);
+      setSelected((prev) => {
+        const next: Record<string, boolean> = {};
+        for (const it of data.items || []) if (prev[it.id]) next[it.id] = true;
+        return next;
+      });
       setTotal(data.total ?? 0);
     }
     setLoading(false);
@@ -267,10 +273,15 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
         </div>
       </form>
 
+      <CreateRequestFromInvoices orgId={orgId} items={items} selected={selected} setSelected={setSelected} onCreated={async () => { setSelected({}); toast.success('Solicitud creada'); }} />
+
       <div className="rounded-lg border border-lp-sec-4/60">
         <table className="min-w-full divide-y divide-lp-sec-4/60">
           <thead className="bg-lp-sec-4/30">
             <tr>
+              <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">
+                <input type="checkbox" aria-label="Seleccionar todas" onChange={(e)=>{ const v=e.target.checked; const next: Record<string, boolean>={}; items.forEach(it=> next[it.id]=v); setSelected(next); }} />
+              </th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Fecha</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Vencimiento</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Monto</th>
@@ -288,6 +299,9 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
             ) : (
               items.map((it) => (
                 <tr key={it.id} className="border-t border-lp-sec-4/60">
+                  <td className="px-4 py-2 text-sm">
+                    <input type="checkbox" checked={!!selected[it.id]} onChange={(e)=> setSelected(prev=>({ ...prev, [it.id]: e.target.checked }))} />
+                  </td>
                   <td className="px-4 py-2 text-sm">{it.issue_date}</td>
                   <td className="px-4 py-2 text-sm">{it.due_date}</td>
                   <td className="px-4 py-2 text-sm">${Intl.NumberFormat('es-CO').format(it.amount)}</td>
@@ -343,6 +357,41 @@ function basename(path?: string | null) {
   if (!path) return '—';
   const parts = path.split('/');
   return parts[parts.length - 1] || '—';
+}
+
+function CreateRequestFromInvoices({ orgId, items, selected, setSelected, onCreated }: { orgId: string; items: Invoice[]; selected: Record<string, boolean>; setSelected: (s: Record<string, boolean>) => void; onCreated: () => void }) {
+  const selIds = items.filter(it => selected[it.id]).map(it => it.id);
+  const total = items.filter(it => selected[it.id]).reduce((acc, it) => acc + Number(it.amount || 0), 0);
+  const disabled = selIds.length === 0;
+  const [busy, setBusy] = useState(false);
+
+  const createFromSelected = async () => {
+    if (disabled) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/c/${orgId}/requests/from-invoices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoice_ids: selIds }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo crear solicitud');
+      onCreated();
+    } catch (e: any) {
+      toast.error(e?.message || 'Error');
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="mb-3 flex items-center justify-between rounded-md border border-dashed border-lp-sec-4/60 p-3 text-sm">
+      <div className="text-lp-sec-3">
+        Seleccionadas: <span className="font-medium text-lp-primary-1">{selIds.length}</span>
+        {' '}· Monto total: <span className="font-medium text-lp-primary-1">${Intl.NumberFormat('es-CO').format(total)}</span>
+      </div>
+      <div className="space-x-2">
+        <Button type="button" variant="outline" onClick={() => setSelected({})} disabled={busy || disabled}>Limpiar selección</Button>
+        <Button type="button" onClick={createFromSelected} disabled={busy || disabled} className="bg-lp-primary-1 text-lp-primary-2 hover:opacity-90">
+          {busy ? 'Creando...' : 'Crear solicitud con seleccionadas'}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function RowActions({ orgId, invoice, onChanged }: { orgId: string; invoice: Invoice; onChanged: () => Promise<void> | void }) {

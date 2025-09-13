@@ -94,9 +94,21 @@ export async function POST(
       .eq("id", requestId)
       .eq("company_id", orgId);
 
+    // Notificar al cliente: oferta generada
+    try {
+      const { notifyClientOfferGenerated } = await import("@/lib/notifications");
+      await notifyClientOfferGenerated(orgId, offer.id);
+    } catch {}
+
+    // Auditoría
+    try {
+      const { logAudit } = await import("@/lib/audit");
+      await logAudit({ company_id: orgId, actor_id: session.user.id, entity: 'offer', entity_id: offer.id, action: 'created', data: { request_id: requestId } });
+      await logAudit({ company_id: orgId, actor_id: session.user.id, entity: 'request', entity_id: requestId, action: 'status_changed', data: { status: 'offered' } });
+    } catch {}
+
     return NextResponse.json({ ok: true, offer });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message ?? String(e) }, { status: 500 });
   }
 }
-

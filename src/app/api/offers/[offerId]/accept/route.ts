@@ -36,9 +36,21 @@ export async function POST(
       .eq("id", offer.request_id)
       .eq("company_id", offer.company_id);
 
+    // Notificar al staff: oferta aceptada
+    try {
+      const { notifyStaffOfferAccepted } = await import("@/lib/notifications");
+      await notifyStaffOfferAccepted(offer.company_id, offerId);
+    } catch {}
+
+    // Auditoría
+    try {
+      const { logAudit } = await import("@/lib/audit");
+      await logAudit({ company_id: offer.company_id, actor_id: session.user.id, entity: 'offer', entity_id: offerId, action: 'status_changed', data: { status: 'accepted' } });
+      await logAudit({ company_id: offer.company_id, actor_id: session.user.id, entity: 'request', entity_id: offer.request_id, action: 'status_changed', data: { status: 'accepted' } });
+    } catch {}
+
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message ?? String(e) }, { status: 500 });
   }
 }
-

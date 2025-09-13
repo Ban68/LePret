@@ -72,5 +72,9 @@ export async function POST(
     .select()
     .single();
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+  try {
+    const { logAudit } = await import("@/lib/audit");
+    await logAudit({ company_id: orgId, actor_id: session.user.id, entity: 'invoice', entity_id: data.id, action: 'created', data: { amount: body.amount } });
+  } catch {}
   return NextResponse.json({ ok: true, created: data }, { status: 201 });
 }

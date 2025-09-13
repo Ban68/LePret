@@ -32,7 +32,11 @@ export default function CompanyMembersPage() {
     <div className="py-10">
       <div className="container mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <h1 className="font-colette text-3xl font-bold text-lp-primary-1">Backoffice — Miembros</h1>
-        <p className="mt-2 text-lp-sec-3">Empresa: {companyId}</p>
+        <p className="mt-2 text-lp-sec-3">Empresa (ID): {companyId}</p>
+        <div className="mt-3 flex gap-3">
+          <a href={`/c/${companyId}/requests`} className="rounded-md bg-lp-primary-1 px-3 py-2 text-sm font-medium text-lp-primary-2 hover:opacity-90">Abrir portal (Solicitudes)</a>
+          <a href={`/c/${companyId}/invoices`} className="rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm font-medium text-lp-primary-1 hover:bg-lp-primary-1 hover:text-lp-primary-2">Abrir portal (Facturas)</a>
+        </div>
 
         {error && <div className="mt-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
         <div className="mt-6 overflow-x-auto rounded-md border border-lp-sec-4/60">

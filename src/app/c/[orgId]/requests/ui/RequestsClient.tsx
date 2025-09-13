@@ -25,6 +25,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isStaff, setIsStaff] = useState<boolean>(false);
 
   const [amount, setAmount] = useState<string>("");
   const [invoiceId, setInvoiceId] = useState<string>("");
@@ -69,6 +70,21 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   };
 
   useEffect(() => { load(); }, [orgId, statusFilter, startDate, endDate, minAmount, maxAmount, withInvoice, sort, page, pageSize]);
+
+  useEffect(() => {
+    // Detectar si el usuario es staff global (puede marcar desembolso y bypass de membresía)
+    const checkStaff = async () => {
+      try {
+        const supabase = createClientComponentClient();
+        const { data } = await supabase
+          .from('profiles')
+          .select('is_staff')
+          .single();
+        setIsStaff(!!data?.is_staff);
+      } catch { setIsStaff(false); }
+    };
+    checkStaff();
+  }, [orgId]);
 
   const parseCurrency = (s: string) => Number((s || '').replace(/[^0-9]/g, ''));
   const formatCurrency = (n: string) => {
@@ -249,7 +265,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
             <tr>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Creada</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Monto</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Factura</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Facturas</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Soporte</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Estado</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Acciones</th>
@@ -262,7 +278,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
               <tr><td className="px-4 py-3 text-sm" colSpan={4}>No hay solicitudes todavía.</td></tr>
             ) : (
               items.map((it) => (
-                <RequestRow key={it.id} orgId={orgId} req={it} onChanged={load} />
+                <RequestRow key={it.id} orgId={orgId} req={it} onChanged={load} isStaff={isStaff} />
               ))
             )}
           </tbody>
@@ -280,12 +296,15 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   );
 }
 
-function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem; onChanged: () => Promise<void> | void }) {
+function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: RequestItem; onChanged: () => Promise<void> | void; isStaff: boolean }) {
   const [editing, setEditing] = useState(false);
   const [amt, setAmt] = useState(new Intl.NumberFormat('es-CO').format(req.requested_amount));
   const [invId, setInvId] = useState(req.invoice_id || "");
   const [busy, setBusy] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [showInv, setShowInv] = useState(false);
   const supabase = createClientComponentClient();
+  const isDevEnv = process.env.NODE_ENV !== 'production';
 
   const parseCurrency = (s: string) => Number((s || '').replace(/[^0-9]/g, ''));
   const onSave = async () => {
@@ -351,8 +370,18 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
   return (
     <tr className="border-t border-lp-sec-4/60">
       <td className="px-4 py-2 text-sm">{new Date(req.created_at).toLocaleDateString()}</td>
-      <td className="px-4 py-2 text-sm">${Intl.NumberFormat('es-CO').format(req.requested_amount)}</td>
-      <td className="px-4 py-2 text-sm">{req.invoice_id || '—'}</td>
+      <td className="px-4 py-2 text-sm">
+        ${Intl.NumberFormat('es-CO').format(req.requested_amount)}
+        {Array.isArray((req as any).invoice_ids) && ((req as any).invoice_ids.length > 0) &&
+          Number((req as any).invoices_total || 0) !== Number(req.requested_amount || 0) && (
+            <span className="ml-2 text-xs text-red-700">≠ suma facturas</span>
+          )}
+      </td>
+      <td className="px-4 py-2 text-sm">
+        {Array.isArray((req as any).invoice_ids) && (req as any).invoice_ids.length > 0 ? (
+          <span>{(req as any).invoice_ids.length} · ${Intl.NumberFormat('es-CO').format((req as any).invoices_total || 0)}</span>
+        ) : (req.invoice_id || '—')}
+      </td>
       <td className="px-4 py-2 text-sm">{req.file_path ? basename(req.file_path) : '—'}</td>
       <td className="px-4 py-2 text-sm"><StatusBadge kind="request" status={req.status} /></td>
       <td className="px-4 py-2 text-sm">
@@ -381,10 +410,180 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
             )}
             <span className="text-lp-sec-3">|</span>
             <OfferActions orgId={orgId} requestId={req.id} status={req.status} onChanged={onChanged} />
+            {/* Preparar contrato (tras aceptación) */}
+            {req.status === 'accepted' && (
+              <>
+                <span className="text-lp-sec-3">|</span>
+                <button
+                  className="underline"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    try {
+                      const res = await fetch(`/api/c/${orgId}/requests/${req.id}/contract`, { method: 'POST' });
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok) throw new Error(data.error || 'No se pudo preparar contrato');
+                      toast.success('Contrato preparado. Si queda en borrador, usa "Abrir en PandaDoc"');
+                      await onChanged();
+                    } catch (e: any) { toast.error(e?.message || 'Error'); } finally { setBusy(false); }
+                  }}
+                >
+                  Preparar contrato
+                </button>
+              </>
+            )}
+            {/* Marcar desembolso (sólo staff) */}
+            {isStaff && (req.status === 'signed' || req.status === 'accepted') && (
+              <>
+                <span className="text-lp-sec-3">|</span>
+                <button
+                  className="underline"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (!confirm('¿Marcar como desembolsado?')) return;
+                    setBusy(true);
+                    try {
+                      const res = await fetch(`/api/c/${orgId}/requests/${req.id}/fund`, { method: 'POST' });
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok) throw new Error(data.error || 'No se pudo marcar desembolso');
+                      toast.success('Solicitud marcada como funded');
+                      await onChanged();
+                    } catch (e: any) { toast.error(e?.message || 'Error'); } finally { setBusy(false); }
+                  }}
+                >
+                  Marcar desembolso
+                </button>
+              </>
+            )}
+            {/* Más acciones (compacto) */}
+            {true && (
+              <>
+                <span className="text-lp-sec-3">|</span>
+                <button className="underline" onClick={() => setShowMore(v => !v)}>
+                  {showMore ? 'Ocultar' : 'Más'}
+                </button>
+                {showMore && (
+                  <span className="ml-2 space-x-2">
+                    <button
+                      className="underline"
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true);
+                        try {
+                          const res = await fetch(`/api/c/${orgId}/requests/${req.id}/contract/open`);
+                          const data = await res.json();
+                          if (!res.ok || !data?.url) throw new Error(data.error || 'No se pudo abrir en PandaDoc');
+                          window.open(data.url, '_blank');
+                        } catch (e: any) { toast.error(e?.message || 'Error abriendo en PandaDoc'); } finally { setBusy(false); }
+                      }}
+                    >
+                      Abrir en PandaDoc
+                    </button>
+                    <button
+                      className="underline"
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true);
+                        try {
+                          const res = await fetch(`/api/c/${orgId}/requests/${req.id}/contract/link`);
+                          const data = await res.json();
+                          if (!res.ok || !data?.url) throw new Error(data.error || 'No se pudo obtener enlace');
+                          await navigator.clipboard.writeText(data.url);
+                          toast.success('Enlace de firma copiado');
+                        } catch (e: any) { toast.error(e?.message || 'Error obteniendo enlace'); } finally { setBusy(false); }
+                      }}
+                    >
+                      Copiar enlace de firma
+                    </button>
+                    <button className="underline" onClick={() => setShowInv(true)}>Ver facturas</button>
+                  </span>
+                )}
+              </>
+            )}
+            {isDevEnv && (
+              <>
+                <span className="text-lp-sec-3">|</span>
+                <button
+                  className="underline text-orange-700"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (!confirm('Forzar estado a Firmada (solo dev)?')) return;
+                    setBusy(true);
+                    try {
+                      const res = await fetch(`/api/c/${orgId}/requests/${req.id}/force-signed`, { method: 'POST' });
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok) throw new Error(data.error || 'No se pudo forzar firmado');
+                      toast.success('Marcada como Firmada (dev)');
+                      await onChanged();
+                    } catch (e: any) { toast.error(e?.message || 'Error'); } finally { setBusy(false); }
+                  }}
+                >
+                  Forzar firmado (dev)
+                </button>
+              </>
+            )}
           </div>
         )}
+        {/* Modal de facturas asociadas */}
+        <InvoicesModalForRow orgId={orgId} open={showInv} ids={(req as any).invoice_ids || (req.invoice_id ? [req.invoice_id] : [])} onClose={()=>setShowInv(false)} />
       </td>
     </tr>
+  );
+}
+
+function InvoicesModalForRow({ orgId, open, ids, onClose }: { orgId: string; open: boolean; ids: string[]; onClose: () => void }) {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    const run = async () => {
+      if (!open || !ids || !ids.length) return;
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/c/${orgId}/invoices/by-ids`, { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ ids }) });
+        const data = await res.json();
+        if (mounted && res.ok) setItems(data.items || []); else if (mounted) setItems([]);
+      } finally { setLoading(false); }
+    };
+    run();
+    return () => { mounted = false; };
+  }, [open, ids, orgId]);
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-2xl rounded-md bg-white p-4 shadow-lg">
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-lp-primary-1">Facturas asociadas</h3>
+          <button className="underline" onClick={onClose}>Cerrar</button>
+        </div>
+        {loading ? (
+          <div className="text-sm text-lp-sec-3">Cargando…</div>
+        ) : items.length === 0 ? (
+          <div className="text-sm text-lp-sec-3">Sin facturas</div>
+        ) : (
+          <table className="min-w-full divide-y divide-lp-sec-4/60">
+            <thead className="bg-lp-sec-4/30">
+              <tr>
+                <th className="px-3 py-2 text-left text-sm">ID</th>
+                <th className="px-3 py-2 text-left text-sm">Fecha</th>
+                <th className="px-3 py-2 text-left text-sm">Vence</th>
+                <th className="px-3 py-2 text-left text-sm">Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((it: any) => (
+                <tr key={it.id} className="border-t border-lp-sec-4/60">
+                  <td className="px-3 py-2 text-sm">{it.id}</td>
+                  <td className="px-3 py-2 text-sm">{it.issue_date}</td>
+                  <td className="px-3 py-2 text-sm">{it.due_date}</td>
+                  <td className="px-3 py-2 text-sm">${Intl.NumberFormat('es-CO').format(it.amount || 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
   );
 }
 

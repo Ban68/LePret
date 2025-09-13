@@ -43,7 +43,44 @@ export async function GET(
   query = query.range(offset, offset + limit - 1);
   const { data, error, count } = await query;
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, items: data, total: count ?? 0 });
+
+  // Enriquecer con facturas asociadas (múltiples)
+  const reqs = data || [];
+  const reqIds = reqs.map((r: any) => r.id);
+  let byReq: Record<string, { invoice_ids: string[]; total: number }> = {};
+  if (reqIds.length) {
+    const fri = await supabase
+      .from('funding_request_invoices')
+      .select('request_id, invoice_id')
+      .in('request_id', reqIds);
+    const mapIds: Record<string, string[]> = {};
+    const allInvIds: string[] = [];
+    for (const row of (fri.data || [])) {
+      (mapIds[row.request_id] ||= []).push(row.invoice_id);
+      allInvIds.push(row.invoice_id);
+    }
+    let amounts: Record<string, number> = {};
+    if (allInvIds.length) {
+      const inv = await supabase
+        .from('invoices')
+        .select('id, amount')
+        .in('id', allInvIds);
+      for (const v of (inv.data || [])) amounts[v.id] = Number(v.amount || 0);
+    }
+    Object.entries(mapIds).forEach(([rid, ids]) => {
+      const total = ids.reduce((acc, id) => acc + (amounts[id] || 0), 0);
+      byReq[rid] = { invoice_ids: ids, total };
+    });
+  }
+
+  const enriched = reqs.map((r: any) => ({
+    ...r,
+    invoice_ids: byReq[r.id]?.invoice_ids || (r.invoice_id ? [r.invoice_id] : []),
+    invoices_count: (byReq[r.id]?.invoice_ids?.length) || (r.invoice_id ? 1 : 0),
+    invoices_total: byReq[r.id]?.total ?? (r.invoice_id ? Number(r.requested_amount || 0) : 0),
+  }));
+
+  return NextResponse.json({ ok: true, items: enriched, total: count ?? 0 });
 }
 
 export async function POST(
@@ -71,5 +108,15 @@ export async function POST(
     .select()
     .single();
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+  // Notificar al staff (nueva solicitud)
+  try {
+    const { notifyStaffNewRequest } = await import("@/lib/notifications");
+    await notifyStaffNewRequest(orgId, data.id);
+  } catch {}
+  // Auditoría
+  try {
+    const { logAudit } = await import("@/lib/audit");
+    await logAudit({ company_id: orgId, actor_id: session.user.id, entity: 'request', entity_id: data.id, action: 'created', data: { requested_amount: body.requested_amount } });
+  } catch {}
   return NextResponse.json({ ok: true, created: data }, { status: 201 });
 }

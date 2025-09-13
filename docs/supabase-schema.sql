@@ -52,6 +52,9 @@ create table if not exists profiles (
   created_at timestamptz not null default now()
 );
 
+-- Bandera para staff global (operaciones/soporte)
+alter table profiles add column if not exists is_staff boolean default false;
+
 -- Empresas/organizaciones
 create table if not exists companies (
   id uuid primary key default gen_random_uuid(),
@@ -72,6 +75,11 @@ create table if not exists memberships (
   constraint fk_m_company foreign key (company_id) references companies(id) on delete cascade
 );
 
+-- Asegurar valores de rol permitidos (incluye roles backoffice existentes y propuestos)
+alter table memberships drop constraint if exists memberships_role_check;
+alter table memberships add constraint memberships_role_check
+  check (role in ('client','admin','investor','OWNER','ADMIN','OPERATOR','VIEWER'));
+
 -- Facturas (simplificado)
 create table if not exists invoices (
   id uuid primary key default gen_random_uuid(),
@@ -86,6 +94,11 @@ create table if not exists invoices (
   created_at timestamptz not null default now()
 );
 
+-- Estados permitidos para invoices
+alter table invoices drop constraint if exists invoices_status_check;
+alter table invoices add constraint invoices_status_check
+  check (status in ('uploaded','validated','rejected','funded','cancelled'));
+
 -- Solicitudes de financiación (simplificado)
 create table if not exists funding_requests (
   id uuid primary key default gen_random_uuid(),
@@ -97,6 +110,11 @@ create table if not exists funding_requests (
   created_by uuid not null references profiles(user_id) on delete restrict,
   created_at timestamptz not null default now()
 );
+
+-- Estados permitidos para funding_requests
+alter table funding_requests drop constraint if exists funding_requests_status_check;
+alter table funding_requests add constraint funding_requests_status_check
+  check (status in ('review','offered','accepted','signed','funded','cancelled'));
 
 -- Nuevas columnas para adjuntos en solicitudes (idempotente)
 alter table funding_requests add column if not exists file_path text;
@@ -126,6 +144,8 @@ drop policy if exists "companies_member_select" on companies;
 create policy "companies_member_select" on companies for select using (
   exists (
     select 1 from memberships m where m.company_id = id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
   )
 );
 
@@ -134,23 +154,33 @@ drop policy if exists "invoices_member_select" on invoices;
 create policy "invoices_member_select" on invoices for select using (
   exists (
     select 1 from memberships m where m.company_id = invoices.company_id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
   )
 );
 drop policy if exists "invoices_member_insert" on invoices;
 create policy "invoices_member_insert" on invoices for insert with check (
-  exists (
-    select 1 from memberships m where m.company_id = invoices.company_id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+  (
+    exists (
+      select 1 from memberships m where m.company_id = invoices.company_id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+    ) or exists (
+      select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+    )
   ) and created_by = auth.uid()
 );
 drop policy if exists "invoices_author_update" on invoices;
 create policy "invoices_author_update" on invoices for update using (
-  created_by = auth.uid()
+  created_by = auth.uid() or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
 );
 
 -- permitir que el autor elimine su factura
 drop policy if exists "invoices_author_delete" on invoices;
 create policy "invoices_author_delete" on invoices for delete using (
-  created_by = auth.uid()
+  created_by = auth.uid() or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
 );
 
 -- funding_requests: miembros pueden ver; crear; actualizar autor
@@ -158,23 +188,33 @@ drop policy if exists "fr_member_select" on funding_requests;
 create policy "fr_member_select" on funding_requests for select using (
   exists (
     select 1 from memberships m where m.company_id = funding_requests.company_id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
   )
 );
 drop policy if exists "fr_member_insert" on funding_requests;
 create policy "fr_member_insert" on funding_requests for insert with check (
-  exists (
-    select 1 from memberships m where m.company_id = funding_requests.company_id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+  (
+    exists (
+      select 1 from memberships m where m.company_id = funding_requests.company_id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+    ) or exists (
+      select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+    )
   ) and created_by = auth.uid()
 );
 drop policy if exists "fr_author_update" on funding_requests;
 create policy "fr_author_update" on funding_requests for update using (
-  created_by = auth.uid()
+  created_by = auth.uid() or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
 );
 
 -- permitir que el autor elimine su solicitud
 drop policy if exists "fr_author_delete" on funding_requests;
 create policy "fr_author_delete" on funding_requests for delete using (
-  created_by = auth.uid()
+  created_by = auth.uid() or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
 );
 
 -- === OFFERS (ofertas para solicitudes) ===
@@ -196,17 +236,28 @@ create table if not exists offers (
 
 alter table offers enable row level security;
 
+-- Estados permitidos para offers
+alter table offers drop constraint if exists offers_status_check;
+alter table offers add constraint offers_status_check
+  check (status in ('offered','accepted','expired','cancelled'));
+
 drop policy if exists "offers_member_select" on offers;
 create policy "offers_member_select" on offers for select using (
   exists (
     select 1 from memberships m where m.company_id = offers.company_id and m.user_id = auth.uid()
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
   )
 );
 
 drop policy if exists "offers_member_insert" on offers;
 create policy "offers_member_insert" on offers for insert with check (
-  exists (
-    select 1 from memberships m where m.company_id = offers.company_id and m.user_id = auth.uid()
+  (
+    exists (
+      select 1 from memberships m where m.company_id = offers.company_id and m.user_id = auth.uid()
+    ) or exists (
+      select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+    )
   ) and created_by = auth.uid()
 );
 
@@ -214,6 +265,47 @@ drop policy if exists "offers_member_update" on offers;
 create policy "offers_member_update" on offers for update using (
   exists (
     select 1 from memberships m where m.company_id = offers.company_id and m.user_id = auth.uid()
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+
+-- === RELACIÓN SOLICITUD-FACTURAS (muchas a muchas) ===
+create table if not exists funding_request_invoices (
+  request_id uuid not null references funding_requests(id) on delete cascade,
+  invoice_id uuid not null references invoices(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (request_id, invoice_id)
+);
+
+alter table funding_request_invoices enable row level security;
+
+-- Políticas: miembros de la empresa o staff pueden ver/insertar
+drop policy if exists "fri_member_select" on funding_request_invoices;
+create policy "fri_member_select" on funding_request_invoices for select using (
+  exists (
+    select 1 from memberships m
+    join funding_requests fr on fr.id = funding_request_invoices.request_id
+    where m.company_id = fr.company_id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+
+drop policy if exists "fri_member_insert" on funding_request_invoices;
+create policy "fri_member_insert" on funding_request_invoices for insert with check (
+  (
+    exists (
+      select 1 from memberships m
+      join funding_requests fr on fr.id = funding_request_invoices.request_id
+      where m.company_id = fr.company_id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+    ) and exists (
+      select 1 from memberships m2
+      join invoices inv on inv.id = funding_request_invoices.invoice_id
+      where m2.company_id = inv.company_id and m2.user_id = auth.uid() and m2.status = 'ACTIVE'
+    )
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
   )
 );
 
@@ -223,13 +315,11 @@ do $$ begin
   if not exists (
     select 1 from storage.buckets where id = 'invoices'
   ) then
-    perform storage.create_bucket(
-      id => 'invoices',
-      public => false,
-      file_size_limit => 10485760 -- 10 MB
-    );
+    insert into storage.buckets (id, name, public) values ('invoices', 'invoices', false);
   end if;
 end $$;
+-- asegurar límite de tamaño (idempotente)
+update storage.buckets set file_size_limit = 10485760 where id = 'invoices';
 
 -- Políticas de acceso: miembros de la organización pueden leer/subir/borrar
 -- Convención: el path del archivo inicia con "<company_id>/<nombre-archivo>"
@@ -240,6 +330,9 @@ create policy "invoices_read" on storage.objects for select using (
     where m.user_id = auth.uid() and m.status = 'ACTIVE'
       and (storage.foldername(name))[1] = m.company_id::text
   )
+  or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
 );
 
 drop policy if exists "invoices_insert" on storage.objects;
@@ -248,6 +341,9 @@ create policy "invoices_insert" on storage.objects for insert with check (
     select 1 from memberships m
     where m.user_id = auth.uid() and m.status = 'ACTIVE'
       and (storage.foldername(name))[1] = m.company_id::text
+  )
+  or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
   )
 );
 
@@ -258,6 +354,9 @@ create policy "invoices_update" on storage.objects for update using (
     where m.user_id = auth.uid() and m.status = 'ACTIVE'
       and (storage.foldername(name))[1] = m.company_id::text
   )
+  or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
 );
 
 drop policy if exists "invoices_delete" on storage.objects;
@@ -267,6 +366,9 @@ create policy "invoices_delete" on storage.objects for delete using (
     where m.user_id = auth.uid() and m.status = 'ACTIVE'
       and (storage.foldername(name))[1] = m.company_id::text
   )
+  or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
 );
 
 -- === STORAGE (Bucket de solicitudes) ===
@@ -274,13 +376,10 @@ do $$ begin
   if not exists (
     select 1 from storage.buckets where id = 'requests'
   ) then
-    perform storage.create_bucket(
-      id => 'requests',
-      public => false,
-      file_size_limit => 10485760 -- 10 MB
-    );
+    insert into storage.buckets (id, name, public) values ('requests', 'requests', false);
   end if;
 end $$;
+update storage.buckets set file_size_limit = 10485760 where id = 'requests';
 
 drop policy if exists "requests_read" on storage.objects;
 create policy "requests_read" on storage.objects for select using (
@@ -288,6 +387,9 @@ create policy "requests_read" on storage.objects for select using (
     select 1 from memberships m
     where m.user_id = auth.uid() and m.status = 'ACTIVE'
       and (storage.foldername(name))[1] = m.company_id::text
+  )
+  or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
   )
 );
 
@@ -298,6 +400,9 @@ create policy "requests_insert" on storage.objects for insert with check (
     where m.user_id = auth.uid() and m.status = 'ACTIVE'
       and (storage.foldername(name))[1] = m.company_id::text
   )
+  or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
 );
 
 drop policy if exists "requests_update" on storage.objects;
@@ -307,6 +412,9 @@ create policy "requests_update" on storage.objects for update using (
     where m.user_id = auth.uid() and m.status = 'ACTIVE'
       and (storage.foldername(name))[1] = m.company_id::text
   )
+  or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
 );
 
 drop policy if exists "requests_delete" on storage.objects;
@@ -315,6 +423,9 @@ create policy "requests_delete" on storage.objects for delete using (
     select 1 from memberships m
     where m.user_id = auth.uid() and m.status = 'ACTIVE'
       and (storage.foldername(name))[1] = m.company_id::text
+  )
+  or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
   )
 );
 
@@ -332,3 +443,192 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- === DOCUMENTOS (KYC y contratos) ===
+create table if not exists documents (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies(id) on delete cascade,
+  request_id uuid references funding_requests(id) on delete set null,
+  type text not null,
+  status text not null default 'uploaded', -- uploaded | created | signed
+  file_path text,
+  provider text default 'PANDADOC',
+  provider_envelope_id text,
+  uploaded_by uuid references profiles(user_id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+alter table documents enable row level security;
+
+-- Checks de tipo/estado
+alter table documents drop constraint if exists documents_type_check;
+alter table documents add constraint documents_type_check
+  check (type in ('KYC_RUT','KYC_CAMARA','KYC_CERT_BANCARIA','CONTRATO_MARCO','ANEXO_OPERACION'));
+alter table documents drop constraint if exists documents_status_check;
+alter table documents add constraint documents_status_check
+  check (status in ('uploaded','created','signed'));
+
+-- RLS: miembros u operadores (staff) pueden ver/gestionar
+drop policy if exists "documents_member_select" on documents;
+create policy "documents_member_select" on documents for select using (
+  exists (
+    select 1 from memberships m where m.company_id = documents.company_id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+drop policy if exists "documents_member_insert" on documents;
+create policy "documents_member_insert" on documents for insert with check (
+  (
+    exists (
+      select 1 from memberships m where m.company_id = documents.company_id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+    ) or exists (
+      select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+    )
+  )
+);
+drop policy if exists "documents_member_update" on documents;
+create policy "documents_member_update" on documents for update using (
+  exists (
+    select 1 from memberships m where m.company_id = documents.company_id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+drop policy if exists "documents_member_delete" on documents;
+create policy "documents_member_delete" on documents for delete using (
+  exists (
+    select 1 from memberships m where m.company_id = documents.company_id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+
+-- Buckets de storage para KYC y Contratos
+do $$ begin
+  if not exists (select 1 from storage.buckets where id = 'kyc') then
+    insert into storage.buckets (id, name, public) values ('kyc', 'kyc', false);
+  end if;
+  if not exists (select 1 from storage.buckets where id = 'contracts') then
+    insert into storage.buckets (id, name, public) values ('contracts', 'contracts', false);
+  end if;
+end $$;
+update storage.buckets set file_size_limit = 10485760 where id = 'kyc';
+update storage.buckets set file_size_limit = 20971520 where id = 'contracts';
+
+-- Convención de path: <company_id>/...
+drop policy if exists "kyc_read" on storage.objects;
+create policy "kyc_read" on storage.objects for select using (
+  bucket_id = 'kyc' and (
+    exists (
+      select 1 from memberships m
+      where m.user_id = auth.uid() and m.status = 'ACTIVE' and (storage.foldername(name))[1] = m.company_id::text
+    ) or exists (
+      select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+    )
+  )
+);
+drop policy if exists "kyc_insert" on storage.objects;
+create policy "kyc_insert" on storage.objects for insert with check (
+  bucket_id = 'kyc' and (
+    exists (
+      select 1 from memberships m
+      where m.user_id = auth.uid() and m.status = 'ACTIVE' and (storage.foldername(name))[1] = m.company_id::text
+    ) or exists (
+      select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+    )
+  )
+);
+drop policy if exists "kyc_update" on storage.objects;
+create policy "kyc_update" on storage.objects for update using (
+  bucket_id = 'kyc' and (
+    exists (
+      select 1 from memberships m
+      where m.user_id = auth.uid() and m.status = 'ACTIVE' and (storage.foldername(name))[1] = m.company_id::text
+    ) or exists (
+      select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+    )
+  )
+);
+drop policy if exists "kyc_delete" on storage.objects;
+create policy "kyc_delete" on storage.objects for delete using (
+  bucket_id = 'kyc' and (
+    exists (
+      select 1 from memberships m
+      where m.user_id = auth.uid() and m.status = 'ACTIVE' and (storage.foldername(name))[1] = m.company_id::text
+    ) or exists (
+      select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+    )
+  )
+);
+
+drop policy if exists "contracts_read" on storage.objects;
+create policy "contracts_read" on storage.objects for select using (
+  bucket_id = 'contracts' and (
+    exists (
+      select 1 from memberships m
+      where m.user_id = auth.uid() and m.status = 'ACTIVE' and (storage.foldername(name))[1] = m.company_id::text
+    ) or exists (
+      select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+    )
+  )
+);
+drop policy if exists "contracts_insert" on storage.objects;
+create policy "contracts_insert" on storage.objects for insert with check (
+  bucket_id = 'contracts' and (
+    exists (
+      select 1 from memberships m
+      where m.user_id = auth.uid() and m.status = 'ACTIVE' and (storage.foldername(name))[1] = m.company_id::text
+    ) or exists (
+      select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+    )
+  )
+);
+drop policy if exists "contracts_update" on storage.objects;
+create policy "contracts_update" on storage.objects for update using (
+  bucket_id = 'contracts' and (
+    exists (
+      select 1 from memberships m
+      where m.user_id = auth.uid() and m.status = 'ACTIVE' and (storage.foldername(name))[1] = m.company_id::text
+    ) or exists (
+      select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+    )
+  )
+);
+drop policy if exists "contracts_delete" on storage.objects;
+create policy "contracts_delete" on storage.objects for delete using (
+  bucket_id = 'contracts' and (
+    exists (
+      select 1 from memberships m
+      where m.user_id = auth.uid() and m.status = 'ACTIVE' and (storage.foldername(name))[1] = m.company_id::text
+    ) or exists (
+      select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+    )
+  )
+);
+
+-- === AUDITORÍA ===
+create table if not exists audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies(id) on delete cascade,
+  actor_id uuid references profiles(user_id) on delete set null,
+  entity text not null, -- invoice | request | offer | document | contract
+  entity_id uuid,
+  action text not null, -- created | updated | status_changed | deleted | signed | funded
+  data jsonb,
+  created_at timestamptz not null default now()
+);
+
+alter table audit_logs enable row level security;
+drop policy if exists "audit_member_select" on audit_logs;
+create policy "audit_member_select" on audit_logs for select using (
+  exists (
+    select 1 from memberships m where m.company_id = audit_logs.company_id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+drop policy if exists "audit_member_insert" on audit_logs;
+create policy "audit_member_insert" on audit_logs for insert with check (
+  auth.uid() is not null
+);

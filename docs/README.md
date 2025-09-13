@@ -4,6 +4,7 @@ Bienvenido al directorio `docs/`. Aquí centralizamos el conocimiento del proyec
 
 ## Índice
 - Plan de Desarrollo: [docs/PLAN_DE_DESARROLLO.md](./PLAN_DE_DESARROLLO.md)
+- Roadmap: [docs/ROADMAP.md](./ROADMAP.md)
 - Decisiones de Arquitectura (ADR): carpeta [docs/adr/](./adr/)
 - Lectura (textos explicativos): carpeta [docs/lectura/](./lectura/)
   - Descripción de la App: [docs/lectura/DESCRIPCION_DE_LA_APP.md](./lectura/DESCRIPCION_DE_LA_APP.md)

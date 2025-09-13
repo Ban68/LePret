@@ -6,10 +6,10 @@ export async function middleware(req: NextRequest) {
   let res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
 
-  // Refresca la sesión si es necesario
+  // Refresh session if needed
   await supabase.auth.getSession();
 
-  // Rutas del portal requieren sesión y pertenencia a la organización
+  // Customer portal access: require session; allow staff to bypass membership
   if (req.nextUrl.pathname.startsWith("/c/")) {
     const {
       data: { session },
@@ -21,12 +21,23 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Validar pertenencia a la org de la URL
     const match = req.nextUrl.pathname.match(/^\/c\/([^\/]+)/);
     const orgId = match?.[1];
     if (orgId) {
-      // Guardar cookie de "última organización" visitada
+      // Remember last org visited
       res.cookies.set("last_org", orgId, { path: "/", maxAge: 60 * 60 * 24 * 90 });
+
+      // Staff bypass
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("is_staff")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (prof?.is_staff) {
+        return res;
+      }
+
+      // Otherwise require membership in the org
       const { data, error } = await supabase
         .from("memberships")
         .select("company_id")
@@ -42,7 +53,7 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Si la sesión existe y viene a /select-org, llevarlo a su última organización (si hay cookie)
+  // If session exists and goes to /select-org, redirect to last org
   if (req.nextUrl.pathname === "/select-org") {
     const {
       data: { session },
@@ -55,12 +66,15 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Backoffice: restringir /hq a emails autorizados
+  // Backoffice: restrict /hq to allowed emails
   if (req.nextUrl.pathname.startsWith("/hq")) {
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    const allowed = (process.env.BACKOFFICE_ALLOWED_EMAILS || "").split(/[,\s]+/).filter(Boolean).map(s=>s.toLowerCase());
+    const allowed = (process.env.BACKOFFICE_ALLOWED_EMAILS || "")
+      .split(/[ ,\n\t]+/)
+      .filter(Boolean)
+      .map((s) => s.toLowerCase());
     const email = session?.user?.email?.toLowerCase();
     if (!session || (allowed.length && (!email || !allowed.includes(email)))) {
       const url = req.nextUrl.clone();
@@ -74,6 +88,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Ejecutar middleware en el portal, en /select-org y en /hq para controles de acceso
+  // Apply middleware on portal, select-org and hq routes
   matcher: ["/c/:path*", "/select-org", "/hq/:path*"],
 };
+
