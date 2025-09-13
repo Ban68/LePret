@@ -4,18 +4,10 @@
 
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import type { User } from "@supabase/supabase-js";
 
-export type SessionUser = {
-  id: string;
-  email?: string | null;
-  user_metadata?: Record<string, unknown> | null;
-  [key: string]: unknown;
-};
-
-export type Session = {
-  user: SessionUser;
-  [key: string]: unknown;
-};
+export type SessionUser = User;
+export type Session = { user: SessionUser };
 
 export async function auth(): Promise<Session | null> {
   const cookieStore = cookies();
@@ -25,7 +17,7 @@ export async function auth(): Promise<Session | null> {
   } = await supabase.auth.getUser();
 
   if (!user) return null;
-  return { user } as Session;
+  return { user } as unknown as Session;
 }
 
 export class UnauthorizedError extends Error {
