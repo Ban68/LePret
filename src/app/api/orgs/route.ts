@@ -18,18 +18,18 @@ export async function GET() {
     .select("role, status, company_id, companies ( id, name, type )")
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  type MembershipWithCompany = {
-    role: string;
-    status: string;
-    companies: { id: string; name: string; type: string } | null;
-  };
-  const orgs = (data ?? []).map((m: MembershipWithCompany) => ({
-    id: m.companies?.id,
-    name: m.companies?.name,
-    type: m.companies?.type,
-    role: m.role,
-    status: m.status,
-  }));
+  type Company = { id: string; name: string; type: string };
+  type Row = { role: string; status: string; companies: Company | Company[] | null };
+  const orgs = (data ?? []).map((m: Row) => {
+    const c = Array.isArray(m.companies) ? m.companies[0] : m.companies;
+    return {
+      id: c?.id,
+      name: c?.name,
+      type: c?.type,
+      role: m.role,
+      status: m.status,
+    };
+  });
   return NextResponse.json({ ok: true, orgs });
 }
 
