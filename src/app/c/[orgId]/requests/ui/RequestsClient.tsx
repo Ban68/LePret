@@ -27,11 +27,15 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [isStaff, setIsStaff] = useState<boolean>(false);
 
-  const [amount, setAmount] = useState<string>("");
-  const [invoiceId, setInvoiceId] = useState<string>("");
+  const [amount, setAmount] = useState<string>('');
+  const [invoiceId, setInvoiceId] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  
+  const [showFilters, setShowFilters] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [startDate, setStartDate] = useState<string>('');
