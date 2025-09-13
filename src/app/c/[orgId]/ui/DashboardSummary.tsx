@@ -3,12 +3,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+type TimePoint = { date: string; value: number };
 type Metrics = {
   invoices: number;
   funded: number;
   requestsOpen: number;
   offersOpen: number;
   lastActivity: string | null;
+  invoicesAmountTotal?: number;
+  fundedAmountTotal?: number;
+  requestsAmountOpen?: number;
+  series?: { invoicesDaily?: TimePoint[]; requestsDaily?: TimePoint[] };
 };
 
 export function DashboardSummary({ orgId }: { orgId: string }) {
@@ -86,7 +91,7 @@ export function DashboardSummary({ orgId }: { orgId: string }) {
 import { Sparkline } from "@/components/ui/sparkline";
 
 function Spark({ metrics, kind }: { metrics: Metrics | null; kind: 'invoicesDaily' | 'requestsDaily' }) {
-  const series = (metrics as any)?.series?.[kind] as { date: string; value: number }[] | undefined;
+  const series = metrics?.series?.[kind] as TimePoint[] | undefined;
   const data = (series || []).sort((a,b)=>a.date.localeCompare(b.date)).map((d)=>d.value);
   if (!data.length) return <div className="text-sm text-lp-sec-3">Sin datos</div>;
   return (
@@ -96,4 +101,3 @@ function Spark({ metrics, kind }: { metrics: Metrics | null; kind: 'invoicesDail
     </div>
   );
 }
-

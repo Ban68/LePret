@@ -70,7 +70,7 @@ export default function CompanyMembersPage() {
                       </select>
                     </td>
                     <td className="px-4 py-2 text-sm">
-                      <select className="rounded-md border border-lp-sec-4/60 px-2 py-1 text-sm" value={m.status} onChange={(e)=>update(m.user_id, { status: e.target.value as any })}>
+                      <select className="rounded-md border border-lp-sec-4/60 px-2 py-1 text-sm" value={m.status} onChange={(e)=>update(m.user_id, { status: e.target.value })}>
                         <option value="ACTIVE">ACTIVE</option>
                         <option value="INVITED">INVITED</option>
                         <option value="DISABLED">DISABLED</option>
@@ -91,4 +91,3 @@ export default function CompanyMembersPage() {
     </div>
   );
 }
-

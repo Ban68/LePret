@@ -22,7 +22,7 @@ function headersJson() {
   } as Record<string, string>;
 }
 
-async function pdFetch(path: string, init?: RequestInit): Promise<any> {
+async function pdFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: { ...(headersJson()), ...(init?.headers || {}) },
@@ -34,12 +34,12 @@ async function pdFetch(path: string, init?: RequestInit): Promise<any> {
     throw new Error(`PandaDoc ${path} ${res.status}: ${txt || res.statusText}`);
   }
   const ct = res.headers.get("content-type") || "";
-  if (ct.includes("application/json")) return res.json();
-  return res.text();
+  if (ct.includes("application/json")) return (await res.json()) as T;
+  return (await res.text()) as unknown as T;
 }
 
 export async function sendDocument(documentId: string, subject?: string, message?: string) {
-  const body: any = {};
+  const body: Record<string, unknown> = {};
   if (subject) body.subject = subject;
   if (message) body.message = message;
   // Nota: la API pública admite este endpoint para enviar emails nativos
@@ -60,7 +60,7 @@ export async function createDocumentFromTemplate(input: PandaDocCreateDocInput):
     last_name: r.lastName,
     role: r.role,
   }));
-  const baseBody: any = {
+  const baseBody: Record<string, unknown> = {
     name: input.name,
     template_uuid: input.templateId,
     recipients: recipientsArr,
@@ -70,23 +70,23 @@ export async function createDocumentFromTemplate(input: PandaDocCreateDocInput):
     baseBody.send = true; // algunos entornos lo aceptan; no añadimos subject/message aquí
   }
   try {
-    const data = await pdFetch("/public/v1/documents", { method: "POST", body: JSON.stringify(baseBody) });
+    const data = await pdFetch<{ id: string; status?: string }>("/public/v1/documents", { method: "POST", body: JSON.stringify(baseBody) });
     if (input.send) {
       try { await sendDocument(data.id, input.subject, input.message); } catch {}
     }
     return { id: data.id, status: data.status };
-  } catch (e: any) {
-    const msg = (e?.message || '').toLowerCase();
+  } catch (e: unknown) {
+    const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
     // Fallback: algunas cuentas esperan 'tokens' como diccionario
     if (msg.includes('expected a dictionary')) {
-      const altBody: any = {
+      const altBody: Record<string, unknown> = {
         name: input.name,
         template_uuid: input.templateId,
         recipients: recipientsArr, // sigue siendo lista
         tokens: tokensDict,
       };
       if (input.send) { altBody.send = true; }
-      const data = await pdFetch("/public/v1/documents", { method: "POST", body: JSON.stringify(altBody) });
+      const data = await pdFetch<{ id: string; status?: string }>("/public/v1/documents", { method: "POST", body: JSON.stringify(altBody) });
       if (input.send) {
         try { await sendDocument(data.id, input.subject, input.message); } catch {}
       }
@@ -97,8 +97,8 @@ export async function createDocumentFromTemplate(input: PandaDocCreateDocInput):
 }
 
 export async function createRecipientSession(documentId: string, recipientEmail: string, lifetimeSeconds = 900): Promise<{ url: string }> {
-  const payload = { recipient: recipientEmail, lifetime: lifetimeSeconds, is_embedded: false } as any;
-  const data = await pdFetch(`/public/v1/documents/${documentId}/session`, { method: "POST", body: JSON.stringify(payload) });
+  const payload: { recipient: string; lifetime: number; is_embedded: boolean } = { recipient: recipientEmail, lifetime: lifetimeSeconds, is_embedded: false };
+  const data = await pdFetch<{ url: string }>(`/public/v1/documents/${documentId}/session`, { method: "POST", body: JSON.stringify(payload) });
   // PandaDoc devuelve { id, recipient, url, expires_at }
   return { url: data.url };
 }

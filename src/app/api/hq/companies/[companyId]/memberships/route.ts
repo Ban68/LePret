@@ -27,7 +27,7 @@ export async function GET(
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
   const userIds = (rows || []).map(r => r.user_id);
-  let emails: Record<string, string> = {};
+  const emails: Record<string, string> = {};
   if (userIds.length) {
     const { data: users } = await supabaseAdmin.from('auth.users' as unknown as string).select('id, email').in('id', userIds);
     (users as Array<{ id: string; email: string | null }> | null || []).forEach((u) => { emails[u.id] = u.email ?? ''; });

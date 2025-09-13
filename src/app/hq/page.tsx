@@ -16,7 +16,8 @@ export default async function HqPage() {
     .map((s) => s.toLowerCase());
   const email = session?.user?.email?.toLowerCase();
 
-  let companies: any[] | null = null;
+  type CompanyRow = { id: string; name: string; type: string; created_at: string; invoices: number; requests: number };
+  let companies: CompanyRow[] | null = null;
   if (session && (!allowed.length || (email && allowed.includes(email)))) {
     const { data: rows, error } = await supabaseAdmin
       .from("companies")
@@ -50,7 +51,7 @@ export default async function HqPage() {
           <div className="mt-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">No autorizado o error cargando datos.</div>
         ) : (
           <div className="mt-6 grid grid-cols-1 gap-4">
-            {companies.map((c: any) => (
+            {companies.map((c) => (
               <div key={c.id} className="flex items-center justify-between rounded-md border border-lp-sec-4/60 p-4">
                 <div>
                   <div className="font-semibold text-lp-primary-1">{c.name}</div>
@@ -65,4 +66,3 @@ export default async function HqPage() {
     </div>
   );
 }
-

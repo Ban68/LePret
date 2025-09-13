@@ -32,8 +32,9 @@ export default function SelectOrgPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Error cargando organizaciones");
         setOrgs(data.orgs ?? []);
-      } catch (e: any) {
-        setError(e.message ?? String(e));
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(msg);
       } finally { setLoading(false); }
     };
     load();
@@ -79,4 +80,3 @@ export default function SelectOrgPage() {
     </div>
   );
 }
-

@@ -16,7 +16,7 @@ export function OrgCreator() {
         const supabase = createClientComponentClient();
         const { data: { session } } = await supabase.auth.getSession();
         const email = session?.user?.email || '';
-        const fullName = (session?.user as any)?.user_metadata?.full_name || '';
+        const fullName = (session?.user as { user_metadata?: { full_name?: string } } | undefined)?.user_metadata?.full_name || '';
         if (!name) {
           const domain = email.split('@')[1]?.split('.')[0] || '';
           const suggestion = fullName || (domain ? domain.charAt(0).toUpperCase() + domain.slice(1) : 'Mi empresa');
@@ -73,7 +73,7 @@ export function OrgCreator() {
           id="org-type"
           className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2"
           value={type}
-          onChange={(e) => setType(e.target.value as any)}
+          onChange={(e) => setType(e.target.value as 'CLIENT' | 'INVESTOR')}
         >
           <option value="CLIENT">CLIENT</option>
           <option value="INVESTOR">INVESTOR</option>

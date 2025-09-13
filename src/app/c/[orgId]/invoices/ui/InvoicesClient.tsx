@@ -128,9 +128,9 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
         if (upErr) throw upErr;
         uploadedPath = key;
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSaving(false);
-      const msg = err?.message ?? 'Error subiendo archivo';
+      const msg = err instanceof Error ? err.message : 'Error subiendo archivo';
       setError(msg);
       toast.error(msg);
       return;
@@ -373,8 +373,9 @@ function CreateRequestFromInvoices({ orgId, items, selected, setSelected, onCrea
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'No se pudo crear solicitud');
       onCreated();
-    } catch (e: any) {
-      toast.error(e?.message || 'Error');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error';
+      toast.error(msg);
     } finally { setBusy(false); }
   };
 
@@ -407,8 +408,8 @@ function RowActions({ orgId, invoice, onChanged }: { orgId: string; invoice: Inv
       if (!res.ok) throw new Error(data.error || 'No se pudo eliminar archivo');
       toast.success('Archivo eliminado');
       await onChanged();
-    } catch (e: any) {
-      const msg = e?.message ?? 'Error eliminando archivo';
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error eliminando archivo';
       setErr(msg); toast.error(msg);
     } finally { setBusy(false); }
   };
@@ -422,8 +423,8 @@ function RowActions({ orgId, invoice, onChanged }: { orgId: string; invoice: Inv
       if (!res.ok) throw new Error(data.error || 'No se pudo eliminar');
       toast.success('Factura eliminada');
       await onChanged();
-    } catch (e: any) {
-      const msg = e?.message ?? 'Error eliminando factura';
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error eliminando factura';
       setErr(msg); toast.error(msg);
     } finally { setBusy(false); }
   };
@@ -447,8 +448,8 @@ function RowActions({ orgId, invoice, onChanged }: { orgId: string; invoice: Inv
       if (!res.ok) throw new Error(data.error || 'No se pudo actualizar archivo');
       toast.success('Archivo actualizado');
       await onChanged();
-    } catch (e: any) {
-      const msg = e?.message ?? 'Error reemplazando archivo';
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error reemplazando archivo';
       setErr(msg); toast.error(msg);
     } finally { setBusy(false); }
   };

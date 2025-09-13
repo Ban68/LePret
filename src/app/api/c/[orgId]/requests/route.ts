@@ -47,7 +47,7 @@ export async function GET(
   // Enriquecer con facturas asociadas (múltiples)
   const reqs = data || [];
   const reqIds = reqs.map((r) => (r as { id: string }).id);
-  let byReq: Record<string, { invoice_ids: string[]; total: number }> = {};
+  const byReq: Record<string, { invoice_ids: string[]; total: number }> = {};
   if (reqIds.length) {
     const fri = await supabase
       .from('funding_request_invoices')
@@ -59,7 +59,7 @@ export async function GET(
       (mapIds[row.request_id] ||= []).push(row.invoice_id);
       allInvIds.push(row.invoice_id);
     }
-    let amounts: Record<string, number> = {};
+    const amounts: Record<string, number> = {};
     if (allInvIds.length) {
       const inv = await supabase
         .from('invoices')

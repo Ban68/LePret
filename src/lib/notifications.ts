@@ -20,18 +20,19 @@ export async function getCompanyActiveMemberEmails(companyId: string): Promise<{
     .eq("company_id", companyId)
     .eq("status", "ACTIVE");
   if (error) return { owners: [], admins: [], clients: [], all: [] };
-  const userIds = (members || []).map((m: any) => m.user_id);
+  const userIds = (members || []).map((m) => (m as { user_id: string }).user_id);
   if (!userIds.length) return { owners: [], admins: [], clients: [], all: [] };
-  const { data: users } = await supabaseAdmin.from("auth.users" as any).select("id, email").in("id", userIds);
+  const { data: users } = await supabaseAdmin.from("auth.users" as unknown as string).select("id, email").in("id", userIds);
   const emailById: Record<string, string> = {};
-  (users || []).forEach((u: any) => { if (u.email) emailById[u.id] = u.email; });
+  (users as Array<{ id: string; email: string | null }> | null || []).forEach((u) => { if (u.email) emailById[u.id] = u.email; });
   const owners: string[] = [];
   const admins: string[] = [];
   const clients: string[] = [];
-  (members || []).forEach((m: any) => {
-    const email = emailById[m.user_id];
+  (members || []).forEach((m) => {
+    const row = m as { user_id: string; role: string };
+    const email = emailById[row.user_id];
     if (!email) return;
-    const role = String(m.role || "").toUpperCase();
+    const role = String(row.role || "").toUpperCase();
     if (role === "OWNER" || role === "ADMIN") admins.push(email);
     if (role === "CLIENT" || role === "VIEWER" || role === "OPERATOR") clients.push(email);
     if (role === "OWNER") owners.push(email);

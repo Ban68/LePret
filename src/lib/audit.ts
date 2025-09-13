@@ -6,7 +6,7 @@ export async function logAudit(input: {
   entity: 'invoice' | 'request' | 'offer' | 'document' | 'contract';
   entity_id?: string | null;
   action: 'created' | 'updated' | 'status_changed' | 'deleted' | 'signed' | 'funded';
-  data?: any;
+  data?: Record<string, unknown> | null;
 }) {
   try {
     await supabaseAdmin.from('audit_logs').insert({
@@ -19,4 +19,3 @@ export async function logAudit(input: {
     });
   } catch {}
 }
-
