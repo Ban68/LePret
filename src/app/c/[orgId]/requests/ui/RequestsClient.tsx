@@ -72,7 +72,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   useEffect(() => { load(); }, [orgId, statusFilter, startDate, endDate, minAmount, maxAmount, withInvoice, sort, page, pageSize]);
 
   useEffect(() => {
-    // Detectar si el usuario es staff global (puede marcar desembolso y bypass de membresÃ­a)
+    // Detectar si el usuario es staff global (puede marcar desembolso y bypass de membresia)
     const checkStaff = async () => {
       try {
         const supabase = createClientComponentClient();
@@ -86,9 +86,9 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     checkStaff();
   }, [orgId]);
 
-  const parseCurrency = (s: string) => Number((s || '').replace(/[^0-9]/g, ''));
+  const parseCurrency = (s: string) => Number((s || '-').replace(/[^0-9]/g, ''));
   const formatCurrency = (n: string) => {
-    const digits = (n || '').replace(/[^0-9]/g, '');
+    const digits = (n || '-').replace(/[^0-9]/g, '');
     if (!digits) return '';
     return new Intl.NumberFormat('es-CO').format(Number(digits));
   };
@@ -148,8 +148,8 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           <div className="sm:col-span-2">
             <Label className="mb-2">Estado</Label>
             <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="all">â€” Todos â€”</option>
-              <option value="review">En revisiÃ³n</option>
+              <option value="all">- Todos -</option>
+              <option value="review">En revision</option>
               <option value="offered">Ofertada</option>
               <option value="accepted">Aceptada</option>
             </select>
@@ -163,18 +163,18 @@ export function RequestsClient({ orgId }: { orgId: string }) {
             <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </div>
           <div className="sm:col-span-2">
-            <Label className="mb-2">Monto mÃ­nimo</Label>
+            <Label className="mb-2">Monto minimo</Label>
             <Input placeholder="Ej: 500.000" value={minAmount} onChange={(e) => setMinAmount(formatCurrency(e.target.value))} />
           </div>
           <div className="sm:col-span-2">
-            <Label className="mb-2">Monto mÃ¡ximo</Label>
+            <Label className="mb-2">Monto maximo</Label>
             <Input placeholder="Ej: 50.000.000" value={maxAmount} onChange={(e) => setMaxAmount(formatCurrency(e.target.value))} />
           </div>
           <div className="sm:col-span-2">
             <Label className="mb-2">Con factura</Label>
             <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={withInvoice} onChange={(e) => setWithInvoice(e.target.value)}>
-              <option value="all">â€” Todas â€”</option>
-              <option value="true">SÃ­</option>
+              <option value="all">- Todas -</option>
+              <option value="true">Si</option>
               <option value="false">No</option>
             </select>
           </div>
@@ -188,7 +188,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
             </select>
           </div>
           <div className="sm:col-span-2">
-            <Label className="mb-2">TamaÃ±o de pÃ¡gina</Label>
+            <Label className="mb-2">Tamano de pagina</Label>
             <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={pageSize} onChange={(e) => { setPage(1); setPageSize(Number(e.target.value)); }}>
               <option value={10}>10</option>
               <option value={20}>20</option>
@@ -215,10 +215,10 @@ export function RequestsClient({ orgId }: { orgId: string }) {
         <div className="sm:col-span-3">
           <Label className="mb-2">Factura asociada (opcional)</Label>
           <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={invoiceId} onChange={(e) => setInvoiceId(e.target.value)}>
-            <option value="">â€” Ninguna â€”</option>
+            <option value="">- Ninguna -</option>
             {invoices.map((inv) => (
               <option key={inv.id} value={inv.id}>
-                {inv.issue_date} Â· vence {inv.due_date} Â· ${Intl.NumberFormat('es-CO').format(inv.amount)}
+                {inv.issue_date} | vence {inv.due_date} | ${Intl.NumberFormat('es-CO').format(inv.amount)}
               </option>
             ))}
           </select>
@@ -236,12 +236,12 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                 {file ? (
                   <>
                     <div className="font-medium text-lp-primary-1">{file.name}</div>
-                    <div className="text-xs text-lp-sec-3">{(file.size/1024/1024).toFixed(2)} MB Â· {file.type || 'archivo'}</div>
+                    <div className="text-xs text-lp-sec-3">{(file.size/1024/1024).toFixed(2)} MB | {file.type || '-'}</div>
                   </>
                 ) : (
                   <>
-                    <div className="text-lp-primary-1">Arrastra un archivo aquÃ­ o haz clic para seleccionar</div>
-                    <div className="text-xs text-lp-sec-3">PDF, JPG, PNG Â· hasta 10 MB</div>
+                    <div className="text-lp-primary-1">Arrastra un archivo aqui o haz clic para seleccionar</div>
+                    <div className="text-xs text-lp-sec-3">PDF, JPG, PNG | hasta 10 MB</div>
                   </>
                 )}
               </div>
@@ -267,6 +267,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Creada</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Monto</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Facturas</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Monto facturas</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Soporte</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Estado</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Acciones</th>
@@ -274,9 +275,9 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="px-4 py-3 text-sm" colSpan={4}>Cargando...</td></tr>
+              <tr><td className="px-4 py-3 text-sm" colSpan={7}>Cargando...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td className="px-4 py-3 text-sm" colSpan={4}>No hay solicitudes todavÃ­a.</td></tr>
+              <tr><td className="px-4 py-3 text-sm" colSpan={7}>No hay solicitudes todavia.</td></tr>
             ) : (
               items.map((it) => (
                 <RequestRow key={it.id} orgId={orgId} req={it} onChanged={load} isStaff={isStaff} />
@@ -287,7 +288,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
       </div>
       {/* PaginaciÃ³n */}
       <div className="flex items-center justify-between">
-        <div className="text-sm text-lp-sec-3">PÃ¡gina {page} de {Math.max(1, Math.ceil(total / pageSize))}</div>
+        <div className="text-sm text-lp-sec-3">Pagina {page} de {Math.max(1, Math.ceil(total / pageSize))}</div>
         <div className="flex gap-2">
           <Button type="button" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
           <Button type="button" variant="outline" disabled={page >= Math.ceil(total / pageSize)} onClick={() => setPage((p) => p + 1)}>Siguiente</Button>
@@ -311,13 +312,13 @@ function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: Re
   const rx = req as RequestItem & { invoice_ids?: string[]; invoices_total?: number };
   const invIdsDerived = Array.isArray(rx.invoice_ids) && rx.invoice_ids.length > 0 ? rx.invoice_ids : (req.invoice_id ? [req.invoice_id] : []);
 
-  const parseCurrency = (s: string) => Number((s || '').replace(/[^0-9]/g, ''));
+  const parseCurrency = (s: string) => Number((s || '-').replace(/[^0-9]/g, ''));
   const onSave = async () => {
     setBusy(true);
     try {
       const res = await fetch(`/api/c/${orgId}/requests/${req.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requested_amount: parseCurrency(amt), invoice_id: invId || null }) });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'No se pudo actualizar');
+      if (!res.ok) throw new Error(data.error || '-');
       toast.success('Solicitud actualizada');
       setEditing(false);
       await onChanged();
@@ -328,12 +329,12 @@ function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: Re
   };
 
   const onDelete = async () => {
-    if (!confirm('Â¿Eliminar solicitud?')) return;
+    if (!confirm('Eliminar solicitud\?')) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/c/${orgId}/requests/${req.id}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'No se pudo eliminar');
+      if (!res.ok) throw new Error(data.error || '-');
       toast.success('Solicitud eliminada');
       await onChanged();
     } catch (e: unknown) {
@@ -353,7 +354,7 @@ function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: Re
       if (upErr) throw upErr;
       const res = await fetch(`/api/c/${orgId}/requests/${req.id}/file`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file_path: key }) });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'No se pudo actualizar archivo');
+      if (!res.ok) throw new Error(data.error || '-');
       toast.success('Archivo actualizado');
       await onChanged();
     } catch (e: unknown) {
@@ -367,7 +368,7 @@ function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: Re
     try {
       const res = await fetch(`/api/c/${orgId}/requests/${req.id}/file`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'No se pudo eliminar archivo');
+      if (!res.ok) throw new Error(data.error || '-');
       toast.success('Archivo eliminado');
       await onChanged();
   } catch (e: unknown) {
@@ -383,15 +384,14 @@ function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: Re
         ${Intl.NumberFormat('es-CO').format(req.requested_amount)}
         {Array.isArray(rx.invoice_ids) && (rx.invoice_ids.length > 0) &&
           Number(rx.invoices_total || 0) !== Number(req.requested_amount || 0) && (
-            <span className="ml-2 text-xs text-red-700">â‰  suma facturas</span>
+            <span className="ml-2 text-xs text-red-700">descuadre suma facturas</span>
           )}
       </td>
       <td className="px-4 py-2 text-sm">
-        {Array.isArray(rx.invoice_ids) && rx.invoice_ids.length > 0 ? (
-          <span>{rx.invoice_ids.length} Â· ${Intl.NumberFormat('es-CO').format(rx.invoices_total || 0)}</span>
-        ) : (req.invoice_id || 'â€”')}
+        {Array.isArray(rx.invoice_ids) && rx.invoice_ids.length > 0 ? rx.invoice_ids.length : (req.invoice_id ? 1 : 0)}
       </td>
-      <td className="px-4 py-2 text-sm">{req.file_path ? basename(req.file_path) : 'â€”'}</td>
+      <td className="px-4 py-2 text-sm">${Intl.NumberFormat('es-CO').format((Array.isArray(rx.invoice_ids) && rx.invoice_ids.length > 0) ? (rx.invoices_total || 0) : (req.invoice_id ? (req.requested_amount || 0) : 0))}</td>
+      <td className="px-4 py-2 text-sm">{req.file_path ? basename(req.file_path) : '-'}</td>
       <td className="px-4 py-2 text-sm"><StatusBadge kind="request" status={req.status} /></td>
       <td className="px-4 py-2 text-sm">
         {editing ? (
@@ -431,7 +431,7 @@ function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: Re
                     try {
                       const res = await fetch(`/api/c/${orgId}/requests/${req.id}/contract`, { method: 'POST' });
                       const data = await res.json().catch(() => ({}));
-                      if (!res.ok) throw new Error(data.error || 'No se pudo preparar contrato');
+                      if (!res.ok) throw new Error(data.error || '-');
                       toast.success('Contrato preparado. Si queda en borrador, usa "Abrir en PandaDoc"');
                       await onChanged();
                     } catch (e: unknown) { const msg = e instanceof Error ? e.message : 'Error'; toast.error(msg); } finally { setBusy(false); }
@@ -449,12 +449,12 @@ function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: Re
                   className="underline"
                   disabled={busy}
                   onClick={async () => {
-                    if (!confirm('Â¿Marcar como desembolsado?')) return;
+                    if (!confirm('Marcar como desembolsado\?')) return;
                     setBusy(true);
                     try {
                       const res = await fetch(`/api/c/${orgId}/requests/${req.id}/fund`, { method: 'POST' });
                       const data = await res.json().catch(() => ({}));
-                      if (!res.ok) throw new Error(data.error || 'No se pudo marcar desembolso');
+                      if (!res.ok) throw new Error(data.error || '-');
                       toast.success('Solicitud marcada como funded');
                       await onChanged();
                     } catch (e: unknown) { const msg = e instanceof Error ? e.message : 'Error'; toast.error(msg); } finally { setBusy(false); }
@@ -464,12 +464,12 @@ function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: Re
                 </button>
               </>
             )}
-            {/* MÃ¡s acciones (compacto) */}
+            {/* Mas acciones (compacto) */}
             {true && (
               <>
                 <span className="text-lp-sec-3">|</span>
                 <button className="underline" onClick={() => setShowMore(v => !v)}>
-                  {showMore ? 'Ocultar' : 'MÃ¡s'}
+                  {showMore ? 'Ocultar' : 'Mas'}
                 </button>
                 {showMore && (
                   <span className="ml-2 space-x-2">
@@ -481,7 +481,7 @@ function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: Re
                         try {
                           const res = await fetch(`/api/c/${orgId}/requests/${req.id}/contract/open`);
                           const data = await res.json();
-                          if (!res.ok || !data?.url) throw new Error(data.error || 'No se pudo abrir en PandaDoc');
+                          if (!res.ok || !data?.url) throw new Error(data.error || '-');
                           window.open(data.url, '_blank');
                         } catch (e: unknown) { const msg = e instanceof Error ? e.message : 'Error abriendo en PandaDoc'; toast.error(msg); } finally { setBusy(false); }
                       }}
@@ -496,7 +496,7 @@ function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: Re
                         try {
                           const res = await fetch(`/api/c/${orgId}/requests/${req.id}/contract/link`);
                           const data = await res.json();
-                          if (!res.ok || !data?.url) throw new Error(data.error || 'No se pudo obtener enlace');
+                          if (!res.ok || !data?.url) throw new Error(data.error || '-');
                           await navigator.clipboard.writeText(data.url);
                           toast.success('Enlace de firma copiado');
                         } catch (e: unknown) { const msg = e instanceof Error ? e.message : 'Error obteniendo enlace'; toast.error(msg); } finally { setBusy(false); }
@@ -521,7 +521,7 @@ function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: Re
                     try {
                       const res = await fetch(`/api/c/${orgId}/requests/${req.id}/force-signed`, { method: 'POST' });
                       const data = await res.json().catch(() => ({}));
-                      if (!res.ok) throw new Error(data.error || 'No se pudo forzar firmado');
+                      if (!res.ok) throw new Error(data.error || '-');
                       toast.success('Marcada como Firmada (dev)');
                       await onChanged();
                     } catch (e: unknown) { const msg = e instanceof Error ? e.message : 'Error'; toast.error(msg); } finally { setBusy(false); }
@@ -566,7 +566,7 @@ function InvoicesModalForRow({ orgId, open, ids, onClose }: { orgId: string; ope
           <button className="underline" onClick={onClose}>Cerrar</button>
         </div>
         {loading ? (
-          <div className="text-sm text-lp-sec-3">Cargandoâ€¦</div>
+          <div className="text-sm text-lp-sec-3">Cargando...</div>
         ) : items.length === 0 ? (
           <div className="text-sm text-lp-sec-3">Sin facturas</div>
         ) : (
@@ -597,9 +597,9 @@ function InvoicesModalForRow({ orgId, open, ids, onClose }: { orgId: string; ope
 }
 
 function basename(path?: string | null) {
-  if (!path) return 'â€”';
+  if (!path) return '-';
   const parts = path.split('/');
-  return parts[parts.length - 1] || 'â€”';
+  return parts[parts.length - 1] || '-';
 }
 
 function OfferActions({ orgId, requestId, status, onChanged }: { orgId: string; requestId: string; status: string; onChanged: () => Promise<void> | void }) {
@@ -623,7 +623,7 @@ function OfferActions({ orgId, requestId, status, onChanged }: { orgId: string; 
     setLoading(true);
     const res = await fetch(`/api/c/${orgId}/requests/${requestId}/offer`, { method: 'POST' });
     const data = await res.json();
-    if (!res.ok) { toast.error(data.error || 'No se pudo generar oferta'); } else { setOffer(data.offer); toast.success('Oferta generada'); await onChanged(); }
+    if (!res.ok) { toast.error(data.error || '-'); } else { setOffer(data.offer); toast.success('Oferta generada'); await onChanged(); }
     setLoading(false);
   };
 
@@ -632,11 +632,11 @@ function OfferActions({ orgId, requestId, status, onChanged }: { orgId: string; 
     setLoading(true);
     const res = await fetch(`/api/offers/${offer.id}/accept`, { method: 'POST' });
     const data = await res.json();
-    if (!res.ok) { toast.error(data.error || 'No se pudo aceptar'); } else { toast.success('Oferta aceptada'); await onChanged(); await loadOffer(); }
+    if (!res.ok) { toast.error(data.error || '-'); } else { toast.success('Oferta aceptada'); await onChanged(); await loadOffer(); }
     setLoading(false);
   };
 
-  if (loading) return <span>Cargando ofertaâ€¦</span>;
+  if (loading) return <span>Cargando oferta...</span>;
   if (!offer) return <button className="underline" onClick={generate} disabled={loading || status === 'accepted'}>Generar oferta</button>;
 
   const rate = (offer.annual_rate * 100).toFixed(2);
@@ -646,7 +646,7 @@ function OfferActions({ orgId, requestId, status, onChanged }: { orgId: string; 
 
   return (
     <>
-      <span className="text-lp-sec-3">Oferta: {rate}% EA Â· Anticipo {adv}% Â· Neto ${net} Â· Vence {expires}</span>
+      <span className="text-lp-sec-3">Oferta: {rate}% EA | Anticipo {adv}% | Neto ${net} | Vence {expires}</span>
       {offer.status === 'offered' && (
         <>
           <span className="text-lp-sec-3">|</span>
@@ -656,3 +656,5 @@ function OfferActions({ orgId, requestId, status, onChanged }: { orgId: string; 
     </>
   );
 }
+
+

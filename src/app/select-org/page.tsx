@@ -53,7 +53,7 @@ function SelectOrgInner() {
           <div className="mt-8 grid grid-cols-1 gap-4">
             {orgs.length === 0 && (
               <div className="rounded-md border border-lp-sec-4/60 p-4 text-lp-sec-3">
-                Aún no perteneces a ninguna organización.
+                Aun no perteneces a ninguna organizacion.
               </div>
             )}
             {orgs.map((o) => (

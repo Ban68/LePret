@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
@@ -100,7 +100,7 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
     setError(null);
     let uploadedPath: string | null = null;
 
-    // Validación por si acaso
+  // Validacion por si acaso
     if (!issueDate || !dueDate) {
       setSaving(false);
       setError('Completa las fechas');
@@ -109,8 +109,8 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
     }
     if (new Date(issueDate) > new Date(dueDate)) {
       setSaving(false);
-      setError('La fecha de vencimiento debe ser posterior a la de emisión');
-      toast.error('La fecha de vencimiento debe ser posterior a la de emisión');
+      setError('La fecha de vencimiento debe ser posterior a la de emision');
+      toast.error('La fecha de vencimiento debe ser posterior a la de emision');
       return;
     }
 
@@ -174,25 +174,25 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
           <div className="sm:col-span-2">
             <Label className="mb-2">Estado</Label>
             <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="all">— Todos —</option>
+              <option value="all">- Todos -</option>
               <option value="uploaded">Cargada</option>
               <option value="funded">Desembolsada</option>
             </select>
           </div>
           <div className="sm:col-span-2">
-            <Label className="mb-2">Emisión desde</Label>
+            <Label className="mb-2">Emision desde</Label>
             <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           </div>
           <div className="sm:col-span-2">
-            <Label className="mb-2">Emisión hasta</Label>
+            <Label className="mb-2">Emision hasta</Label>
             <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </div>
           <div className="sm:col-span-3">
-            <Label className="mb-2">Monto mínimo</Label>
+            <Label className="mb-2">Monto minimo</Label>
             <Input placeholder="Ej: 1.000.000" value={minAmount} onChange={(e) => setMinAmount(formatCurrency(e.target.value))} />
           </div>
           <div className="sm:col-span-3">
-            <Label className="mb-2">Monto máximo</Label>
+            <Label className="mb-2">Monto maximo</Label>
             <Input placeholder="Ej: 50.000.000" value={maxAmount} onChange={(e) => setMaxAmount(formatCurrency(e.target.value))} />
           </div>
           <div className="sm:col-span-2">
@@ -205,7 +205,7 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
             </select>
           </div>
           <div className="sm:col-span-2">
-            <Label className="mb-2">Tamaño de página</Label>
+            <Label className="mb-2">Tamano de pagina</Label>
             <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={pageSize} onChange={(e) => { setPage(1); setPageSize(Number(e.target.value)); }}>
               <option value={10}>10</option>
               <option value={20}>20</option>
@@ -224,7 +224,7 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
           <Input placeholder="Ej: 1.500.000" value={amount} onChange={(e) => setAmount(formatCurrency(e.target.value))} />
         </div>
         <div className="sm:col-span-2">
-          <Label className="mb-2">Fecha de emisión</Label>
+          <Label className="mb-2">Fecha de emision</Label>
           <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
         </div>
         <div className="sm:col-span-2">
@@ -249,12 +249,12 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
                 {file ? (
                   <>
                     <div className="font-medium text-lp-primary-1">{file.name}</div>
-                    <div className="text-xs text-lp-sec-3">{(file.size/1024/1024).toFixed(2)} MB · {file.type || 'archivo'}</div>
+                    <div className="text-xs text-lp-sec-3">{(file.size/1024/1024).toFixed(2)} MB Â| {file.type || 'archivo'}</div>
                   </>
                 ) : (
                   <>
-                    <div className="text-lp-primary-1">Arrastra un archivo aquí o haz clic para seleccionar</div>
-                    <div className="text-xs text-lp-sec-3">PDF, JPG, PNG · hasta 10 MB</div>
+                    <div className="text-lp-primary-1">Arrastra un archivo aqui o haz clic para seleccionar</div>
+                    <div className="text-xs text-lp-sec-3">PDF, JPG, PNG Â| hasta 10 MB</div>
                   </>
                 )}
               </div>
@@ -295,7 +295,7 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
             {loading ? (
               <tr><td className="px-4 py-3 text-sm" colSpan={7}>Cargando...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td className="px-4 py-3 text-sm" colSpan={7}>No hay facturas todavía.</td></tr>
+              <tr><td className="px-4 py-3 text-sm" colSpan={7}>No hay facturas todavia.</td></tr>
             ) : (
               items.map((it) => (
                 <tr key={it.id} className="border-t border-lp-sec-4/60">
@@ -319,9 +319,9 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
           </tbody>
         </table>
       </div>
-      {/* Paginación */}
+      {/* Paginacion */}
       <div className="flex items-center justify-between">
-        <div className="text-sm text-lp-sec-3">Página {page} de {Math.max(1, Math.ceil(total / pageSize))}</div>
+        <div className="text-sm text-lp-sec-3">Pagina {page} de {Math.max(1, Math.ceil(total / pageSize))}</div>
         <div className="flex gap-2">
           <Button type="button" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
           <Button type="button" variant="outline" disabled={page >= Math.ceil(total / pageSize)} onClick={() => setPage((p) => p + 1)}>Siguiente</Button>
@@ -344,8 +344,8 @@ function FileLink({ path }: { path?: string | null }) {
     run();
     return () => { mounted = false; };
   }, [path]);
-  if (!path) return <span>—</span>;
-  if (!href) return <span>Generando…</span>;
+  if (!path) return <span>-</span>;
+  if (!href) return <span>Generando...</span>;
   return (
     <a href={href} target="_blank" rel="noreferrer" className="text-lp-primary-1 underline">
       Ver
@@ -354,9 +354,9 @@ function FileLink({ path }: { path?: string | null }) {
 }
 
 function basename(path?: string | null) {
-  if (!path) return '—';
+  if (!path) return '-';
   const parts = path.split('/');
-  return parts[parts.length - 1] || '—';
+  return parts[parts.length - 1] || '-';
 }
 
 function CreateRequestFromInvoices({ orgId, items, selected, setSelected, onCreated }: { orgId: string; items: Invoice[]; selected: Record<string, boolean>; setSelected: (s: Record<string, boolean>) => void; onCreated: () => void }) {
@@ -383,10 +383,10 @@ function CreateRequestFromInvoices({ orgId, items, selected, setSelected, onCrea
     <div className="mb-3 flex items-center justify-between rounded-md border border-dashed border-lp-sec-4/60 p-3 text-sm">
       <div className="text-lp-sec-3">
         Seleccionadas: <span className="font-medium text-lp-primary-1">{selIds.length}</span>
-        {' '}· Monto total: <span className="font-medium text-lp-primary-1">${Intl.NumberFormat('es-CO').format(total)}</span>
+        {' '}Â| Monto total: <span className="font-medium text-lp-primary-1">${Intl.NumberFormat('es-CO').format(total)}</span>
       </div>
       <div className="space-x-2">
-        <Button type="button" variant="outline" onClick={() => setSelected({})} disabled={busy || disabled}>Limpiar selección</Button>
+        <Button type="button" variant="outline" onClick={() => setSelected({})} disabled={busy || disabled}>Limpiar seleccion</Button>
         <Button type="button" onClick={createFromSelected} disabled={busy || disabled} className="bg-lp-primary-1 text-lp-primary-2 hover:opacity-90">
           {busy ? 'Creando...' : 'Crear solicitud con seleccionadas'}
         </Button>
@@ -415,7 +415,7 @@ function RowActions({ orgId, invoice, onChanged }: { orgId: string; invoice: Inv
   };
 
   const onDeleteInvoice = async () => {
-    if (!confirm('¿Eliminar factura completa? Esta acción no se puede deshacer.')) return;
+    if (!confirm('Eliminar factura completa? Esta accion no se puede deshacer.')) return;
     setBusy(true); setErr(null);
     try {
       const res = await fetch(`/api/c/${orgId}/invoices/${invoice.id}`, { method: 'DELETE' });
@@ -470,8 +470,9 @@ function RowActions({ orgId, invoice, onChanged }: { orgId: string; invoice: Inv
         Eliminar factura
       </button>
       <input id={inputId} type="file" accept=".pdf,image/*" className="hidden" onChange={(e) => onReplace(e.target.files?.[0] ?? null)} />
-      {busy && <span className="text-xs text-lp-sec-3">Procesando…</span>}
+      {busy && <span className="text-xs text-lp-sec-3">Procesando...</span>}
       {err && <span className="text-xs text-red-600">{err}</span>}
     </div>
   );
 }
+
