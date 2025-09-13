@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,7 +59,7 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
     return amtOk && d1 && d2 && orderOk && !saving;
   }, [amount, issueDate, dueDate, saving]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams();
@@ -86,11 +86,9 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
       setTotal(data.total ?? 0);
     }
     setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
   }, [orgId, statusFilter, startDate, endDate, minAmount, maxAmount, sort, page, pageSize]);
+
+  useEffect(() => { load(); }, [load]);
 
   
 
@@ -383,7 +381,7 @@ function CreateRequestFromInvoices({ orgId, items, selected, setSelected, onCrea
     <div className="mb-3 flex items-center justify-between rounded-md border border-dashed border-lp-sec-4/60 p-3 text-sm">
       <div className="text-lp-sec-3">
         Seleccionadas: <span className="font-medium text-lp-primary-1">{selIds.length}</span>
-        {' '}Â| Monto total: <span className="font-medium text-lp-primary-1">${Intl.NumberFormat('es-CO').format(total)}</span>
+        {' '}| Monto total: <span className="font-medium text-lp-primary-1">${Intl.NumberFormat('es-CO').format(total)}</span>
       </div>
       <div className="space-x-2">
         <Button type="button" variant="outline" onClick={() => setSelected({})} disabled={busy || disabled}>Limpiar seleccion</Button>
@@ -475,4 +473,5 @@ function RowActions({ orgId, invoice, onChanged }: { orgId: string; invoice: Inv
     </div>
   );
 }
+
 

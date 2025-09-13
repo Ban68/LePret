@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,7 +44,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   const [pageSize, setPageSize] = useState<number>(10);
   const [total, setTotal] = useState<number>(0);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     const p = new URLSearchParams();
@@ -67,9 +67,15 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     if (!r1.ok) setError(d1.error || "Error cargando solicitudes"); else { setItems(d1.items || []); setTotal(d1.total ?? 0); }
     if (r2.ok) setInvoices(d2.items || []);
     setLoading(false);
-  };
+  }, [orgId, statusFilter, startDate, endDate, minAmount, maxAmount, withInvoice, sort, page, pageSize]);
 
-  useEffect(() => { load(); }, [orgId, statusFilter, startDate, endDate, minAmount, maxAmount, withInvoice, sort, page, pageSize]);
+  useEffect(() => { load(); }, [load]);
+
+  const invoiceAmountById = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const inv of invoices) map[inv.id] = Number((inv as any).amount || 0);
+    return map;
+  }, [invoices]);
 
   useEffect(() => {
     // Detectar si el usuario es staff global (puede marcar desembolso y bypass de membresia)
@@ -267,7 +273,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Creada</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Monto</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Facturas</th>
-              <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Monto facturas</th>
+              <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Total facturas</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Soporte</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Estado</th>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Acciones</th>
@@ -280,7 +286,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
               <tr><td className="px-4 py-3 text-sm" colSpan={7}>No hay solicitudes todavia.</td></tr>
             ) : (
               items.map((it) => (
-                <RequestRow key={it.id} orgId={orgId} req={it} onChanged={load} isStaff={isStaff} />
+                <RequestRow key={it.id} orgId={orgId} req={it} onChanged={load} isStaff={isStaff} amountByInvoice={invoiceAmountById} />
               ))
             )}
           </tbody>
@@ -298,7 +304,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   );
 }
 
-function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: RequestItem; onChanged: () => Promise<void> | void; isStaff: boolean }) {
+function RequestRow({ orgId, req, onChanged, isStaff, amountByInvoice }: { orgId: string; req: RequestItem; onChanged: () => Promise<void> | void; isStaff: boolean; amountByInvoice: Record<string, number> }) {
   const [editing, setEditing] = useState(false);
   const [amt, setAmt] = useState(new Intl.NumberFormat('es-CO').format(req.requested_amount));
   const [invId, setInvId] = useState(req.invoice_id || "");
@@ -388,9 +394,24 @@ function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: Re
           )}
       </td>
       <td className="px-4 py-2 text-sm">
-        {Array.isArray(rx.invoice_ids) && rx.invoice_ids.length > 0 ? rx.invoice_ids.length : (req.invoice_id ? 1 : 0)}
+        {(() => {
+          const ids = Array.isArray(rx.invoice_ids)
+            ? rx.invoice_ids
+            : (req.invoice_id ? [req.invoice_id] : []);
+          const tip = ids.length ? ids.map((id) => id.slice(0, 8)).join(' | ') : undefined;
+          const count = ids.length || (req.invoice_id ? 1 : 0);
+          return <span title={tip}>{count}</span>;
+        })()}
       </td>
-      <td className="px-4 py-2 text-sm">${Intl.NumberFormat('es-CO').format((Array.isArray(rx.invoice_ids) && rx.invoice_ids.length > 0) ? (rx.invoices_total || 0) : (req.invoice_id ? (req.requested_amount || 0) : 0))}</td>
+      <td className="px-4 py-2 text-sm">{
+        (() => {
+          const nf = new Intl.NumberFormat('es-CO');
+          const ids = Array.isArray(rx.invoice_ids) ? rx.invoice_ids : (req.invoice_id ? [req.invoice_id] : []);
+          const detail = ids && ids.length ? ids.map(id => `${id.slice(0,6)}: $${nf.format(amountByInvoice[id] ?? 0)}`).join(' | ') : undefined;
+          const totalVal = (Array.isArray(rx.invoice_ids) && rx.invoice_ids.length > 0) ? (rx.invoices_total || 0) : (req.invoice_id ? (req.requested_amount || 0) : 0);
+          return <span title={detail}>{`$${nf.format(Number(totalVal))}`}</span>;
+        })()
+      }</td>
       <td className="px-4 py-2 text-sm">{req.file_path ? basename(req.file_path) : '-'}</td>
       <td className="px-4 py-2 text-sm"><StatusBadge kind="request" status={req.status} /></td>
       <td className="px-4 py-2 text-sm">
@@ -607,17 +628,15 @@ function OfferActions({ orgId, requestId, status, onChanged }: { orgId: string; 
   const [offer, setOffer] = useState<Offer | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const loadOffer = async () => {
+  const loadOffer = useCallback(async () => {
     setLoading(true);
     const res = await fetch(`/api/c/${orgId}/requests/${requestId}/offer`);
     const data = await res.json();
     if (res.ok) setOffer(data.offer || null);
     setLoading(false);
-  };
-
-  useEffect(() => {
-    loadOffer();
   }, [orgId, requestId]);
+
+  useEffect(() => { loadOffer(); }, [loadOffer]);
 
   const generate = async () => {
     setLoading(true);

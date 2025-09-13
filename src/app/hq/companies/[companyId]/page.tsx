@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 
 type Member = { user_id: string; full_name: string | null; email: string | null; role: string; status: string };
@@ -12,14 +12,14 @@ export default function CompanyMembersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true); setError(null);
     const res = await fetch(`/api/hq/companies/${companyId}/memberships`);
     const data = await res.json();
     if (!res.ok) setError(data.error || 'Error'); else setMembers(data.members || []);
     setLoading(false);
-  };
-  useEffect(() => { load(); }, [companyId]);
+  }, [companyId]);
+  useEffect(() => { load(); }, [load]);
 
   const update = async (user_id: string, patch: Partial<Member>) => {
     const res = await fetch(`/api/hq/companies/${companyId}/memberships`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id, ...patch }) });
@@ -52,14 +52,14 @@ export default function CompanyMembersPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td className="px-4 py-3 text-sm" colSpan={5}>Cargando…</td></tr>
+                <tr><td className="px-4 py-3 text-sm" colSpan={5}>Cargando...</td></tr>
               ) : members.length === 0 ? (
                 <tr><td className="px-4 py-3 text-sm" colSpan={5}>Sin miembros</td></tr>
               ) : (
                 members.map(m => (
                   <tr key={m.user_id} className="border-t border-lp-sec-4/60">
                     <td className="px-4 py-2 text-sm">{m.full_name || m.user_id.slice(0,8)}</td>
-                    <td className="px-4 py-2 text-sm">{m.email || '—'}</td>
+                    <td className="px-4 py-2 text-sm">{m.email || '-'}</td>
                     <td className="px-4 py-2 text-sm">
                       <select className="rounded-md border border-lp-sec-4/60 px-2 py-1 text-sm" value={m.role} onChange={(e)=>update(m.user_id, { role: e.target.value })}>
                         <option value="OWNER">OWNER</option>
