@@ -9,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { orgId, requestId } = await params;
-    const cookieStore = await cookies();
+    const cookieStore = cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });

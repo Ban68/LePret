@@ -10,7 +10,7 @@ export async function GET(
 ) {
   try {
     const { orgId } = await params;
-    const cookieStore = await cookies();
+    const cookieStore = cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
     const { data: { session } } = await supabase.auth.getSession();

@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const cookieStore = await cookies();
+  const cookieStore = cookies();
   const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
   const {
     data: { session },
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Invalid payload" }, { status: 400 });
     }
 
-    const cookieStore = await cookies();
+    const cookieStore = cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
     const {
       data: { session },

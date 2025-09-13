@@ -11,7 +11,7 @@ export async function GET(
     const { orgId } = await params;
     const session = await requireAuth();
 
-    const cookieStore = await cookies();
+    const cookieStore = cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
     // Staff bypass info

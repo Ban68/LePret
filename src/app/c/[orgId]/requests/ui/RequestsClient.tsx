@@ -534,7 +534,7 @@ function RequestRow({ orgId, req, onChanged, isStaff }: { orgId: string; req: Re
           </div>
         )}
         {/* Modal de facturas asociadas */}
-        <InvoicesModalForRow orgId={orgId} open={showInv} ids={rx.invoice_ids || (req.invoice_id ? [req.invoice_id] : [])} onClose={()=>setShowInv(false)} />
+        <InvoicesModalForRow orgId={orgId} open={showInv} ids={invIdsDerived} onClose={()=>setShowInv(false)} />
       </td>
     </tr>
   );

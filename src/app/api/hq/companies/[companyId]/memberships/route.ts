@@ -14,7 +14,7 @@ export async function GET(
   { params }: { params: Promise<{ companyId: string }> }
 ) {
   const { companyId } = await params;
-  const cookieStore = await cookies();
+  const cookieStore = cookies();
   const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
   const { data: { session } } = await supabase.auth.getSession();
   if (!session || !isAllowed(session.user?.email)) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
@@ -50,7 +50,7 @@ export async function PATCH(
   { params }: { params: Promise<{ companyId: string }> }
 ) {
   const { companyId } = await params;
-  const cookieStore = await cookies();
+  const cookieStore = cookies();
   const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
   const { data: { session } } = await supabase.auth.getSession();
   if (!session || !isAllowed(session.user?.email)) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });

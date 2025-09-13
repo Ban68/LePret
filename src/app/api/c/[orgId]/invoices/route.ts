@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ orgId: string }> }
 ) {
   const { orgId } = await params;
-  const cookieStore = await cookies();
+  const cookieStore = cookies();
   const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
@@ -51,7 +51,7 @@ export async function POST(
   { params }: { params: Promise<{ orgId: string }> }
 ) {
   const { orgId } = await params;
-  const cookieStore = await cookies();
+  const cookieStore = cookies();
   const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });

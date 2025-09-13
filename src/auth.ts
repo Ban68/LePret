@@ -18,7 +18,7 @@ export type Session = {
 };
 
 export async function auth(): Promise<Session | null> {
-  const cookieStore = await cookies();
+  const cookieStore = cookies();
   const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
   const {
     data: { user },
@@ -47,7 +47,7 @@ export async function getUserId(): Promise<string | null> {
 }
 
 export async function isStaff(): Promise<boolean> {
-  const cookieStore = await cookies();
+  const cookieStore = cookies();
   const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
   const {
