@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { TableSkeleton } from "@/components/ui/table-skeleton";
-import { useState } from "react";
+import { TableSkeleton } from '@/components/ui/table-skeleton';
 
 export function InvoicesClient({ orgId }: { orgId: string }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // TODO: Implement data fetching
+  const loading = false;
+  const error = null;
 
   return (
     <div className="space-y-6">
@@ -17,7 +17,7 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
       </div>
       {error && <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       {loading ? (
-        <TableSkeleton />
+        <TableSkeleton cols={5} />
       ) : (
         <div className="rounded-lg border border-lp-sec-4/60 p-8 text-center">
           <h3 className="text-lg font-semibold text-lp-primary-1">No hay facturas</h3>
