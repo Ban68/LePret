@@ -5,7 +5,7 @@
   --color-lp-primary-1: #18240f; /* VERDE OSCURO (Color Principal 1) */
   --color-lp-primary-2: #fffffa; /* CREMA (Color Principal 2) */
   --color-lp-sec-1: #afb6a6;     /* Gris verdoso */
-  --color-lp-sec-2: #afb6a6;     /* Gris verdoso */
+  --color-lp-sec-2: #ead4ff;     /* Lavanda */
   --color-lp-sec-3: #5d3f3c;     /* Vino/Marrón */
   --color-lp-sec-4: #f2ede1;     /* Beige */
 
@@ -21,6 +21,9 @@ body {
   color: var(--color-foreground);
 }
 
+/* Evita que el logo del header sobresalga y tape clics del contenido */
+header.sticky { overflow: hidden; }
+
 /* Jerarquía */
 .h1{ @apply font-semibold tracking-tight text-[40px] leading-tight md:text-5xl; }
 .h2{ @apply font-semibold tracking-tight text-3xl md:text-4xl; }
@@ -30,3 +33,4 @@ body {
 /* Contenedor estándar */
 .section { @apply px-4 sm:px-6 lg:px-8; }
 .section-inner { @apply mx-auto w-full max-w-6xl; }
+
