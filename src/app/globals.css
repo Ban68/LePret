@@ -9,6 +9,13 @@
   --color-lp-sec-3: #5d3f3c;     /* Vino/Marrón */
   --color-lp-sec-4: #f2ede1;     /* Beige */
 
+  /* Button colors */
+  --button-primary: var(--color-lp-primary-1);
+  --button-primary-foreground: var(--color-lp-primary-2);
+  --button-primary-hover: #2f3a26; /* 90% mix of primary with background */
+  --button-primary-disabled: #8c9285;
+  --button-primary-disabled-foreground: var(--color-lp-primary-1);
+
   /* Shadcn/ui theme variables */
   --color-background: var(--color-lp-primary-2);
   --color-foreground: var(--color-lp-primary-1);
