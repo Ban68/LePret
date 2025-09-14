@@ -17,11 +17,3 @@ export const InvoiceUploadValidator = z.object({
 });
 
 export type InvoiceUploadRequest = z.infer<typeof InvoiceUploadValidator>;
-
-// Define the input type for the form before Zod coercion
-export type InvoiceUploadFormInput = {
-  invoiceNumber: string;
-  amount: string | number; // Input can be string from form field
-  dueDate: string | Date; // Input can be string from form field
-  file: File | undefined; // Input can be undefined if no file is selected
-};
