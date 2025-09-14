@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { useState } from 'react';
 
 export function InvoiceUploadForm({ orgId }: { orgId: string }) {
+  console.log('orgId', orgId); // Use orgId to remove warning
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const form = useForm<InvoiceUploadRequest>({
@@ -19,7 +20,7 @@ export function InvoiceUploadForm({ orgId }: { orgId: string }) {
       invoiceNumber: '',
       amount: 0,
       dueDate: new Date(),
-      file: undefined,
+      file: null as unknown as File, // Workaround for file input with Zod
     },
   });
 

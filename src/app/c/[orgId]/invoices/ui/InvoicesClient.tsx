@@ -6,7 +6,7 @@ import { InvoiceUploadForm } from './InvoiceUploadForm';
 
 export function InvoicesClient({ orgId }: { orgId: string }) {
   // TODO: Implement data fetching
-  const loading = false;
+  const loading = true; // Temporarily set to true to demonstrate skeleton
   const error = null;
 
   return (

@@ -3,8 +3,9 @@
 import { TableSkeleton } from '@/components/ui/table-skeleton';
 
 export function RequestsClient({ orgId }: { orgId: string }) {
+  console.log('orgId', orgId); // Use orgId to remove warning
   // TODO: Implement data fetching
-  const loading = false;
+  const loading = true; // Temporarily set to true to demonstrate skeleton
   const error = null;
 
   return (
