@@ -30,3 +30,9 @@ body {
 /* Contenedor estándar */
 .section { @apply px-4 sm:px-6 lg:px-8; }
 .section-inner { @apply mx-auto w-full max-w-6xl; }
+
+/* Ensure consistent focus outlines */
+:focus-visible {
+  outline-offset: 4px;
+}
+

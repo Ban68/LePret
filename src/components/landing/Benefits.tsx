@@ -73,7 +73,7 @@ export function Benefits({ backgroundClass = "" }: BenefitsProps) {
             <div
               key={benefit.name}
               tabIndex={0}
-              className="flex items-start gap-4 rounded-lg transition hover:shadow-lg hover:-translate-y-1 focus-visible:outline-none focus-visible:shadow-lg focus-visible:-translate-y-1"
+              className="flex items-start gap-4 rounded-lg transition hover:shadow-lg hover:-translate-y-1 focus-visible:shadow-lg focus-visible:-translate-y-1 outline-offset-2"
             >
               <div className="flex h-12 w-12 flex-none items-center justify-center rounded-lg bg-lp-primary-2">
                 <benefit.icon className="size-6 text-lp-primary-1" aria-hidden="true" />
