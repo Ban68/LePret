@@ -33,3 +33,4 @@ header.sticky { overflow: hidden; }
 /* Contenedor estándar */
 .section { @apply px-4 sm:px-6 lg:px-8; }
 .section-inner { @apply mx-auto w-full max-w-6xl; }
+
