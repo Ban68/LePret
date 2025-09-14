@@ -13,9 +13,9 @@ import { Label } from '@/components/ui/label';
 import { FormError } from '@/components/forms/FormError';
 import { toast } from 'sonner';
 import { useState } from 'react';
+import { supabaseBrowser } from '@/lib/supabase-browser';
 
-export function InvoiceUploadForm({ orgId }: { orgId: string }) {
-  console.log('orgId', orgId); // Use orgId to remove warning
+export function InvoiceUploadForm({ orgId, onSuccess }: { orgId: string, onSuccess?: () => void }) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const form = useForm<InvoiceUploadInput, unknown, InvoiceUploadRequest>({
@@ -29,11 +29,45 @@ export function InvoiceUploadForm({ orgId }: { orgId: string }) {
 
   const onSubmit = async (data: InvoiceUploadRequest) => {
     setIsLoading(true);
-    // TODO: Implement actual API call to upload invoice
-    console.log('Invoice data to upload:', data);
-    toast.success('Factura simulada cargada con éxito!');
-    form.reset();
-    setIsLoading(false);
+    let filePath = '';
+
+    try {
+      if (data.file) {
+        const file = data.file;
+        const fileName = `${orgId}/${Date.now()}-${file.name}`;
+        const { data: uploadData, error: uploadError } = await supabaseBrowser
+          .storage
+          .from('invoices')
+          .upload(fileName, file);
+
+        if (uploadError) throw new Error(`Error al subir archivo: ${uploadError.message}`);
+        filePath = uploadData.path;
+      }
+
+      const response = await fetch(`/api/c/${orgId}/invoices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...data,
+          file_path: filePath,
+          // TODO: El issue_date debería venir del XML de la factura
+          issue_date: new Date().toISOString(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al crear la factura.');
+      }
+
+      toast.success('Factura cargada con éxito!');
+      form.reset();
+      onSuccess?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Ocurrió un error inesperado.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -57,11 +91,11 @@ export function InvoiceUploadForm({ orgId }: { orgId: string }) {
       </div>
 
       <div>
-        <Label htmlFor="file" className="mb-2">Archivo de Factura (PDF, JPG, PNG)</Label>
+        <Label htmlFor="file" className="mb-2">Archivo de Factura (PDF, XML, JPG, PNG)</Label>
         <Input
           id="file"
           type="file"
-          accept="application/pdf,image/jpeg,image/png"
+          accept="application/pdf,application/xml,image/jpeg,image/png"
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) {
