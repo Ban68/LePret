@@ -1,6 +1,7 @@
 'use client';
 
 import { TableSkeleton } from '@/components/ui/table-skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export function RequestsClient({ orgId }: { orgId: string }) {
   console.log('orgId', orgId); // Use orgId to remove warning
@@ -17,10 +18,10 @@ export function RequestsClient({ orgId }: { orgId: string }) {
       {loading ? (
         <TableSkeleton cols={4} />
       ) : (
-        <div className="rounded-lg border border-lp-sec-4/60 p-8 text-center">
-          <h3 className="text-lg font-semibold text-lp-primary-1">No hay solicitudes</h3>
-          <p className="mt-2 text-sm text-lp-sec-3">Actualmente no tienes ninguna solicitud de financiamiento en curso.</p>
-        </div>
+        <EmptyState
+          title="No hay solicitudes"
+          description="Actualmente no tienes ninguna solicitud de financiamiento en curso."
+        />
       )}
     </div>
   );

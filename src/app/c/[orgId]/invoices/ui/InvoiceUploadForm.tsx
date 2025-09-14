@@ -2,7 +2,7 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { InvoiceUploadValidator, InvoiceUploadRequest } from '@/lib/validators/invoice';
+import { InvoiceUploadValidator, InvoiceUploadRequest, InvoiceUploadFormInput } from '@/lib/validators/invoice';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,13 +14,13 @@ export function InvoiceUploadForm({ orgId }: { orgId: string }) {
   console.log('orgId', orgId); // Use orgId to remove warning
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const form = useForm<InvoiceUploadRequest>({
+  const form = useForm<InvoiceUploadFormInput>({
     resolver: zodResolver(InvoiceUploadValidator),
     defaultValues: {
       invoiceNumber: '',
       amount: 0,
-      dueDate: new Date(),
-      file: null as unknown as File, // Workaround for file input with Zod
+      dueDate: '',
+      file: undefined,
     },
   });
 
@@ -49,7 +49,7 @@ export function InvoiceUploadForm({ orgId }: { orgId: string }) {
 
       <div>
         <Label htmlFor="dueDate" className="mb-2">Fecha de Vencimiento</Label>
-        <Input id="dueDate" type="date" {...form.register('dueDate', { valueAsDate: true })} />
+        <Input id="dueDate" type="date" {...form.register('dueDate')} />
         <FormError message={form.formState.errors.dueDate?.message} className="mt-1" />
       </div>
 

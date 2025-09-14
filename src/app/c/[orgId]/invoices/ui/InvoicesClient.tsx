@@ -3,6 +3,7 @@
 import { TableSkeleton } from '@/components/ui/table-skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { InvoiceUploadForm } from './InvoiceUploadForm';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export function InvoicesClient({ orgId }: { orgId: string }) {
   // TODO: Implement data fetching
@@ -15,7 +16,7 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
         <h1 className="font-colette text-2xl font-bold text-lp-primary-1">Facturas</h1>
         <Dialog>
           <DialogTrigger asChild>
-            <button className="rounded-md bg-lp-primary-1 px-4 py-2 text-sm font-semibold text-lp-primary-2 hover:bg-lp-primary-1/90">
+            <button id="dialog-trigger-invoice-upload" className="rounded-md bg-lp-primary-1 px-4 py-2 text-sm font-semibold text-lp-primary-2 hover:bg-lp-primary-1/90">
               Cargar Factura
             </button>
           </DialogTrigger>
@@ -34,12 +35,17 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
       {loading ? (
         <TableSkeleton cols={5} />
       ) : (
-        <div className="rounded-lg border border-lp-sec-4/60 p-8 text-center">
-          <h3 className="text-lg font-semibold text-lp-primary-1">No hay facturas</h3>
-          <p className="mt-2 text-sm text-lp-sec-3">
-            Aún no has cargado ninguna factura. Haz clic en el botón para empezar.
-          </p>
-        </div>
+        <EmptyState
+          title="No hay facturas"
+          description="Aún no has cargado ninguna factura. Haz clic en el botón para empezar."
+          action={{
+            label: 'Cargar Factura',
+            onClick: () => {
+              // Programmatically open the dialog
+              document.getElementById('dialog-trigger-invoice-upload')?.click();
+            },
+          }}
+        />
       )}
     </div>
   );
