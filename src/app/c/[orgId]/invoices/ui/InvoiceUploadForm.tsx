@@ -2,7 +2,11 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { InvoiceUploadValidator, InvoiceUploadRequest, InvoiceUploadFormInput } from '@/lib/validators/invoice';
+import {
+  InvoiceUploadValidator,
+  InvoiceUploadRequest,
+  InvoiceUploadInput,
+} from '@/lib/validators/invoice';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,13 +18,12 @@ export function InvoiceUploadForm({ orgId }: { orgId: string }) {
   console.log('orgId', orgId); // Use orgId to remove warning
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const form = useForm<InvoiceUploadFormInput>({
+  const form = useForm<InvoiceUploadInput, unknown, InvoiceUploadRequest>({
     resolver: zodResolver(InvoiceUploadValidator),
     defaultValues: {
       invoiceNumber: '',
-      amount: 0,
-      dueDate: '',
-      file: undefined,
+      amount: undefined,
+      dueDate: undefined,
     },
   });
 
@@ -49,7 +52,7 @@ export function InvoiceUploadForm({ orgId }: { orgId: string }) {
 
       <div>
         <Label htmlFor="dueDate" className="mb-2">Fecha de Vencimiento</Label>
-        <Input id="dueDate" type="date" {...form.register('dueDate')} />
+        <Input id="dueDate" type="date" {...form.register('dueDate', { valueAsDate: true })} />
         <FormError message={form.formState.errors.dueDate?.message} className="mt-1" />
       </div>
 
@@ -59,7 +62,12 @@ export function InvoiceUploadForm({ orgId }: { orgId: string }) {
           id="file"
           type="file"
           accept="application/pdf,image/jpeg,image/png"
-          onChange={(e) => form.setValue('file', e.target.files?.[0] || undefined, { shouldValidate: true })}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              form.setValue('file', file, { shouldValidate: true });
+            }
+          }}
         />
         <FormError message={form.formState.errors.file?.message} className="mt-1" />
       </div>
