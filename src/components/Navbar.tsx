@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Logo } from './Logo';
@@ -8,20 +8,57 @@ import Image from 'next/image';
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
+
+  const closeMenu = () => {
+    setIsMenuOpen(false);
+    toggleButtonRef.current?.focus();
+  };
 
   useEffect(() => {
-    const handleEsc = (event: KeyboardEvent) => {
+    if (!isMenuOpen) return;
+
+    const menu = menuRef.current;
+    const focusable = menu?.querySelectorAll<HTMLElement>('a, button') || [];
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setIsMenuOpen(false);
+        closeMenu();
+      } else if (event.key === "Tab" && focusable.length > 0) {
+        if (event.shiftKey) {
+          if (document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
+        }
       }
     };
 
-    if (isMenuOpen) {
-      document.addEventListener("keydown", handleEsc);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        menu &&
+        !menu.contains(event.target as Node) &&
+        !toggleButtonRef.current?.contains(event.target as Node)
+      ) {
+        closeMenu();
+      }
     };
 
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("mousedown", handleClickOutside);
+    first?.focus();
+
     return () => {
-      document.removeEventListener("keydown", handleEsc);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isMenuOpen]);
 
@@ -71,6 +108,7 @@ export function Navbar() {
               aria-label="Toggle menu"
               aria-expanded={isMenuOpen}
               aria-controls="mobile-menu"
+              ref={toggleButtonRef}
             >
               <svg
                 className="h-6 w-6 text-lp-primary-2"
@@ -97,6 +135,9 @@ export function Navbar() {
         <div
           id="mobile-menu"
           className="md:hidden absolute top-16 left-0 w-full bg-lp-primary-2/95 backdrop-blur-sm shadow-lg z-40"
+          ref={menuRef}
+          role="dialog"
+          aria-modal="true"
         >
           <nav className="container mx-auto flex flex-col items-center space-y-4 py-8">
             {navLinks.map((link) => (
@@ -104,7 +145,7 @@ export function Navbar() {
                 key={link.href}
                 href={link.href}
                 className="w-full rounded-md px-4 py-2 text-lg font-medium text-lp-primary-1 transition-colors hover:bg-lp-primary-1/10"
-                onClick={() => setIsMenuOpen(false)}
+                onClick={closeMenu}
               >
                 {link.label}
               </Link>
@@ -113,7 +154,7 @@ export function Navbar() {
               asChild
               className="mt-4 bg-lp-primary-1 text-lp-primary-2 hover:opacity-90"
             >
-              <Link href="/preaprobacion" onClick={() => setIsMenuOpen(false)}>
+              <Link href="/preaprobacion" onClick={closeMenu}>
                 Conocer mi cupo
               </Link>
             </Button>
