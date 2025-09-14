@@ -1,0 +1,9 @@
+{
+  "files.exclude": {
+    "CON": true
+  },
+  "search.exclude": {
+    "CON": true
+  }
+}
+
