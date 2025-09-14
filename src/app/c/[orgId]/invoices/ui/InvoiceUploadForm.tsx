@@ -2,7 +2,11 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { InvoiceUploadValidator, InvoiceUploadRequest } from '@/lib/validators/invoice';
+import {
+  InvoiceUploadValidator,
+  InvoiceUploadRequest,
+  InvoiceUploadInput,
+} from '@/lib/validators/invoice';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,12 +18,12 @@ export function InvoiceUploadForm({ orgId }: { orgId: string }) {
   console.log('orgId', orgId); // Use orgId to remove warning
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const form = useForm<InvoiceUploadRequest>({
+  const form = useForm<InvoiceUploadInput, unknown, InvoiceUploadRequest>({
     resolver: zodResolver(InvoiceUploadValidator),
     defaultValues: {
       invoiceNumber: '',
-      amount: 0,
-      file: undefined,
+      amount: undefined,
+      dueDate: undefined,
     },
   });
 

@@ -16,4 +16,5 @@ export const InvoiceUploadValidator = z.object({
     ),
 });
 
-export type InvoiceUploadRequest = z.infer<typeof InvoiceUploadValidator>;
+export type InvoiceUploadInput = z.input<typeof InvoiceUploadValidator>;
+export type InvoiceUploadRequest = z.output<typeof InvoiceUploadValidator>;
