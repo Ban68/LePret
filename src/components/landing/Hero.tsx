@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import Image from 'next/image';
 
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ export function Hero() {
           size="lg"
           className="bg-lp-sec-3 text-lp-primary-2 hover:opacity-90"
         >
-          <Link href="/contacto">Hablar con un asesor <span aria-hidden="true">→</span></Link>
+          <Link href="/contacto">Hablar con un asesor</Link>
         </Button>
       </div>
       <div className="mt-16 flow-root w-full sm:w-5/6 lg:w-5/6 mx-auto">
@@ -37,10 +37,10 @@ export function Hero() {
               alt="Dashboard Mockup"
               width={1024}
               height={768}
-              className="w-full object-cover max-h-[500px] mx-auto"
+              priority
+              className="w-full h-auto object-contain max-h-[500px] mx-auto"
             />
           </div>
-
         </div>
       </div>
     </Section>

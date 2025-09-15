@@ -32,8 +32,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={`${colette.variable} ${kollektif.variable}`}>
-      <body className="antialiased">
+    <html lang="es" className={`${colette.variable} ${kollektif.variable}`} suppressHydrationWarning>
+      <body className="antialiased" suppressHydrationWarning>
         <div className="flex min-h-screen flex-col">
           <Navbar />
           <main className="flex-grow">{children}</main>
