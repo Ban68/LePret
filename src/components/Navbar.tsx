@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Logo } from './Logo';
-import Image from 'next/image';
+import { getSession, getLastOrgId } from '@/lib/auth';
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [session, setSession] = useState<Awaited<ReturnType<typeof getSession>>>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
 
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {
@@ -25,12 +28,22 @@ export function Navbar() {
     };
   }, [isMenuOpen]);
 
+  useEffect(() => {
+    getSession().then(setSession);
+    setOrgId(getLastOrgId());
+  }, []);
+
   const navLinks = [
     { href: "/soluciones/factoring-electronico", label: "Factoring" },
     { href: "/costos", label: "Costos" },
     { href: "/empresa", label: "Empresa" },
     { href: "/contacto", label: "Contacto" },
   ];
+
+  const avatarUrl =
+    (session?.user.user_metadata as Record<string, string> | undefined)?.avatar_url ||
+    (session?.user.user_metadata as Record<string, string> | undefined)?.picture ||
+    undefined;
 
   return (
     <>
@@ -55,14 +68,40 @@ export function Navbar() {
           </nav>
 
           <div className="flex items-center space-x-4 ml-auto">
-            <div className="hidden md:block">
-              <Button
-                asChild
-                className="bg-lp-primary-2 text-lp-primary-1 hover:opacity-90"
-              >
-                <Link href="/preaprobacion">Conocer mi cupo</Link>
-              </Button>
-            </div>
+            {session ? (
+              <>
+                {orgId && (
+                  <Link
+                    href={`/c/${orgId}`}
+                    className="hidden md:block rounded-md px-3 py-2 text-sm font-medium text-lp-primary-2 transition-colors hover:bg-lp-primary-2 hover:text-lp-primary-1"
+                  >
+                    Mi organización
+                  </Link>
+                )}
+                {avatarUrl ? (
+                  <Image
+                    src={avatarUrl}
+                    alt="Avatar"
+                    width={32}
+                    height={32}
+                    className="h-8 w-8 rounded-full"
+                  />
+                ) : (
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-lp-primary-2 text-lp-primary-1">
+                    {session.user.email?.[0]?.toUpperCase()}
+                  </span>
+                )}
+              </>
+            ) : (
+              <div className="hidden md:block">
+                <Button
+                  asChild
+                  className="bg-lp-primary-2 text-lp-primary-1 hover:opacity-90"
+                >
+                  <Link href="/preaprobacion">Conocer mi cupo</Link>
+                </Button>
+              </div>
+            )}
 
             {/* Mobile Menu Button */}
             <button
@@ -109,14 +148,24 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
-            <Button
-              asChild
-              className="mt-4 bg-lp-primary-1 text-lp-primary-2 hover:opacity-90"
-            >
-              <Link href="/preaprobacion" onClick={() => setIsMenuOpen(false)}>
-                Conocer mi cupo
+            {session && orgId ? (
+              <Link
+                href={`/c/${orgId}`}
+                className="w-full rounded-md px-4 py-2 text-lg font-medium text-lp-primary-1 transition-colors hover:bg-lp-primary-1/10"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Mi organización
               </Link>
-            </Button>
+            ) : (
+              <Button
+                asChild
+                className="mt-4 bg-lp-primary-1 text-lp-primary-2 hover:opacity-90"
+              >
+                <Link href="/preaprobacion" onClick={() => setIsMenuOpen(false)}>
+                  Conocer mi cupo
+                </Link>
+              </Button>
+            )}
           </nav>
         </div>
       )}
