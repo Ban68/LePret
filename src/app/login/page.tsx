@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,19 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"password" | "magic" | "reset">("password");
   const [showPw, setShowPw] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const validEmail = useMemo(() => /.+@.+\..+/.test(email), [email]);
+
+  useEffect(() => {
+    const supabase = createClientComponentClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        router.replace(redirectTo);
+      } else {
+        setCheckingSession(false);
+      }
+    });
+  }, [router, redirectTo]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +61,8 @@ function LoginForm() {
       setLoading(false);
     }
   };
+
+  if (checkingSession) return null;
 
   return (
     <div className="py-20 sm:py-24">
