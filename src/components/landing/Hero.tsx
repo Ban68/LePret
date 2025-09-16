@@ -32,7 +32,7 @@ export function Hero() {
       <div className="mt-16 flow-root w-full sm:w-5/6 lg:w-5/6 mx-auto">
         <div className="rounded-2xl bg-lp-sec-4 p-2 ring-1 ring-inset ring-lp-sec-1/10 lg:p-4">
           <div className="bg-white rounded-xl shadow-2xl ring-1 ring-gray-900/10 overflow-hidden">
-            <div className="relative aspect-[4/3] w-full">
+            <div className="relative aspect-[16/9] w-full">
               <Image
                 src="/Liquidez.png"
                 alt="Dashboard Mockup"
