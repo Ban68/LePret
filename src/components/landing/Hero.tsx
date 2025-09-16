@@ -26,7 +26,7 @@ export function Hero() {
           size="lg"
           className="bg-lp-sec-3 text-lp-primary-2 hover:opacity-90"
         >
-          <Link href="/contacto">Hablar con un asesor</Link>
+          <Link href="/contacto">Hablar con un asesor <span aria-hidden="true">→</span></Link>
         </Button>
       </div>
       <div className="mt-16 flow-root w-full sm:w-5/6 lg:w-5/6 mx-auto">
