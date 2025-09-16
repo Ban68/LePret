@@ -8,6 +8,34 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
+const GENERIC_ERROR_MESSAGE = "Error inesperado. Intenta de nuevo.";
+
+const SUPABASE_ERROR_MESSAGES: Record<string, string> = {
+  invalid_credentials: "Usuario o contraseña incorrectos.",
+  invalid_grant: "Usuario o contraseña incorrectos.",
+  email_not_confirmed: "Debes confirmar tu correo antes de iniciar sesión.",
+  user_not_found: "No encontramos una cuenta con este correo.",
+  email_address_invalid: "Ingresa un email válido.",
+  over_email_send_rate_limit: "Has solicitado demasiados correos. Intenta nuevamente más tarde.",
+  over_request_rate_limit: "Se superó el límite de intentos. Intenta nuevamente más tarde.",
+  otp_disabled: "El acceso por enlace mágico está deshabilitado.",
+  otp_expired: "El enlace expiró. Solicita uno nuevo.",
+  weak_password: "La contraseña es demasiado débil.",
+};
+
+const getErrorMessage = (err: unknown) => {
+  if (err instanceof Error) {
+    const code = (err as { code?: unknown }).code;
+    if (typeof code === "string" && code.length > 0) {
+      return SUPABASE_ERROR_MESSAGES[code] ?? GENERIC_ERROR_MESSAGE;
+    }
+
+    return err.message;
+  }
+
+  return GENERIC_ERROR_MESSAGE;
+};
+
 function LoginForm() {
   const router = useRouter();
   const search = useSearchParams();
@@ -57,7 +85,7 @@ function LoginForm() {
         if (error) throw error;
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
