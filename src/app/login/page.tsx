@@ -15,6 +15,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const [mode, setMode] = useState<"password" | "magic" | "reset">("password");
   const [showPw, setShowPw] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -35,6 +36,7 @@ function LoginForm() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccess(false);
     const supabase = createClientComponentClient();
     try {
       if (mode === "password") {
@@ -48,12 +50,14 @@ function LoginForm() {
           options: { emailRedirectTo: `${window.location.origin}/select-org` },
         });
         if (error) throw error;
+        setSuccess(true);
       } else {
         if (!validEmail) throw new Error("Ingresa un email valido");
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset-password`,
         });
         if (error) throw error;
+        setSuccess(true);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -71,11 +75,38 @@ function LoginForm() {
 
         {/* Switch de modo */}
         <div className="mt-6 flex gap-3 text-sm">
-          <button type="button" className={`underline ${mode==='password'?'font-semibold text-lp-primary-1':''}`} onClick={()=>setMode('password')}>Con contraseña</button>
+          <button
+            type="button"
+            className={`underline ${mode==='password'?'font-semibold text-lp-primary-1':''}`}
+            onClick={() => {
+              setSuccess(false);
+              setMode('password');
+            }}
+          >
+            Con contraseña
+          </button>
           <span className="text-lp-sec-3">|</span>
-          <button type="button" className={`underline ${mode==='magic'?'font-semibold text-lp-primary-1':''}`} onClick={()=>setMode('magic')}>Magic Link</button>
+          <button
+            type="button"
+            className={`underline ${mode==='magic'?'font-semibold text-lp-primary-1':''}`}
+            onClick={() => {
+              setSuccess(false);
+              setMode('magic');
+            }}
+          >
+            Magic Link
+          </button>
           <span className="text-lp-sec-3">|</span>
-          <button type="button" className={`underline ${mode==='reset'?'font-semibold text-lp-primary-1':''}`} onClick={()=>setMode('reset')}>Olvidé mi contraseña</button>
+          <button
+            type="button"
+            className={`underline ${mode==='reset'?'font-semibold text-lp-primary-1':''}`}
+            onClick={() => {
+              setSuccess(false);
+              setMode('reset');
+            }}
+          >
+            Olvidé mi contraseña
+          </button>
         </div>
 
         <form onSubmit={onSubmit} className="mt-6 space-y-6">
@@ -99,10 +130,25 @@ function LoginForm() {
             <p className="text-sm text-lp-sec-3">Recibirás un enlace para restablecer tu contraseña.</p>
           )}
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <div className="flex gap-2">
-            <Button type="submit" disabled={loading || (mode!=='password' && !validEmail)} className="bg-lp-primary-1 text-lp-primary-2 hover:opacity-90">
-              {loading ? "Procesando..." : mode==='password' ? "Acceder" : mode==='magic' ? "Enviar enlace" : "Enviar recuperación"}
+          <div className="flex flex-col gap-2">
+            <Button
+              type="submit"
+              disabled={loading || (mode!=='password' && !validEmail)}
+              className="bg-lp-primary-1 text-lp-primary-2 hover:opacity-90"
+            >
+              {loading
+                ? "Procesando..."
+                : mode==='password'
+                ? "Acceder"
+                : success
+                ? "Reenviar"
+                : mode==='magic'
+                ? "Enviar enlace"
+                : "Enviar recuperación"}
             </Button>
+            {success && (
+              <p className="text-sm text-lp-sec-3">Hemos enviado un enlace a tu correo.</p>
+            )}
           </div>
         </form>
       </div>
