@@ -91,7 +91,15 @@ function LoginForm() {
     }
   };
 
-  if (checkingSession) return null;
+  if (checkingSession) {
+    return (
+      <div className="py-20 sm:py-24">
+        <div className="container mx-auto max-w-md px-4 sm:px-6 lg:px-8">
+          <p className="text-lp-sec-3">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="py-20 sm:py-24">
