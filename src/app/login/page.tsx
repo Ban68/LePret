@@ -82,12 +82,20 @@ function LoginForm() {
         <form onSubmit={onSubmit} className="mt-6 space-y-6">
           <div>
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
           {mode === 'password' && (
             <div>
               <Label htmlFor="password">Contraseña</Label>
               <div className="flex gap-2">
+
                 <Input id="password" type={showPw? 'text':'password'} value={password} onChange={(e) => setPassword(e.target.value)} required />
                 <Button
                   type="button"
@@ -98,6 +106,7 @@ function LoginForm() {
                 >
                   {showPw ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
                 </Button>
+
               </div>
             </div>
           )}
