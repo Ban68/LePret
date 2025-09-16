@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -94,15 +95,18 @@ function LoginForm() {
             <div>
               <Label htmlFor="password">Contraseña</Label>
               <div className="flex gap-2">
-                <Input
-                  id="password"
-                  type={showPw? 'text':'password'}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-                <Button type="button" variant="outline" onClick={()=>setShowPw(v=>!v)}>{showPw? 'Ocultar':'Ver'}</Button>
+
+                <Input id="password" type={showPw? 'text':'password'} value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setShowPw((v) => !v)}
+                  aria-label={showPw ? "Ocultar contraseña" : "Mostrar contraseña"}
+                >
+                  {showPw ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+                </Button>
+
               </div>
             </div>
           )}
