@@ -1,11 +1,19 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+
+const AUTH_TABS = [
+  { value: "password", label: "Con contraseña" },
+  { value: "magic", label: "Magic Link" },
+  { value: "reset", label: "Olvidé mi contraseña" },
+] as const;
+
+type Mode = (typeof AUTH_TABS)[number]["value"];
 
 function LoginForm() {
   const router = useRouter();
@@ -15,10 +23,41 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"password" | "magic" | "reset">("password");
+  const [mode, setMode] = useState<Mode>("password");
   const [showPw, setShowPw] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const validEmail = useMemo(() => /.+@.+\..+/.test(email), [email]);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const focusTab = (index: number) => {
+    const node = tabRefs.current[index];
+    if (node) {
+      node.focus();
+    }
+  };
+
+  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const lastIndex = AUTH_TABS.length - 1;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      event.preventDefault();
+      const nextIndex = index === lastIndex ? 0 : index + 1;
+      setMode(AUTH_TABS[nextIndex].value);
+      focusTab(nextIndex);
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const prevIndex = index === 0 ? lastIndex : index - 1;
+      setMode(AUTH_TABS[prevIndex].value);
+      focusTab(prevIndex);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setMode(AUTH_TABS[0].value);
+      focusTab(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setMode(AUTH_TABS[lastIndex].value);
+      focusTab(lastIndex);
+    }
+  };
 
   useEffect(() => {
     const supabase = createClientComponentClient();
@@ -70,12 +109,35 @@ function LoginForm() {
         <h1 className="font-colette text-3xl font-bold text-lp-primary-1">Iniciar sesión</h1>
 
         {/* Switch de modo */}
-        <div className="mt-6 flex gap-3 text-sm">
-          <button type="button" className={`underline ${mode==='password'?'font-semibold text-lp-primary-1':''}`} onClick={()=>setMode('password')}>Con contraseña</button>
-          <span className="text-lp-sec-3">|</span>
-          <button type="button" className={`underline ${mode==='magic'?'font-semibold text-lp-primary-1':''}`} onClick={()=>setMode('magic')}>Magic Link</button>
-          <span className="text-lp-sec-3">|</span>
-          <button type="button" className={`underline ${mode==='reset'?'font-semibold text-lp-primary-1':''}`} onClick={()=>setMode('reset')}>Olvidé mi contraseña</button>
+        <div className="mt-6">
+          <div role="tablist" aria-label="Opciones de acceso" className="flex flex-wrap gap-2 text-sm font-medium">
+            {AUTH_TABS.map((tab, index) => {
+              const isActive = mode === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  ref={(node) => {
+                    tabRefs.current[index] = node;
+                  }}
+                  id={`${tab.value}-tab`}
+                  role="tab"
+                  type="button"
+                  aria-selected={isActive}
+                  aria-controls={`${tab.value}-panel`}
+                  tabIndex={isActive ? 0 : -1}
+                  onClick={() => setMode(tab.value)}
+                  onKeyDown={(event) => handleTabKeyDown(event, index)}
+                  className={`rounded-md border px-3 py-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lp-primary-1 ${
+                    isActive
+                      ? "border-lp-primary-1 bg-lp-primary-1 text-lp-primary-2 shadow-sm"
+                      : "border-transparent text-lp-sec-3 hover:border-lp-primary-1 hover:bg-lp-primary-2/10 hover:text-lp-primary-1"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <form onSubmit={onSubmit} className="mt-6 space-y-6">
@@ -83,21 +145,38 @@ function LoginForm() {
             <Label htmlFor="email">Email</Label>
             <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
-          {mode === 'password' && (
-            <div>
+          <div
+            role="tabpanel"
+            id="password-panel"
+            aria-labelledby="password-tab"
+            hidden={mode !== "password"}
+          >
+            <div className="space-y-2">
               <Label htmlFor="password">Contraseña</Label>
               <div className="flex gap-2">
-                <Input id="password" type={showPw? 'text':'password'} value={password} onChange={(e) => setPassword(e.target.value)} required />
-                <Button type="button" variant="outline" onClick={()=>setShowPw(v=>!v)}>{showPw? 'Ocultar':'Ver'}</Button>
+                <Input id="password" type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <Button type="button" variant="outline" onClick={() => setShowPw((v) => !v)}>
+                  {showPw ? "Ocultar" : "Ver"}
+                </Button>
               </div>
             </div>
-          )}
-          {mode === 'magic' && (
+          </div>
+          <div
+            role="tabpanel"
+            id="magic-panel"
+            aria-labelledby="magic-tab"
+            hidden={mode !== "magic"}
+          >
             <p className="text-sm text-lp-sec-3">Te enviaremos un enlace de acceso a tu correo.</p>
-          )}
-          {mode === 'reset' && (
+          </div>
+          <div
+            role="tabpanel"
+            id="reset-panel"
+            aria-labelledby="reset-tab"
+            hidden={mode !== "reset"}
+          >
             <p className="text-sm text-lp-sec-3">Recibirás un enlace para restablecer tu contraseña.</p>
-          )}
+          </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">
             <Button type="submit" disabled={loading || (mode!=='password' && !validEmail)} className="bg-lp-primary-1 text-lp-primary-2 hover:opacity-90">
