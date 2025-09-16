@@ -12,7 +12,7 @@ export default function Home() {
       <HowItWorks backgroundClass="bg-lp-sec-4" />
       <Benefits backgroundClass="bg-lp-sec-4" />
       <TrustMetrics backgroundClass="bg-lp-primary-2" />
-      <Testimonials backgroundClass="bg-lp-sec-2" />
+      <Testimonials />
       <Faq backgroundClass="bg-lp-primary-2" />
     </>
   );
