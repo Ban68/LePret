@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Toaster, toast } from "sonner";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { RealtimeBadge } from "./RealtimeBadge";
 
 type RequestItem = {
   id: string;
@@ -266,12 +267,13 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           <Button type="submit" disabled={!canSubmit} className="bg-lp-primary-1 text-lp-primary-2 hover:opacity-90">
             {saving ? "Creando..." : "Crear solicitud"}
           </Button>
+          <div aria-live="polite" className="sr-only">{error ?? ""}</div>
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         </div>
       </form>
 
-      <div className="rounded-lg border border-lp-sec-4/60">
-        <table className="min-w-full divide-y divide-lp-sec-4/60">
+      <div className="w-full overflow-x-auto rounded-lg border border-lp-sec-4/60">
+        <table className="min-w-[900px] w-full divide-y divide-lp-sec-4/60">
           <thead className="bg-lp-sec-4/30">
             <tr>
               <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Creada</th>
@@ -287,7 +289,15 @@ export function RequestsClient({ orgId }: { orgId: string }) {
             {loading ? (
               <tr><td className="px-4 py-3 text-sm" colSpan={7}>Cargando...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td className="px-4 py-3 text-sm" colSpan={7}>No hay solicitudes todavia.</td></tr>
+              <tr>
+                <td className="px-4 py-3 text-sm" colSpan={7}>
+                  <EmptyState
+                    title="No hay solicitudes"
+                    description="Crea una nueva solicitud para avanzar con el factoring."
+                    action={{ label: "Crear solicitud", onClick: () => setShowCreateForm(true) }}
+                  />
+                </td>
+              </tr>
             ) : (
               items.map((it) => (
                 <RequestRow key={it.id} orgId={orgId} req={it} onChanged={load} isStaff={isStaff} amountByInvoice={invoiceAmountById} />
@@ -296,7 +306,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           </tbody>
         </table>
       </div>
-      {/* PaginaciÃ³n */}
+      {/* Paginación */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-lp-sec-3">Pagina {page} de {Math.max(1, Math.ceil(total / pageSize))}</div>
         <div className="flex gap-2">
@@ -417,7 +427,7 @@ function RequestRow({ orgId, req, onChanged, isStaff, amountByInvoice }: { orgId
         })()
       }</td>
       <td className="px-4 py-2 text-sm">{req.file_path ? basename(req.file_path) : '-'}</td>
-      <td className="px-4 py-2 text-sm"><StatusBadge kind="request" status={req.status} /></td>
+      <td className="px-4 py-2 text-sm"><RealtimeBadge requestId={req.id} initial={req.status} /></td>
       <td className="px-4 py-2 text-sm">
         {editing ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -444,7 +454,7 @@ function RequestRow({ orgId, req, onChanged, isStaff, amountByInvoice }: { orgId
             )}
             <span className="text-lp-sec-3">|</span>
             <OfferActions orgId={orgId} requestId={req.id} status={req.status} onChanged={onChanged} />
-            {/* Preparar contrato (tras aceptaciÃ³n) */}
+            {/* Preparar contrato (tras aceptación) */}
             {req.status === 'accepted' && (
               <>
                 <span className="text-lp-sec-3">|</span>
@@ -466,7 +476,7 @@ function RequestRow({ orgId, req, onChanged, isStaff, amountByInvoice }: { orgId
                 </button>
               </>
             )}
-            {/* Marcar desembolso (sÃ³lo staff) */}
+            {/* Marcar desembolso (sólo staff) */}
             {isStaff && (req.status === 'signed' || req.status === 'accepted') && (
               <>
                 <span className="text-lp-sec-3">|</span>
@@ -665,7 +675,7 @@ function OfferActions({ orgId, requestId, status, onChanged }: { orgId: string; 
   const rate = (offer.annual_rate * 100).toFixed(2);
   const adv = Number(offer.advance_pct).toFixed(0);
   const net = Intl.NumberFormat('es-CO').format(Number(offer.net_amount || 0));
-  const expires = offer.valid_until ? new Date(offer.valid_until).toLocaleDateString() : 'â€”';
+  const expires = offer.valid_until ? new Date(offer.valid_until).toLocaleDateString() : '—';
 
   return (
     <>

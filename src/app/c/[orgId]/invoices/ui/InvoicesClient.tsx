@@ -128,6 +128,21 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
 
     try {
       if (file) {
+        const MAX = 10 * 1024 * 1024; // 10MB
+        if (file.size > MAX) {
+          setError('El archivo supera 10MB');
+          toast.error('El archivo supera 10MB');
+          setSaving(false);
+          return;
+        }
+        const type = (file.type || '').toLowerCase();
+        const okType = /application\/pdf|image\/(jpeg|png)/.test(type);
+        if (!okType) {
+          setError('Formato no soportado (PDF, JPG, PNG)');
+          toast.error('Formato no soportado (PDF, JPG, PNG)');
+          setSaving(false);
+          return;
+        }
         const supabase = createClientComponentClient();
         const ext = file.name.split('.').pop();
         const id = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
@@ -182,6 +197,9 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
             {showFilters ? "Ocultar Filtros" : "Mostrar Filtros"}
+          </Button>
+          <Button variant="outline" asChild>
+            <a href={`/api/c/${orgId}/invoices/export`} target="_blank" rel="noopener noreferrer">Exportar CSV</a>
           </Button>
           <Button onClick={() => setShowCreateForm(!showCreateForm)}>
             {showCreateForm ? "Cancelar" : "Crear Factura"}
@@ -249,6 +267,7 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
                 <Button type="submit" disabled={!canSubmit} className="bg-lp-primary-1 text-lp-primary-2 hover:opacity-90">
                   {saving ? "Creando..." : "Crear factura"}
                 </Button>
+                <div aria-live="polite" className="sr-only">{error ?? ""}</div>
                 {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
               </div>
             </form>
@@ -322,8 +341,8 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
           <CardDescription>Estas son las facturas que has cargado en la plataforma.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border border-lp-sec-4/60">
-            <table className="min-w-full divide-y divide-lp-sec-4/60">
+          <div className="w-full overflow-x-auto rounded-lg border border-lp-sec-4/60">
+            <table className="min-w-[900px] w-full divide-y divide-lp-sec-4/60">
               <thead className="bg-lp-sec-4/30">
                 <tr>
                   <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">
@@ -534,3 +553,4 @@ function RowActions({ orgId, invoice, onChanged }: { orgId: string; invoice: Inv
     </div>
   );
 }
+

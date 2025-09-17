@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+﻿import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 
@@ -89,6 +89,7 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Apply middleware on portal, select-org and hq routes
-  matcher: ["/c/:path*", "/select-org", "/hq/:path*"],
+  matcher: ["/c/:path*", "/select-org", "/hq/:path*", "/api/c/:path*"],
 };
+
 
