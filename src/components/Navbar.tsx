@@ -45,6 +45,9 @@ export function Navbar() {
     { href: "/login?redirectTo=/select-org", label: "Portal" },
   ];
 
+  const currentPath = pathname ?? '';
+  const isInPortal = currentPath.startsWith('/c/') || currentPath.startsWith('/hq') || currentPath === '/select-org' || currentPath.startsWith('/select-org');
+
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-lp-sec-4/50 bg-lp-primary-1 backdrop-blur-sm">
@@ -80,11 +83,13 @@ export function Navbar() {
               </Button>
             </div>
 
-            <div className="hidden md:block">
-              <Button onClick={signOut} variant="outline" className="border-lp-sec-4/60 text-lp-primary-2">
-                Salir
-              </Button>
-            </div>
+            {isInPortal && (
+              <div className="hidden md:block">
+                <Button onClick={signOut} variant="outline" className="border-lp-sec-4/60 text-lp-primary-1 hover:bg-lp-primary-2/80">
+                  Salir
+                </Button>
+              </div>
+            )}
 
             {/* Mobile Menu Button */}
             <button
@@ -147,9 +152,11 @@ export function Navbar() {
                   Conocer mi cupo
                 </Link>
               </Button>
-              <Button onClick={() => { setIsMenuOpen(false); signOut(); }} variant="outline" className="border-lp-primary-1/40 text-lp-primary-1">
-                Salir
-              </Button>
+              {isInPortal && (
+                <Button onClick={() => { setIsMenuOpen(false); signOut(); }} variant="outline" className="border-lp-primary-1/40 text-lp-primary-1">
+                  Salir
+                </Button>
+              )}
             </nav>
           </div>
         </>
