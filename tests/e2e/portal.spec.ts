@@ -1,16 +1,21 @@
-﻿import { test, expect } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
-test("flujo cliente básico", async ({ page }) => {
-  // Ajusta a tu login real
-  await page.goto("/login");
-  // ... si usas magic link, simula tras cookie, etc.
+const orgId = process.env.E2E_ORG_ID;
 
-  // Navega al portal (asumiendo cookie o login hecho)
-  await page.goto("/c/ORG_ID_DEMO");
-  await expect(page.getByText("Resumen")).toBeVisible();
+test.describe("portal cliente", () => {
+  test.skip(!orgId, "Define E2E_ORG_ID en tu entorno para ejecutar este smoke test.");
 
-  // Ir a facturas y ver listado / empty state
-  await page.goto("/c/ORG_ID_DEMO/invoices");
-  await expect(page.getByText(/Facturas/i)).toBeVisible();
+  test("flujo cliente basico", async ({ page }) => {
+    // Se asume que ya existe una sesion reutilizable (via storageState) o que el login no requiere interaccion manual.
+    await page.goto("/login");
+
+    // Navega al dashboard resumido de la organizacion proporcionada.
+    await page.goto(`/c/${orgId}`);
+    await expect(page.getByRole("heading", { name: /resumen/i })).toBeVisible();
+
+    // Visita el listado de facturas.
+    await page.goto(`/c/${orgId}/invoices`);
+    await expect(page.getByRole("heading", { name: /facturas/i })).toBeVisible();
+  });
 });
 
