@@ -298,21 +298,28 @@ function resolveInvoiceAmount(invoice: InvoiceRow): number {
 function resolvePayers(invoices: InvoiceRow[]): Array<{ name: string; identifier: string | null }> {
   const names = new Map<string, string | null>();
   for (const invoice of invoices) {
+    const metadata = (invoice as { metadata?: Record<string, unknown> }).metadata;
+    let metaName: string | null = null;
+    let metaIdentifier: string | null = null;
+    if (metadata && typeof metadata === 'object') {
+      const extracted = extractFromMetadata(metadata as Record<string, unknown>);
+      metaName = extracted?.name ?? null;
+      metaIdentifier = extracted?.identifier ?? null;
+    }
+
     const name =
       (invoice as { payer_name?: string | null }).payer_name ??
       (invoice as { payer?: string | null }).payer ??
       (invoice as { debtor_name?: string | null }).debtor_name ??
       (invoice as { counterparty_name?: string | null }).counterparty_name ??
-      (invoice as { metadata?: Record<string, unknown> }).metadata && typeof (invoice as { metadata?: Record<string, unknown> }).metadata === 'object'
-        ? extractFromMetadata((invoice as { metadata?: Record<string, unknown> }).metadata as Record<string, unknown>)?.name
-        : null;
+      metaName ??
+      null;
 
     const identifier =
       (invoice as { payer_tax_id?: string | null }).payer_tax_id ??
       (invoice as { debtor_tax_id?: string | null }).debtor_tax_id ??
-      (invoice as { metadata?: Record<string, unknown> }).metadata && typeof (invoice as { metadata?: Record<string, unknown> }).metadata === 'object'
-        ? extractFromMetadata((invoice as { metadata?: Record<string, unknown> }).metadata as Record<string, unknown>)?.identifier
-        : null;
+      metaIdentifier ??
+      null;
 
     const key = (name || 'Sin pagador').trim() || 'Sin pagador';
     if (!names.has(key)) {
@@ -455,5 +462,3 @@ function toISOEnd(value: string): string | null {
   const date = new Date(`${value}T23:59:59.999Z`);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
-
-
