@@ -8,8 +8,8 @@ const toCsv = (value: unknown) => {
   return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
 };
 
-export async function GET(_req: Request, { params }: { params: { orgId: string } }) {
-  const { orgId } = params;
+export async function GET(_req: Request, context: { params: Promise<{ orgId: string }> }) {
+  const { orgId } = await context.params;
   const supabase = createRouteHandlerClient({ cookies: () => cookies() });
   const {
     data: { session },
@@ -45,4 +45,5 @@ export async function GET(_req: Request, { params }: { params: { orgId: string }
     },
   });
 }
+
 
