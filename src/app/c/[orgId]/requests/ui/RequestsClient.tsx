@@ -150,75 +150,89 @@ export function RequestsClient({ orgId }: { orgId: string }) {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-colette text-2xl font-bold text-lp-primary-1">Solicitudes</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="font-colette text-2xl font-bold text-lp-primary-1">Solicitudes</h1>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
+            {showFilters ? "Ocultar Filtros" : "Mostrar Filtros"}
+          </Button>
+          <Button onClick={() => setShowCreateForm(!showCreateForm)}>
+            {showCreateForm ? "Cancelar" : "Crear Solicitud"}
+          </Button>
+        </div>
+      </div>
 
       <Toaster richColors />
       {/* Filtros */}
-      <div className="rounded-md border border-lp-sec-4/60 p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
-          <div className="sm:col-span-2">
-            <Label className="mb-2">Estado</Label>
-            <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="all">- Todos -</option>
-              <option value="review">En revision</option>
-              <option value="offered">Ofertada</option>
-              <option value="accepted">Aceptada</option>
-            </select>
+      {showFilters && (
+        <div className="rounded-md border border-lp-sec-4/60 p-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
+            <div className="sm:col-span-2">
+              <Label className="mb-2">Estado</Label>
+              <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <option value="all">- Todos -</option>
+                <option value="review">En revision</option>
+                <option value="offered">Ofertada</option>
+                <option value="accepted">Aceptada</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="mb-2">Desde</Label>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="mb-2">Hasta</Label>
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="mb-2">Monto minimo</Label>
+              <Input placeholder="Ej: 500.000" value={minAmount} onChange={(e) => setMinAmount(formatCurrency(e.target.value))} />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="mb-2">Monto maximo</Label>
+              <Input placeholder="Ej: 50.000.000" value={maxAmount} onChange={(e) => setMaxAmount(formatCurrency(e.target.value))} />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="mb-2">Con factura</Label>
+              <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={withInvoice} onChange={(e) => setWithInvoice(e.target.value)}>
+                <option value="all">- Todas -</option>
+                <option value="true">Si</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="mb-2">Orden</Label>
+              <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={sort} onChange={(e) => setSort(e.target.value)}>
+                <option value="created_at.desc">Recientes primero</option>
+                <option value="created_at.asc">Antiguas primero</option>
+                <option value="requested_amount.desc">Monto (mayor a menor)</option>
+                <option value="requested_amount.asc">Monto (menor a mayor)</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="mb-2">Tamano de pagina</Label>
+              <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={pageSize} onChange={(e) => { setPage(1); setPageSize(Number(e.target.value)); }}>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
           </div>
-          <div className="sm:col-span-2">
-            <Label className="mb-2">Desde</Label>
-            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          </div>
-          <div className="sm:col-span-2">
-            <Label className="mb-2">Hasta</Label>
-            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          </div>
-          <div className="sm:col-span-2">
-            <Label className="mb-2">Monto minimo</Label>
-            <Input placeholder="Ej: 500.000" value={minAmount} onChange={(e) => setMinAmount(formatCurrency(e.target.value))} />
-          </div>
-          <div className="sm:col-span-2">
-            <Label className="mb-2">Monto maximo</Label>
-            <Input placeholder="Ej: 50.000.000" value={maxAmount} onChange={(e) => setMaxAmount(formatCurrency(e.target.value))} />
-          </div>
-          <div className="sm:col-span-2">
-            <Label className="mb-2">Con factura</Label>
-            <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={withInvoice} onChange={(e) => setWithInvoice(e.target.value)}>
-              <option value="all">- Todas -</option>
-              <option value="true">Si</option>
-              <option value="false">No</option>
-            </select>
-          </div>
-          <div className="sm:col-span-2">
-            <Label className="mb-2">Orden</Label>
-            <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={sort} onChange={(e) => setSort(e.target.value)}>
-              <option value="created_at.desc">Recientes primero</option>
-              <option value="created_at.asc">Antiguas primero</option>
-              <option value="requested_amount.desc">Monto (mayor a menor)</option>
-              <option value="requested_amount.asc">Monto (menor a mayor)</option>
-            </select>
-          </div>
-          <div className="sm:col-span-2">
-            <Label className="mb-2">Tamano de pagina</Label>
-            <select className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2" value={pageSize} onChange={(e) => { setPage(1); setPageSize(Number(e.target.value)); }}>
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
+          <div className="mt-3 flex items-center justify-between text-sm">
+            <div className="text-lp-sec-3">Resultados: {total}</div>
+            <button
+              type="button"
+              className="underline"
+              onClick={() => { setStatusFilter('all'); setStartDate(''); setEndDate(''); setMinAmount(''); setMaxAmount(''); setWithInvoice('all'); setSort('created_at.desc'); setPage(1); setPageSize(10); }}
+            >
+              Limpiar filtros
+            </button>
           </div>
         </div>
-        <div className="mt-3 flex items-center justify-between text-sm">
-          <div className="text-lp-sec-3">Resultados: {total}</div>
-          <button
-            type="button"
-            className="underline"
-            onClick={() => { setStatusFilter('all'); setStartDate(''); setEndDate(''); setMinAmount(''); setMaxAmount(''); setWithInvoice('all'); setSort('created_at.desc'); setPage(1); setPageSize(10); }}
-          >
-            Limpiar filtros
-          </button>
-        </div>
-      </div>
-      <form onSubmit={onCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-6">
+      )}
+
+      {showCreateForm && (
+        <form onSubmit={onCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-6">
         <div className="sm:col-span-3">
           <Label className="mb-2">Monto solicitado (COP)</Label>
           <Input placeholder="Ej: 8.000.000" value={amount} onChange={(e) => setAmount(formatCurrency(e.target.value))} />
@@ -270,7 +284,8 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           <div aria-live="polite" className="sr-only">{error ?? ""}</div>
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         </div>
-      </form>
+        </form>
+      )}
 
       <div className="w-full overflow-x-auto rounded-lg border border-lp-sec-4/60">
         <table className="min-w-[900px] w-full divide-y divide-lp-sec-4/60">
@@ -689,5 +704,4 @@ function OfferActions({ orgId, requestId, status, onChanged }: { orgId: string; 
     </>
   );
 }
-
 

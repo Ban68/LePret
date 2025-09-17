@@ -2,15 +2,13 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
-type RouteContext = { params: { orgId: string } };
-
 const toCsv = (value: unknown) => {
   if (value === null || value === undefined) return "";
   const str = String(value);
   return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
 };
 
-export async function GET(_req: Request, { params }: RouteContext) {
+export async function GET(_req: Request, { params }: { params: { orgId: string } }) {
   const { orgId } = params;
   const supabase = createRouteHandlerClient({ cookies: () => cookies() });
   const {
@@ -47,3 +45,4 @@ export async function GET(_req: Request, { params }: RouteContext) {
     },
   });
 }
+
