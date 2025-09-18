@@ -121,7 +121,7 @@ export function MembersManager({ orgId }: MembersManagerProps) {
   };
 
   const handleRemove = async (userId: string) => {
-    if (!confirm("¿Eliminar el acceso de este miembro?")) {
+    if (!confirm("Eliminar el acceso de este miembro?")) {
       return;
     }
     try {
@@ -183,7 +183,7 @@ export function MembersManager({ orgId }: MembersManagerProps) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-lp-primary-1">Miembros y roles</h2>
-          <p className="text-sm text-lp-sec-3">Gestiona quien puede acceder al portal y qué permisos tiene cada persona.</p>
+          <p className="text-sm text-lp-sec-3">Gestiona quien puede acceder al portal y qu permisos tiene cada persona.</p>
         </div>
         {!canEdit && (
           <span className="text-xs font-medium uppercase text-lp-sec-3">Solo lectura</span>
@@ -196,7 +196,7 @@ export function MembersManager({ orgId }: MembersManagerProps) {
         <div className="rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-700">{error}</div>
       ) : sortedMembers.length === 0 ? (
         <div className="rounded-md border border-dashed border-lp-sec-4/60 p-4 text-sm text-lp-sec-3">
-          Aún no hay miembros asignados a esta organización.
+          An no hay miembros asignados a esta organizacin.
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -266,7 +266,7 @@ export function MembersManager({ orgId }: MembersManagerProps) {
         <form className="space-y-3 rounded-md border border-dashed border-lp-sec-4/60 p-4" onSubmit={handleAdd}>
           <div>
             <h3 className="text-sm font-semibold text-lp-primary-1">Agregar miembro</h3>
-            <p className="text-xs text-lp-sec-3">Ingresa el correo electrónico o identificador de un usuario existente para darle acceso.</p>
+            <p className="text-xs text-lp-sec-3">Ingresa el correo electrnico o identificador de un usuario existente para darle acceso.</p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
