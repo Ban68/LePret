@@ -137,21 +137,33 @@ export async function GET(req: Request) {
   });
 
   const membershipMap = new Map<string, MembershipRow[]>();
-  const membershipRows = ((membershipData ?? []) as Array<{
+  type RawMembershipRow = {
     user_id: string;
     company_id: string;
     role: string;
     status: string;
-    companies?: { name: string | null } | null;
-  }>);
+    companies?: { name?: string | null } | Array<{ name?: string | null }> | null;
+  };
+
+  const membershipRows = ((membershipData ?? []) as RawMembershipRow[]);
 
   membershipRows.forEach((row) => {
     if (!membershipMap.has(row.user_id)) {
       membershipMap.set(row.user_id, []);
     }
-    membershipMap.get(row.user_id)!.push(row as MembershipRow);
-  });
 
+    const companyInfo = Array.isArray(row.companies)
+      ? row.companies[0] ?? null
+      : row.companies ?? null;
+
+    membershipMap.get(row.user_id)!.push({
+      user_id: row.user_id,
+      company_id: row.company_id,
+      role: row.role,
+      status: row.status,
+      companies: companyInfo ? { name: companyInfo.name ?? null } : null,
+    });
+  });
   const users: UserSummary[] = profileRows.map((profile) => {
     const auth = authMap.get(profile.user_id);
     const companyMemberships = membershipMap.get(profile.user_id) ?? [];
