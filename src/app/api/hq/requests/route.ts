@@ -110,8 +110,7 @@ export async function GET(req: Request) {
 
   let query = supabaseAdmin
     .from('funding_requests')
-    .select('id, company_id, requested_amount, status, created_at, file_path, created_by, invoice_id, currency, archived_at', { count: 'exact' })
-    .eq('company_id', orgId);
+    .select('id, company_id, requested_amount, status, created_at, file_path, created_by, invoice_id, currency, archived_at', { count: 'exact' });
 
   if (!includeArchived) {
     query = query.is('archived_at', null);
