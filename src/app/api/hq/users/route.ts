@@ -607,6 +607,17 @@ type RawMembershipRow = {
   companies?: { name?: string | null } | Array<{ name?: string | null }> | null;
 };
 
+type UpdateUserPayload = {
+  id?: unknown;
+  full_name?: unknown;
+  is_staff?: unknown;
+  companies?: unknown;
+  memberships?: unknown;
+  remove?: unknown;
+  remove_companies?: unknown;
+  invite?: unknown;
+};
+
 type CompanyAssignmentInput = {
   company_id: string;
   role?: string;
