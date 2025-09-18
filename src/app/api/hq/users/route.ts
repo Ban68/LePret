@@ -704,24 +704,23 @@ function normalizeCompanyAssignments(input: unknown): CompanyAssignmentInput[] {
     return [];
   }
 
-  return input
-    .map((entry) => {
-      if (!entry || typeof entry !== "object") {
-        return null;
-      }
-      const companyId = String((entry as { company_id?: unknown }).company_id ?? "").trim();
-      if (!companyId) {
-        return null;
-      }
-      const roleRaw = (entry as { role?: unknown }).role;
-      const statusRaw = (entry as { status?: unknown }).status;
-      return {
-        company_id: companyId,
-        role: typeof roleRaw === "string" ? roleRaw : undefined,
-        status: typeof statusRaw === "string" ? statusRaw : undefined,
-      };
-    })
-    .filter((value): value is CompanyAssignmentInput => value !== null);
+  return input.reduce<CompanyAssignmentInput[]>((acc, entry) => {
+    if (!entry || typeof entry !== "object") {
+      return acc;
+    }
+    const companyId = String((entry as { company_id?: unknown }).company_id ?? "").trim();
+    if (!companyId) {
+      return acc;
+    }
+    const roleRaw = (entry as { role?: unknown }).role;
+    const statusRaw = (entry as { status?: unknown }).status;
+    acc.push({
+      company_id: companyId,
+      role: typeof roleRaw === "string" ? roleRaw : undefined,
+      status: typeof statusRaw === "string" ? statusRaw : undefined,
+    });
+    return acc;
+  }, []);
 }
 
 function extractCompanyName(value: RawMembershipRow["companies"]): string | null {
