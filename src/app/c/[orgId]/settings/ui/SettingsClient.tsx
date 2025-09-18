@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { Toaster, toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MembersManager } from "./MembersManager";
 
 type CompanySettingsPayload = {
   name: string | null;
@@ -176,6 +177,7 @@ export function SettingsClient({ orgId }: SettingsClientProps) {
 
   return (
     <div className="space-y-6">
+      <Toaster position="top-center" richColors />
       <div>
         <h1 className="font-colette text-2xl font-bold text-lp-primary-1">Configuracion</h1>
         <p className="text-sm text-lp-sec-3">
@@ -200,8 +202,9 @@ export function SettingsClient({ orgId }: SettingsClientProps) {
           No se encontraron datos de la organizacion.
         </div>
       ) : (
-        <form className="space-y-8" onSubmit={handleSubmit}>
-          <section className="space-y-4 rounded-lg border border-lp-sec-4/60 p-5">
+        <>
+          <form className="space-y-8" onSubmit={handleSubmit}>
+            <section className="space-y-4 rounded-lg border border-lp-sec-4/60 p-5">
             <div>
               <h2 className="text-lg font-semibold text-lp-primary-1">Datos de la empresa</h2>
               <p className="text-sm text-lp-sec-3">Actualiza la informacion basica que usamos para contratos y comunicaciones.</p>
@@ -250,9 +253,9 @@ export function SettingsClient({ orgId }: SettingsClientProps) {
                 />
               </div>
             </div>
-          </section>
+            </section>
 
-          <section className="space-y-4 rounded-lg border border-lp-sec-4/60 p-5">
+            <section className="space-y-4 rounded-lg border border-lp-sec-4/60 p-5">
             <div>
               <h2 className="text-lg font-semibold text-lp-primary-1">Contacto y facturacion</h2>
               <p className="text-sm text-lp-sec-3">Estos datos se usan para notificaciones y soporte de operaciones.</p>
@@ -292,9 +295,9 @@ export function SettingsClient({ orgId }: SettingsClientProps) {
                 />
               </div>
             </div>
-          </section>
+            </section>
 
-          <section className="space-y-4 rounded-lg border border-lp-sec-4/60 p-5">
+            <section className="space-y-4 rounded-lg border border-lp-sec-4/60 p-5">
             <div>
               <h2 className="text-lg font-semibold text-lp-primary-1">Notificaciones</h2>
               <p className="text-sm text-lp-sec-3">Elige como quieres recibir recordatorios y alertas sobre tus operaciones.</p>
@@ -325,9 +328,9 @@ export function SettingsClient({ orgId }: SettingsClientProps) {
                 <span>Mensajes por WhatsApp en eventos criticos</span>
               </label>
             </div>
-          </section>
+            </section>
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-lp-sec-3">
               Los cambios se guardan para toda la organizacion.
             </div>
@@ -340,8 +343,15 @@ export function SettingsClient({ orgId }: SettingsClientProps) {
               </Button>
             </div>
           </div>
-        </form>
+          </form>
+          <MembersManager orgId={orgId} />
+        </>
       )}
     </div>
   );
 }
+
+
+
+
+
