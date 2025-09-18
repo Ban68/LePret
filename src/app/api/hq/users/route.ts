@@ -248,7 +248,6 @@ export async function POST(req: Request) {
       }
       throw createError;
     }
-
     const userId = createdUser?.user?.id;
     if (!userId) {
       throw new Error("Failed to create user");
@@ -318,6 +317,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
+
 export async function PATCH(req: Request) {
   const cookieStore = cookies();
   const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
@@ -725,17 +725,22 @@ async function getAuthUsersByIds(userIds: string[]): Promise<Map<string, AuthUse
     uniqueIds.map(async (id) => {
       const { data, error } = await getUserById(id);
       if (error) {
-        throw new Error(error.message ?? `Failed to load user ${id}`);
+        const message = error.message ?? '';
+        if (message.toLowerCase().includes('not found')) {
+          return;
+        }
+        throw new Error(message || `Failed to load user ${id}`);
       }
       const user = data?.user;
-      if (user) {
-        map.set(user.id, {
-          id: user.id,
-          email: user.email ?? null,
-          created_at: user.created_at ?? null,
-          last_sign_in_at: (user as { last_sign_in_at?: string | null }).last_sign_in_at ?? null,
-        });
+      if (!user) {
+        return;
       }
+      map.set(user.id, {
+        id: user.id,
+        email: user.email ?? null,
+        created_at: user.created_at ?? null,
+        last_sign_in_at: (user as { last_sign_in_at?: string | null }).last_sign_in_at ?? null,
+      });
     })
   );
 
