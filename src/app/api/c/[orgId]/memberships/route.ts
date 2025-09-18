@@ -14,7 +14,7 @@ type MembershipRow = {
   user_id: string;
   role: string;
   status: string;
-  profiles?: { full_name?: string | null } | null;
+  profiles?: { full_name?: string | null } | Array<{ full_name?: string | null }> | null;
 };
 
 type Context = {
@@ -372,3 +372,4 @@ export async function DELETE(
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
+
