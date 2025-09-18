@@ -59,9 +59,29 @@ alter table profiles add column if not exists is_staff boolean default false;
 create table if not exists companies (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  legal_name text,
+  tax_id text,
+  contact_email text,
+  contact_phone text,
+  billing_email text,
+  bank_account text,
+  notification_email boolean default true,
+  notification_sms boolean default false,
+  notification_whatsapp boolean default false,
   type text not null default 'CLIENT' check (type in ('CLIENT','INVESTOR')),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz default now()
 );
+alter table companies add column if not exists legal_name text;
+alter table companies add column if not exists tax_id text;
+alter table companies add column if not exists contact_email text;
+alter table companies add column if not exists contact_phone text;
+alter table companies add column if not exists billing_email text;
+alter table companies add column if not exists bank_account text;
+alter table companies add column if not exists notification_email boolean default true;
+alter table companies add column if not exists notification_sms boolean default false;
+alter table companies add column if not exists notification_whatsapp boolean default false;
+alter table companies add column if not exists updated_at timestamptz default now();
 
 -- Membresías usuario-empresa con rol
 create table if not exists memberships (
