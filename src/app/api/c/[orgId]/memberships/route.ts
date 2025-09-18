@@ -153,14 +153,18 @@ export async function GET(
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    const items = (data || []).map((row: MembershipRow) => ({
-      user_id: row.user_id,
-      role: row.role,
-      status: row.status,
-      full_name: row.profiles && !Array.isArray(row.profiles) ? row.profiles.full_name ?? null : null,
-    }));
+    const items = (data || []).map((row: MembershipRow) => {
+      const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+      return {
+        user_id: row.user_id,
+        role: row.role,
+        status: row.status,
+        full_name: profile ? profile.full_name ?? null : null,
+      };
+    });
 
-    const canEdit = context.isStaff || EDITABLE_ROLES.has(normaliseRole(context.membership?.role) || "");
+    const currentRole = normaliseRole(context.membership?.role);
+    const canEdit = context.isStaff || (currentRole ? EDITABLE_ROLES.has(currentRole) : false);
 
     return NextResponse.json({ ok: true, items, canEdit });
   } catch (err) {
