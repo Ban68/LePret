@@ -721,7 +721,7 @@ function normalizeCompanyAssignments(input: unknown): CompanyAssignmentInput[] {
         status: typeof statusRaw === "string" ? statusRaw : undefined,
       };
     })
-    .filter((value): value is CompanyAssignmentInput => Boolean(value));
+    .filter((value): value is CompanyAssignmentInput => value !== null);
 }
 
 function extractCompanyName(value: RawMembershipRow["companies"]): string | null {
@@ -822,3 +822,4 @@ async function getUserSummaryById(userId: string): Promise<UserSummary | null> {
   const summaries = await getUserSummariesByIds([userId]);
   return summaries[0] ?? null;
 }
+
