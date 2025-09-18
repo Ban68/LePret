@@ -278,6 +278,7 @@ export async function GET(req: Request) {
       next_action: nextStep.label,
       pending_documents: nextStep.pendingDocuments,
       documents: documents.map((doc) => ({ type: doc.type, status: doc.status, created_at: doc.created_at })),
+      archived_at: request.archived_at ?? null,
       offer: activeOffer
         ? {
             id: activeOffer.id,
