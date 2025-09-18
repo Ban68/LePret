@@ -114,7 +114,7 @@ export async function GET(req: Request) {
 
   const [{ data: authRows, error: authError }, { data: membershipData, error: membershipFetchError }] = await Promise.all([
     supabaseAdmin
-      .from("auth.users" as unknown as string)
+      .schema('auth').from('users')
       .select("id, email, created_at, last_sign_in_at")
       .in("id", userIds),
     supabaseAdmin
@@ -260,7 +260,7 @@ export async function POST(req: Request) {
 
   try {
     const { data: existingUser, error: existingError } = await supabaseAdmin
-      .from("auth.users" as unknown as string)
+      .schema('auth').from('users')
       .select("id")
       .eq("email", emailRaw)
       .maybeSingle();
@@ -767,7 +767,7 @@ async function getUserSummariesByIds(userIds: string[]): Promise<UserSummary[]> 
       .select("user_id, full_name, is_staff, created_at")
       .in("user_id", userIds),
     supabaseAdmin
-      .from("auth.users" as unknown as string)
+      .schema('auth').from('users')
       .select("id, email, created_at, last_sign_in_at")
       .in("id", userIds),
     supabaseAdmin
@@ -821,4 +821,5 @@ async function getUserSummaryById(userId: string): Promise<UserSummary | null> {
   const summaries = await getUserSummariesByIds([userId]);
   return summaries[0] ?? null;
 }
+
 
