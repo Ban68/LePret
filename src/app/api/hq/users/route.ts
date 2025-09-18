@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
@@ -137,11 +137,19 @@ export async function GET(req: Request) {
   });
 
   const membershipMap = new Map<string, MembershipRow[]>();
-  (membershipData as MembershipRow[] | null ?? []).forEach((row) => {
+  const membershipRows = ((membershipData ?? []) as Array<{
+    user_id: string;
+    company_id: string;
+    role: string;
+    status: string;
+    companies?: { name: string | null } | null;
+  }>);
+
+  membershipRows.forEach((row) => {
     if (!membershipMap.has(row.user_id)) {
       membershipMap.set(row.user_id, []);
     }
-    membershipMap.get(row.user_id)!.push(row);
+    membershipMap.get(row.user_id)!.push(row as MembershipRow);
   });
 
   const users: UserSummary[] = profileRows.map((profile) => {
