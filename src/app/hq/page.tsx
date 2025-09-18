@@ -3,6 +3,7 @@ import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { RequestsBoard } from "./ui/RequestsBoard";
+import { UsersManager } from "./ui/UsersManager";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +102,9 @@ export default async function HqPage() {
           </section>
 
           <RequestsBoard />
+
+
+          <UsersManager companies={companies ?? []} />
         </div>
       </div>
     </div>
