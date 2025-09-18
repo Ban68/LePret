@@ -25,12 +25,12 @@ type AuthUserRow = {
   last_sign_in_at: string | null;
 };
 
-type MembershipRow = {
+type RawMembershipRow = {
   user_id: string;
   company_id: string;
   role: string;
   status: string;
-  companies?: { name: string | null } | null;
+  companies?: { name?: string | null } | Array<{ name?: string | null }> | null;
 };
 
 type UserSummary = {
@@ -112,67 +112,37 @@ export async function GET(req: Request) {
 
   const userIds = profileRows.map((profile) => profile.user_id);
 
-  const [{ data: authRows, error: authError }, { data: membershipData, error: membershipFetchError }] = await Promise.all([
-    supabaseAdmin
-      .schema('auth').from('users')
-      .select("id, email, created_at, last_sign_in_at")
-      .in("id", userIds),
-    supabaseAdmin
-      .from("memberships")
-      .select("user_id, company_id, role, status, companies(name)")
-      .in("user_id", userIds),
-  ]);
-
-  if (authError) {
-    return NextResponse.json({ ok: false, error: authError.message }, { status: 500 });
-  }
+  const { data: membershipData, error: membershipFetchError } = await supabaseAdmin
+    .from('memberships')
+    .select('user_id, company_id, role, status, companies(name)')
+    .in('user_id', userIds);
 
   if (membershipFetchError) {
     return NextResponse.json({ ok: false, error: membershipFetchError.message }, { status: 500 });
   }
 
-  const authMap = new Map<string, AuthUserRow>();
-  (authRows as AuthUserRow[] | null ?? []).forEach((row) => {
-    authMap.set(row.id, row);
-  });
 
-  const membershipMap = new Map<string, MembershipRow[]>();
-  type RawMembershipRow = {
-    user_id: string;
-    company_id: string;
-    role: string;
-    status: string;
-    companies?: { name?: string | null } | Array<{ name?: string | null }> | null;
-  };
-
-  const membershipRows = ((membershipData ?? []) as RawMembershipRow[]);
+  const membershipMap = new Map<string, RawMembershipRow[]>();
+  const membershipRows = ((membershipData ?? []) as RawMembershipRow[] | null) ?? [];
 
   membershipRows.forEach((row) => {
     if (!membershipMap.has(row.user_id)) {
       membershipMap.set(row.user_id, []);
     }
-
-    const companyInfo = Array.isArray(row.companies)
-      ? row.companies[0] ?? null
-      : row.companies ?? null;
-
-    membershipMap.get(row.user_id)!.push({
-      user_id: row.user_id,
-      company_id: row.company_id,
-      role: row.role,
-      status: row.status,
-      companies: companyInfo ? { name: companyInfo.name ?? null } : null,
-    });
+    membershipMap.get(row.user_id)!.push(row);
   });
+
+  let authMap: Map<string, AuthUserRow>;
+  try {
+    authMap = await getAuthUsersByIds(userIds);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
   const users: UserSummary[] = profileRows.map((profile) => {
     const auth = authMap.get(profile.user_id);
     const companyMemberships = membershipMap.get(profile.user_id) ?? [];
-    const companies = companyMemberships.map((membership) => ({
-      company_id: membership.company_id,
-      company_name: membership.companies?.name ?? null,
-      role: membership.role,
-      status: membership.status,
-    }));
+    const companies = mapMembershipRows(companyMemberships);
 
     return {
       id: profile.user_id,
@@ -259,20 +229,6 @@ export async function POST(req: Request) {
   });
 
   try {
-    const { data: existingUser, error: existingError } = await supabaseAdmin
-      .schema('auth').from('users')
-      .select("id")
-      .eq("email", emailRaw)
-      .maybeSingle();
-
-    if (existingError) {
-      throw existingError;
-    }
-
-    if (existingUser?.id) {
-      return NextResponse.json({ ok: false, error: "User already exists" }, { status: 409 });
-    }
-
     const adminAuth = (supabaseAdmin.auth as unknown as { admin?: AdminAuthClient }).admin;
     if (!adminAuth || typeof adminAuth.createUser !== "function") {
       throw new Error("Supabase admin client unavailable");
@@ -599,13 +555,6 @@ const MEMBERSHIP_STATUSES = new Set(["ACTIVE", "INVITED", "DISABLED"]);
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-type RawMembershipRow = {
-  user_id: string;
-  company_id: string;
-  role: string;
-  status: string;
-  companies?: { name?: string | null } | Array<{ name?: string | null }> | null;
-};
 
 type UpdateUserPayload = {
   id?: unknown;
@@ -639,10 +588,12 @@ type AdminAuthClient = {
     email: string;
     email_confirm?: boolean;
     user_metadata?: Record<string, unknown> | null;
-  }) => Promise<{ data: { user?: { id: string; created_at?: string | null } | null } | null; error: { message?: string } | null }>;
+  }) => Promise<{ data: { user?: { id: string; created_at?: string | null } | null } | null; error: { message?: string } | null }>; 
   inviteUserByEmail?: (email: string) => Promise<unknown>;
   deleteUser?: (id: string) => Promise<{ data: unknown; error: { message?: string } | null }>;
+  getUserById?: (id: string) => Promise<{ data: { user?: { id: string; email?: string | null; created_at?: string | null; last_sign_in_at?: string | null } | null } | null; error: { message?: string } | null }>;
 };
+
 
 
 function normalizeMembershipRole(value?: string): string {
@@ -756,41 +707,66 @@ function mapMembershipRows(rows: RawMembershipRow[]): Array<{
   }));
 }
 
+async function getAuthUsersByIds(userIds: string[]): Promise<Map<string, AuthUserRow>> {
+  const map = new Map<string, AuthUserRow>();
+  if (!userIds.length) {
+    return map;
+  }
+
+  const adminAuth = (supabaseAdmin.auth as unknown as { admin?: AdminAuthClient }).admin;
+  const getUserById = adminAuth?.getUserById?.bind(adminAuth);
+  if (!getUserById) {
+    throw new Error("Supabase admin client unavailable");
+  }
+
+  const uniqueIds = Array.from(new Set(userIds));
+
+  await Promise.all(
+    uniqueIds.map(async (id) => {
+      const { data, error } = await getUserById(id);
+      if (error) {
+        throw new Error(error.message ?? `Failed to load user ${id}`);
+      }
+      const user = data?.user;
+      if (user) {
+        map.set(user.id, {
+          id: user.id,
+          email: user.email ?? null,
+          created_at: user.created_at ?? null,
+          last_sign_in_at: (user as { last_sign_in_at?: string | null }).last_sign_in_at ?? null,
+        });
+      }
+    })
+  );
+
+  return map;
+}
+
+
 async function getUserSummariesByIds(userIds: string[]): Promise<UserSummary[]> {
   if (!userIds.length) {
     return [];
   }
 
-  const [{ data: profilesData, error: profilesError }, { data: authRows, error: authError }, { data: membershipData, error: membershipError }] = await Promise.all([
+  const [{ data: profilesData, error: profilesError }, { data: membershipData, error: membershipError }] = await Promise.all([
     supabaseAdmin
-      .from("profiles")
-      .select("user_id, full_name, is_staff, created_at")
-      .in("user_id", userIds),
+      .from('profiles')
+      .select('user_id, full_name, is_staff, created_at')
+      .in('user_id', userIds),
     supabaseAdmin
-      .schema('auth').from('users')
-      .select("id, email, created_at, last_sign_in_at")
-      .in("id", userIds),
-    supabaseAdmin
-      .from("memberships")
-      .select("user_id, company_id, role, status, companies(name)")
-      .in("user_id", userIds),
+      .from('memberships')
+      .select('user_id, company_id, role, status, companies(name)')
+      .in('user_id', userIds),
   ]);
 
   if (profilesError) {
     throw profilesError;
-  }
-  if (authError) {
-    throw authError;
   }
   if (membershipError) {
     throw membershipError;
   }
 
   const profiles = (profilesData as ProfileRow[] | null) ?? [];
-  const authMap = new Map<string, AuthUserRow>();
-  (authRows as AuthUserRow[] | null ?? []).forEach((row) => {
-    authMap.set(row.id, row);
-  });
 
   const membershipMap = new Map<string, RawMembershipRow[]>();
   (membershipData as RawMembershipRow[] | null ?? []).forEach((row) => {
@@ -799,6 +775,8 @@ async function getUserSummariesByIds(userIds: string[]): Promise<UserSummary[]> 
     }
     membershipMap.get(row.user_id)!.push(row);
   });
+
+  const authMap = await getAuthUsersByIds(userIds);
 
   return profiles.map((profile) => {
     const auth = authMap.get(profile.user_id);
@@ -821,5 +799,6 @@ async function getUserSummaryById(userId: string): Promise<UserSummary | null> {
   const summaries = await getUserSummariesByIds([userId]);
   return summaries[0] ?? null;
 }
+
 
 
