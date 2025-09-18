@@ -13,62 +13,79 @@ export async function GET(
     const cookieStore = cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
 
     const [invAll, invFunded, requestsActive, offerOpen] = await Promise.all([
       supabase.from('invoices').select('id, amount, created_at, status').eq('company_id', orgId),
       supabase.from('invoices').select('id, amount, created_at, status').eq('company_id', orgId).eq('status', 'funded'),
-      supabase.from('funding_requests').select('id, requested_amount, created_at, status').eq('company_id', orgId).in('status', ['review','offered','accepted','signed']),
+      supabase
+        .from('funding_requests')
+        .select('id, requested_amount, created_at, status, archived_at')
+        .eq('company_id', orgId)
+        .is('archived_at', null)
+        .in('status', ['review', 'offered', 'accepted', 'signed']),
       supabase.from('offers').select('id', { count: 'exact', head: true }).eq('company_id', orgId).eq('status', 'offered'),
     ]);
 
     const allDates: string[] = [];
-    const addDate = (d?: string | null) => { if (!d) return; const key = d.slice(0,10); allDates.push(key); };
-    invAll.data?.forEach((r)=>addDate((r as { created_at?: string | null }).created_at || null));
+    const addDate = (d?: string | null) => {
+      if (!d) return;
+      const key = d.slice(0, 10);
+      allDates.push(key);
+    };
+    invAll.data?.forEach((r) => addDate((r as { created_at?: string | null }).created_at || null));
     const lastActivity = allDates.sort().pop() || null;
 
-    // Totales
+    const requestsRows = (requestsActive.data || []) as Array<{ id: string; status?: string | null; requested_amount?: number | string | null; created_at?: string | null }>;
+
     const invoicesCount = invAll.data?.length ?? 0;
-    const invoicesAmountTotal = (invAll.data || []).reduce((s:number,r)=>s+Number((r as { amount?: number | string | null }).amount||0),0);
+    const invoicesAmountTotal = (invAll.data || []).reduce((sum: number, row) => sum + Number((row as { amount?: number | string | null }).amount || 0), 0);
     const fundedCount = invFunded.data?.length ?? 0;
-    const fundedAmountTotal = (invFunded.data || []).reduce((s:number,r)=>s+Number((r as { amount?: number | string | null }).amount||0),0);
-    const requestsOpenCount = (requestsActive.data || []).filter((r) => {
-      const status = ((r as { status?: string | null }).status || '').toLowerCase();
+    const fundedAmountTotal = (invFunded.data || []).reduce((sum: number, row) => sum + Number((row as { amount?: number | string | null }).amount || 0), 0);
+    const requestsOpenCount = requestsRows.filter((row) => {
+      const status = (row.status || '').toLowerCase();
       return status === 'review' || status === 'offered';
     }).length;
-    const requestsAmountOpen = (requestsActive.data || []).reduce((s:number,r)=>{
-      const status = ((r as { status?: string | null }).status || '').toLowerCase();
-      if (status !== 'review' && status !== 'offered') return s;
-      return s + Number((r as { requested_amount?: number | string | null }).requested_amount || 0);
-    },0);
+    const requestsAmountOpen = requestsRows.reduce((sum: number, row) => {
+      const status = (row.status || '').toLowerCase();
+      if (status !== 'review' && status !== 'offered') return sum;
+      return sum + Number(row.requested_amount || 0);
+    }, 0);
 
-    // Series ultimos 30 dias
-    const start = new Date(Date.now() - 30*24*3600*1000);
-    function makeSeries(rows: Array<Record<string, unknown>>, field: 'created_at', valueField?: string){
+    const start = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+    function makeSeries(rows: Array<Record<string, unknown>>, field: 'created_at', valueField?: string) {
       const map = new Map<string, number>();
-      for (let i=0;i<31;i++){ const d = new Date(start.getTime()+i*24*3600*1000); const k = d.toISOString().slice(0,10); map.set(k,0); }
-      rows.forEach((r)=>{
-        const rec = r as Record<string, unknown>;
-        const created = rec[field] as string;
-        const d = new Date(created);
-        if (d >= start) {
-          const k = d.toISOString().slice(0, 10);
-          const raw = valueField ? (rec[valueField] as number | string | null) : 1;
+      for (let i = 0; i < 31; i++) {
+        const d = new Date(start.getTime() + i * 24 * 3600 * 1000);
+        const k = d.toISOString().slice(0, 10);
+        map.set(k, 0);
+      }
+      rows.forEach((record) => {
+        const created = record[field] as string | null | undefined;
+        if (!created) return;
+        const date = new Date(created);
+        if (date >= start) {
+          const key = date.toISOString().slice(0, 10);
+          const raw = valueField ? (record[valueField] as number | string | null) : 1;
           const val = valueField ? Number(raw || 0) : 1;
-          map.set(k, (map.get(k) || 0) + val);
+          map.set(key, (map.get(key) || 0) + val);
         }
       });
-      return Array.from(map.entries()).map(([date,value])=>({date,value}));
+      return Array.from(map.entries()).map(([date, value]) => ({ date, value }));
     }
-    const nextSteps = (requestsActive.data || [])
-      .map((r) => {
-        const row = r as { id: string; status?: string | null; created_at?: string | null; requested_amount?: number | string | null };
+
+    const nextSteps = requestsRows
+      .map((row) => {
         const status = (row.status || '').toLowerCase();
         const base = {
           id: row.id,
           status,
-          created_at: row.created_at,
+          created_at: row.created_at || null,
           requested_amount: Number(row.requested_amount || 0),
         };
         switch (status) {
@@ -80,15 +97,18 @@ export async function GET(
             return { ...base, title: 'Completar documentacion y firmas', hint: 'Sube los documentos faltantes y revisa el contrato para continuar.' };
           case 'signed':
             return { ...base, title: 'Esperar desembolso', hint: 'Estamos programando el desembolso y te notificaremos al completarlo.' };
+          case 'cancelled':
+            return { ...base, title: 'Solicitud denegada', hint: 'Te contactaremos si necesitamos informacion adicional o si podemos reevaluar mas adelante.' };
           default:
             return { ...base, title: 'Seguimiento en curso', hint: 'Seguimos acompanando tu operacion.' };
         }
       })
       .sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime())
       .slice(0, 4);
-    const invoicesDaily = makeSeries(invAll.data||[], 'created_at');
-    const fundedDaily = makeSeries(invFunded.data||[], 'created_at');
-    const requestsDaily = makeSeries(requestsActive.data||[], 'created_at');
+
+    const invoicesDaily = makeSeries(invAll.data || [], 'created_at');
+    const fundedDaily = makeSeries(invFunded.data || [], 'created_at');
+    const requestsDaily = makeSeries(requestsRows as unknown as Array<Record<string, unknown>>, 'created_at');
 
     return NextResponse.json({
       ok: true,

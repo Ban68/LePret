@@ -45,6 +45,7 @@ type RequestItem = {
   next_action: string;
   pending_documents: string[];
   documents: Array<{ type: string; status: string; created_at: string }>;
+  archived_at: string | null;
   offer: { id: string; status: string; summary: string } | null;
 };
 
@@ -62,7 +63,7 @@ type GroupedBlock = {
   };
 };
 
-type DrawerAction = "offer" | "force-sign" | "fund";
+type DrawerAction = "offer" | "force-sign" | "fund" | "deny" | "archive";
 
 export function RequestsBoard() {
   const [items, setItems] = useState<RequestItem[]>([]);
@@ -225,30 +226,42 @@ export function RequestsBoard() {
   const handleAction = useCallback(
     async (action: DrawerAction) => {
       if (!selected) return;
+      if (action === 'deny' && !confirm('Seguro que quieres denegar la solicitud?')) {
+        return;
+      }
+      if (action === 'archive' && !confirm('Archivar esta solicitud?')) {
+        return;
+      }
       setActionLoading(action);
       try {
-        let endpoint = "";
-        let successMessage = "";
-        if (action === "offer") {
+        let endpoint = '';
+        let successMessage = '';
+        if (action === 'offer') {
           endpoint = `/api/c/${selected.company_id}/requests/${selected.id}/offer`;
-          successMessage = "Oferta generada";
-        } else if (action === "force-sign") {
+          successMessage = 'Oferta generada';
+        } else if (action === 'force-sign') {
           endpoint = `/api/c/${selected.company_id}/requests/${selected.id}/force-signed`;
-          successMessage = "Solicitud marcada como firmada";
-        } else if (action === "fund") {
+          successMessage = 'Solicitud marcada como firmada';
+        } else if (action === 'fund') {
           endpoint = `/api/c/${selected.company_id}/requests/${selected.id}/fund`;
-          successMessage = "Solicitud marcada como desembolsada";
+          successMessage = 'Solicitud marcada como desembolsada';
+        } else if (action === 'deny') {
+          endpoint = `/api/c/${selected.company_id}/requests/${selected.id}/deny`;
+          successMessage = 'Solicitud denegada';
+        } else if (action === 'archive') {
+          endpoint = `/api/c/${selected.company_id}/requests/${selected.id}/archive`;
+          successMessage = 'Solicitud archivada';
         }
 
-        const response = await fetch(endpoint, { method: "POST" });
+        const response = await fetch(endpoint, { method: 'POST' });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(payload?.error || "No se pudo completar la accion");
+          throw new Error(payload?.error || 'No se pudo completar la accion');
         }
         toast.success(successMessage);
         await refreshSelection();
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Error inesperado";
+        const message = err instanceof Error ? err.message : 'Error inesperado';
         toast.error(message);
       } finally {
         setActionLoading(null);
@@ -462,7 +475,7 @@ function GroupSection({ block, onOpenDetail }: GroupSectionProps) {
           </thead>
           <tbody className="divide-y divide-lp-sec-4/80">
             {block.items.map((item) => (
-              <tr key={item.id} className={item.needs_action ? "bg-amber-50/40" : "bg-white"}>
+              <tr key={item.id} className={item.archived_at ? "bg-lp-sec-4/40" : item.needs_action ? "bg-amber-50/40" : "bg-white"}>
                 <td className="px-3 py-2 align-top">
                   <div className="font-mono text-xs text-lp-primary-1">{truncateId(item.id)}</div>
                   <div className="text-xs text-lp-sec-3">Facturas: {item.invoices_count}</div>
@@ -537,10 +550,14 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
   }
 
   const statusIndex = STATUS_ORDER[request.status] ?? 0;
-  const statusFlow = ["review", "offered", "accepted", "signed", "funded"];
-  const canGenerateOffer = request.status === "review";
-  const canForceSign = request.status === "accepted" || request.status === "offered";
-  const canFund = request.status === "signed";
+  const statusFlow = ['review', 'offered', 'accepted', 'signed', 'funded'];
+  const isArchived = Boolean(request.archived_at);
+  const canGenerateOffer = !isArchived && request.status === 'review';
+  const canForceSign = !isArchived && (request.status === 'accepted' || request.status === 'offered');
+  const canFund = !isArchived && request.status === 'signed';
+  const canDeny = !isArchived && (request.status === 'review' || request.status === 'offered');
+  const canArchive = !isArchived;
+  const archiveLabel = isArchived ? 'Solicitud archivada' : 'Archivar solicitud';
 
   return (
     <>
@@ -559,7 +576,9 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
           <section>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <StatusBadge status={request.status} kind="request" />
-              <div className="text-xs text-lp-sec-3">Creada {formatDate(request.created_at)} | {formatAge(request.created_at)} en curso</div>
+              <div className="text-xs text-lp-sec-3">
+                Creada {formatDate(request.created_at)} | {formatAge(request.created_at)} en curso
+              </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-lp-sec-3">
               <div>
@@ -580,7 +599,7 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
                     <li
                       key={status}
                       className={`rounded-full px-3 py-1 ${
-                        reached ? "bg-lp-primary-1 text-lp-primary-2" : "bg-lp-sec-4/60 text-lp-primary-1"
+                        reached ? 'bg-lp-primary-1 text-lp-primary-2' : 'bg-lp-sec-4/60 text-lp-primary-1'
                       }`}
                     >
                       {STATUS_LABEL[status] ?? status}
@@ -588,6 +607,11 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
                   );
                 })}
               </ul>
+              {isArchived && (
+                <div className="mt-3 rounded-md border border-dashed border-lp-sec-4/60 bg-lp-sec-4/40 px-3 py-2 text-xs text-lp-sec-3">
+                  Archivada {request.archived_at ? formatDate(request.archived_at) : 'Sin fecha'}
+                </div>
+              )}
             </div>
           </section>
 
@@ -595,9 +619,7 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
             <div className="text-xs uppercase text-lp-sec-3">Proximo paso sugerido</div>
             <p className="mt-2 text-sm text-lp-primary-1">{request.next_action}</p>
             {request.pending_documents.length > 0 && (
-              <p className="mt-2 text-xs text-lp-sec-3">
-                Pendientes: {request.pending_documents.join(", ")}
-              </p>
+              <p className="mt-2 text-xs text-lp-sec-3">Pendientes: {request.pending_documents.join(', ')}</p>
             )}
           </section>
 
@@ -605,7 +627,7 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
             <div className="text-xs uppercase text-lp-sec-3">Pagadores</div>
             <ul className="mt-2 space-y-1 text-sm text-lp-primary-1">
               {request.payers.map((payer) => (
-                <li key={`${payer.name}-${payer.identifier || "anon"}`}>
+                <li key={`${payer.name}-${payer.identifier || 'anon'}`}>
                   {payer.name}
                   {payer.identifier ? <span className="text-xs text-lp-sec-3"> | {payer.identifier}</span> : null}
                 </li>
@@ -636,20 +658,34 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
               <ActionButton
                 label="Generar oferta"
                 disabled={!canGenerateOffer}
-                loading={actionLoading === "offer"}
-                onClick={() => onAction("offer")}
+                loading={actionLoading === 'offer'}
+                onClick={() => onAction('offer')}
               />
               <ActionButton
                 label="Marcar como firmada"
                 disabled={!canForceSign}
-                loading={actionLoading === "force-sign"}
-                onClick={() => onAction("force-sign")}
+                loading={actionLoading === 'force-sign'}
+                onClick={() => onAction('force-sign')}
               />
               <ActionButton
                 label="Marcar desembolso"
                 disabled={!canFund}
-                loading={actionLoading === "fund"}
-                onClick={() => onAction("fund")}
+                loading={actionLoading === 'fund'}
+                onClick={() => onAction('fund')}
+              />
+              <ActionButton
+                label="Denegar solicitud"
+                disabled={!canDeny}
+                loading={actionLoading === 'deny'}
+                onClick={() => onAction('deny')}
+                variant="danger"
+              />
+              <ActionButton
+                label={archiveLabel}
+                disabled={!canArchive}
+                loading={actionLoading === 'archive'}
+                onClick={() => onAction('archive')}
+                variant="secondary"
               />
             </div>
           </section>
@@ -664,21 +700,30 @@ type ActionButtonProps = {
   onClick: () => void;
   disabled?: boolean;
   loading?: boolean;
+  variant?: 'primary' | 'secondary' | 'danger';
 };
 
-function ActionButton({ label, onClick, disabled, loading }: ActionButtonProps) {
+function ActionButton({ label, onClick, disabled, loading, variant = 'primary' }: ActionButtonProps) {
+  const baseClass = 'rounded-md border px-3 py-1 text-xs font-medium transition';
+  const disabledClass = 'cursor-not-allowed border-lp-sec-4/80 bg-lp-sec-4/40 text-lp-sec-3';
+  const variantClass = (() => {
+    if (variant === 'danger') {
+      return 'border-red-600 text-red-700 hover:bg-red-600 hover:text-white';
+    }
+    if (variant === 'secondary') {
+      return 'border-lp-sec-4/80 text-lp-primary-1 hover:bg-lp-sec-4/40';
+    }
+    return 'border-lp-primary-1 text-lp-primary-1 hover:bg-lp-primary-1 hover:text-lp-primary-2';
+  })();
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled || loading}
-      className={`rounded-md border px-3 py-1 text-xs font-medium transition ${
-        disabled
-          ? "cursor-not-allowed border-lp-sec-4/80 bg-lp-sec-4/40 text-lp-sec-3"
-          : "border-lp-primary-1 text-lp-primary-1 hover:bg-lp-primary-1 hover:text-lp-primary-2"
-      }`}
+      className={`${baseClass} ${disabled || loading ? disabledClass : variantClass}`}
     >
-      {loading ? "Procesando..." : label}
+      {loading ? 'Procesando...' : label}
     </button>
   );
 }

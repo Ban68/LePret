@@ -24,6 +24,7 @@ type FundingRequestRow = {
   created_by?: string | null;
   invoice_id?: string | null;
   currency?: string | null;
+  archived_at?: string | null;
 };
 
 type DocumentRow = {
@@ -81,6 +82,7 @@ type RequestResponseItem = {
     status: string;
     summary: string;
   } | null;
+  archived_at: string | null;
 };
 
 export async function GET(req: Request) {
@@ -98,6 +100,7 @@ export async function GET(req: Request) {
   const statusFilter = url.searchParams.get("status");
   const companyFilter = url.searchParams.get("company");
   const needsActionOnly = url.searchParams.get("needsAction") === "true";
+  const includeArchived = url.searchParams.get("includeArchived") === "true";
   const startDate = url.searchParams.get("start");
   const endDate = url.searchParams.get("end");
   const limitParam = Number(url.searchParams.get("limit") ?? "200");
@@ -107,9 +110,14 @@ export async function GET(req: Request) {
 
   let query = supabaseAdmin
     .from('funding_requests')
-    .select('id, company_id, requested_amount, status, created_at, file_path, created_by, invoice_id, currency', { count: 'exact' })
-    .order('created_at', { ascending: false });
+    .select('id, company_id, requested_amount, status, created_at, file_path, created_by, invoice_id, currency, archived_at', { count: 'exact' })
+    .eq('company_id', orgId);
 
+  if (!includeArchived) {
+    query = query.is('archived_at', null);
+  }
+
+  query = query.order('created_at', { ascending: false });
   if (statusFilter && statusFilter !== 'all') {
     query = query.eq('status', statusFilter);
   }
@@ -267,7 +275,7 @@ export async function GET(req: Request) {
       invoices_count: invoices.length,
       invoices_total: invoicesTotal,
       payers,
-      needs_action: nextStep.needsAction,
+      needs_action: nextStep.needsAction && !request.archived_at,
       next_action: nextStep.label,
       pending_documents: nextStep.pendingDocuments,
       documents: documents.map((doc) => ({ type: doc.type, status: doc.status, created_at: doc.created_at })),

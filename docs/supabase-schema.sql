@@ -118,6 +118,8 @@ alter table funding_requests add constraint funding_requests_status_check
 
 -- Nuevas columnas para adjuntos en solicitudes (idempotente)
 alter table funding_requests add column if not exists file_path text;
+alter table funding_requests add column if not exists archived_at timestamptz;
+alter table funding_requests add column if not exists archived_by uuid references profiles(user_id) on delete set null;
 
 -- Habilitar RLS
 alter table profiles enable row level security;
