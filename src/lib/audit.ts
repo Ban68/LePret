@@ -5,7 +5,7 @@ export async function logAudit(input: {
   actor_id?: string | null;
   entity: 'invoice' | 'request' | 'offer' | 'document' | 'contract';
   entity_id?: string | null;
-  action: 'created' | 'updated' | 'status_changed' | 'deleted' | 'signed' | 'funded';
+  action: 'created' | 'updated' | 'status_changed' | 'deleted' | 'signed' | 'funded' | 'archived' | 'denied';
   data?: Record<string, unknown> | null;
 }) {
   try {
