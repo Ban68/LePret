@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";\r\nimport type { ReactNode } from "react";
 import Link from "next/link";
 
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { toast } from "sonner";
 
 const STATUS_LABEL: Record<string, string> = {
   review: "En revision",
@@ -60,6 +61,8 @@ type GroupedBlock = {
   };
 };
 
+type DrawerAction = "offer" | "force-sign" | "fund";
+
 export function RequestsBoard() {
   const [items, setItems] = useState<RequestItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,53 +75,55 @@ export function RequestsBoard() {
   const [search, setSearch] = useState<string>("");
   const [groupBy, setGroupBy] = useState<GroupValue>("needs");
   const [companiesIndex, setCompaniesIndex] = useState<Record<string, string>>({});
+  const [selected, setSelected] = useState<RequestItem | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [actionLoading, setActionLoading] = useState<DrawerAction | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      if (companyFilter !== "all") params.set("company", companyFilter);
+      if (needsOnly) params.set("needsAction", "true");
+      if (startDate) params.set("start", startDate);
+      if (endDate) params.set("end", endDate);
+      const qs = params.toString();
+      const response = await fetch(`/api/hq/requests${qs ? `?${qs}` : ""}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "Error obteniendo solicitudes");
+      }
+      const list = (payload.items || []) as RequestItem[];
+      setItems(list);
+      setCompaniesIndex((prev) => {
+        const next = { ...prev };
+        for (const item of list) {
+          next[item.company_id] = item.company_name;
+        }
+        return next;
+      });
+      return list;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error inesperado";
+      setError(message);
+      setItems([]);
+      return [] as RequestItem[];
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter, companyFilter, needsOnly, startDate, endDate]);
 
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const params = new URLSearchParams();
-        if (statusFilter !== "all") params.set("status", statusFilter);
-        if (companyFilter !== "all") params.set("company", companyFilter);
-        if (needsOnly) params.set("needsAction", "true");
-        if (startDate) params.set("start", startDate);
-        if (endDate) params.set("end", endDate);
-        const qs = params.toString();
-        const response = await fetch(`/api/hq/requests${qs ? `?${qs}` : ""}`);
-        const payload = await response.json();
-        if (!response.ok) {
-          throw new Error(payload?.error || "Error obteniendo solicitudes");
-        }
-        if (!cancelled) {
-          setItems(payload.items || []);
-          setCompaniesIndex((prev) => {
-            const next = { ...prev };
-            for (const item of payload.items || []) {
-              next[item.company_id] = item.company_name;
-            }
-            return next;
-          });
-        }
-      } catch (err) {
-        if (!cancelled) {
-          const message = err instanceof Error ? err.message : "Error inesperado";
-          setError(message);
-          setItems([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
+    fetchData();
+  }, [fetchData]);
 
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [statusFilter, companyFilter, needsOnly, startDate, endDate]);
+  useEffect(() => {
+    if (!drawerOpen) {
+      setSelected(null);
+    }
+  }, [drawerOpen]);
 
   const searchTerm = search.trim().toLowerCase();
 
@@ -198,6 +203,58 @@ export function RequestsBoard() {
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [companiesIndex]);
+
+  const handleRowDetail = useCallback((item: RequestItem) => {
+    setSelected(item);
+    setDrawerOpen(true);
+  }, []);
+
+  const refreshSelection = useCallback(async () => {
+    const list = await fetchData();
+    if (!selected) {
+      return;
+    }
+    const updated = list.find((entry) => entry.id === selected.id) || null;
+    setSelected(updated);
+    if (!updated) {
+      setDrawerOpen(false);
+    }
+  }, [fetchData, selected]);
+
+  const handleAction = useCallback(
+    async (action: DrawerAction) => {
+      if (!selected) return;
+      setActionLoading(action);
+      try {
+        let endpoint = "";
+        let successMessage = "";
+        if (action === "offer") {
+          endpoint = `/api/c/${selected.company_id}/requests/${selected.id}/offer`;
+          successMessage = "Oferta generada";
+        } else if (action === "force-sign") {
+          endpoint = `/api/c/${selected.company_id}/requests/${selected.id}/force-signed`;
+          successMessage = "Solicitud marcada como firmada";
+        } else if (action === "fund") {
+          endpoint = `/api/c/${selected.company_id}/requests/${selected.id}/fund`;
+          successMessage = "Solicitud marcada como desembolsada";
+        }
+
+        const response = await fetch(endpoint, { method: "POST" });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || "No se pudo completar la accion");
+        }
+        toast.success(successMessage);
+        await refreshSelection();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Error inesperado";
+        toast.error(message);
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [selected, refreshSelection]
+  );
 
   return (
     <section className="rounded-lg border border-lp-sec-4/60 bg-white p-5 shadow-sm">
@@ -299,10 +356,18 @@ export function RequestsBoard() {
       ) : (
         <div className="space-y-6">
           {groupedBlocks.map((group) => (
-            <GroupSection key={group.key} block={group} />
+            <GroupSection key={group.key} block={group} onOpenDetail={handleRowDetail} />
           ))}
         </div>
       )}
+
+      <RequestDetailDrawer
+        open={drawerOpen && !!selected}
+        request={selected}
+        onClose={() => setDrawerOpen(false)}
+        onAction={handleAction}
+        actionLoading={actionLoading}
+      />
     </section>
   );
 }
@@ -330,7 +395,7 @@ function SummaryCard({ label, value, subtitle, highlight }: SummaryCardProps) {
 
 type FilterFieldProps = {
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 };
 
@@ -367,9 +432,10 @@ function GroupButton({ label, active, onClick }: GroupButtonProps) {
 
 type GroupSectionProps = {
   block: GroupedBlock;
+  onOpenDetail: (item: RequestItem) => void;
 };
 
-function GroupSection({ block }: GroupSectionProps) {
+function GroupSection({ block, onOpenDetail }: GroupSectionProps) {
   return (
     <div className="rounded-lg border border-lp-sec-4/80">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-lp-sec-4/60 bg-lp-sec-4/30 px-4 py-2">
@@ -399,9 +465,7 @@ function GroupSection({ block }: GroupSectionProps) {
                 <td className="px-3 py-2 align-top">
                   <div className="font-mono text-xs text-lp-primary-1">{truncateId(item.id)}</div>
                   <div className="text-xs text-lp-sec-3">Facturas: {item.invoices_count}</div>
-                  {item.offer ? (
-                    <div className="text-[11px] text-lp-sec-3">Oferta: {item.offer.summary}</div>
-                  ) : null}
+                  {item.offer ? <div className="text-[11px] text-lp-sec-3">Oferta: {item.offer.summary}</div> : null}
                 </td>
                 <td className="px-3 py-2 align-top text-sm">
                   <div className="font-medium text-lp-primary-1">{item.company_name}</div>
@@ -430,10 +494,14 @@ function GroupSection({ block }: GroupSectionProps) {
                 </td>
                 <td className="px-3 py-2 align-top text-xs">
                   <div className="flex flex-col gap-1">
-                    <Link
-                      href={`/hq/companies/${item.company_id}`}
+                    <button
+                      type="button"
                       className="text-lp-primary-1 underline hover:opacity-80"
+                      onClick={() => onOpenDetail(item)}
                     >
+                      Ver detalle
+                    </button>
+                    <Link href={`/hq/companies/${item.company_id}`} className="text-lp-primary-1 underline hover:opacity-80">
                       Ver cliente
                     </Link>
                     <Link
@@ -451,6 +519,166 @@ function GroupSection({ block }: GroupSectionProps) {
         </table>
       </div>
     </div>
+  );
+}
+
+type RequestDetailDrawerProps = {
+  open: boolean;
+  request: RequestItem | null;
+  onClose: () => void;
+  onAction: (action: DrawerAction) => Promise<void> | void;
+  actionLoading: DrawerAction | null;
+};
+
+function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }: RequestDetailDrawerProps) {
+  if (!open || !request) {
+    return null;
+  }
+
+  const statusIndex = STATUS_ORDER[request.status] ?? 0;
+  const statusFlow = ["review", "offered", "accepted", "signed", "funded"];
+  const canGenerateOffer = request.status === "review";
+  const canForceSign = request.status === "accepted" || request.status === "offered";
+  const canFund = request.status === "signed";
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <aside className="fixed right-0 top-0 z-50 flex h-full w-full max-w-xl flex-col overflow-y-auto bg-white shadow-xl">
+        <header className="flex items-center justify-between border-b border-lp-sec-4/60 px-6 py-4">
+          <div>
+            <div className="text-sm font-medium text-lp-sec-3">Solicitud</div>
+            <h3 className="text-lg font-semibold text-lp-primary-1">#{truncateId(request.id)}</h3>
+          </div>
+          <button type="button" className="text-sm text-lp-sec-3 underline" onClick={onClose}>
+            Cerrar
+          </button>
+        </header>
+        <div className="flex-1 space-y-6 px-6 py-6">
+          <section>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <StatusBadge status={request.status} kind="request" />
+              <div className="text-xs text-lp-sec-3">Creada {formatDate(request.created_at)} | {formatAge(request.created_at)} en curso</div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-lp-sec-3">
+              <div>
+                <div className="text-xs uppercase">Cliente</div>
+                <div className="font-medium text-lp-primary-1">{request.company_name}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase">Monto solicitado</div>
+                <div className="font-medium text-lp-primary-1">${formatCurrency(request.requested_amount)}</div>
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="text-xs uppercase text-lp-sec-3">Progreso</div>
+              <ul className="mt-2 flex flex-wrap gap-2 text-xs">
+                {statusFlow.map((status) => {
+                  const reached = (STATUS_ORDER[status] ?? 0) <= statusIndex;
+                  return (
+                    <li
+                      key={status}
+                      className={`rounded-full px-3 py-1 ${
+                        reached ? "bg-lp-primary-1 text-lp-primary-2" : "bg-lp-sec-4/60 text-lp-primary-1"
+                      }`}
+                    >
+                      {STATUS_LABEL[status] ?? status}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </section>
+
+          <section>
+            <div className="text-xs uppercase text-lp-sec-3">Proximo paso sugerido</div>
+            <p className="mt-2 text-sm text-lp-primary-1">{request.next_action}</p>
+            {request.pending_documents.length > 0 && (
+              <p className="mt-2 text-xs text-lp-sec-3">
+                Pendientes: {request.pending_documents.join(", ")}
+              </p>
+            )}
+          </section>
+
+          <section>
+            <div className="text-xs uppercase text-lp-sec-3">Pagadores</div>
+            <ul className="mt-2 space-y-1 text-sm text-lp-primary-1">
+              {request.payers.map((payer) => (
+                <li key={`${payer.name}-${payer.identifier || "anon"}`}>
+                  {payer.name}
+                  {payer.identifier ? <span className="text-xs text-lp-sec-3"> | {payer.identifier}</span> : null}
+                </li>
+              ))}
+              {request.payers.length === 0 && <li className="text-sm text-lp-sec-3">Sin pagador declarado</li>}
+            </ul>
+          </section>
+
+          <section>
+            <div className="text-xs uppercase text-lp-sec-3">Documentos</div>
+            {request.documents.length === 0 ? (
+              <div className="mt-2 text-sm text-lp-sec-3">Sin documentos registrados.</div>
+            ) : (
+              <ul className="mt-2 space-y-1 text-sm">
+                {request.documents.map((doc) => (
+                  <li key={`${doc.type}-${doc.created_at}`} className="flex items-center justify-between gap-4">
+                    <span className="text-lp-primary-1">{doc.type}</span>
+                    <span className="text-xs text-lp-sec-3">{doc.status}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="space-y-2">
+            <div className="text-xs uppercase text-lp-sec-3">Acciones rapidas</div>
+            <div className="flex flex-wrap gap-2">
+              <ActionButton
+                label="Generar oferta"
+                disabled={!canGenerateOffer}
+                loading={actionLoading === "offer"}
+                onClick={() => onAction("offer")}
+              />
+              <ActionButton
+                label="Marcar como firmada"
+                disabled={!canForceSign}
+                loading={actionLoading === "force-sign"}
+                onClick={() => onAction("force-sign")}
+              />
+              <ActionButton
+                label="Marcar desembolso"
+                disabled={!canFund}
+                loading={actionLoading === "fund"}
+                onClick={() => onAction("fund")}
+              />
+            </div>
+          </section>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+type ActionButtonProps = {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+};
+
+function ActionButton({ label, onClick, disabled, loading }: ActionButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || loading}
+      className={`rounded-md border px-3 py-1 text-xs font-medium transition ${
+        disabled
+          ? "cursor-not-allowed border-lp-sec-4/80 bg-lp-sec-4/40 text-lp-sec-3"
+          : "border-lp-primary-1 text-lp-primary-1 hover:bg-lp-primary-1 hover:text-lp-primary-2"
+      }`}
+    >
+      {loading ? "Procesando..." : label}
+    </button>
   );
 }
 
@@ -544,5 +772,3 @@ function renderIdentifiers(payers: Array<{ name: string; identifier: string | nu
   }
   return <div className="text-[10px] text-lp-sec-3">{list.join(", ")}</div>;
 }
-
-

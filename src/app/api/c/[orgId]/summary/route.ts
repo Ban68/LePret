@@ -16,10 +16,10 @@ export async function GET(
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
-    const [invAll, invFunded, reqOpen, offerOpen] = await Promise.all([
+    const [invAll, invFunded, requestsActive, offerOpen] = await Promise.all([
       supabase.from('invoices').select('id, amount, created_at, status').eq('company_id', orgId),
       supabase.from('invoices').select('id, amount, created_at, status').eq('company_id', orgId).eq('status', 'funded'),
-      supabase.from('funding_requests').select('id, requested_amount, created_at, status').eq('company_id', orgId).in('status', ['review','offered']),
+      supabase.from('funding_requests').select('id, requested_amount, created_at, status').eq('company_id', orgId).in('status', ['review','offered','accepted','signed']),
       supabase.from('offers').select('id', { count: 'exact', head: true }).eq('company_id', orgId).eq('status', 'offered'),
     ]);
 
@@ -33,10 +33,17 @@ export async function GET(
     const invoicesAmountTotal = (invAll.data || []).reduce((s:number,r)=>s+Number((r as { amount?: number | string | null }).amount||0),0);
     const fundedCount = invFunded.data?.length ?? 0;
     const fundedAmountTotal = (invFunded.data || []).reduce((s:number,r)=>s+Number((r as { amount?: number | string | null }).amount||0),0);
-    const requestsOpenCount = reqOpen.data?.length ?? 0;
-    const requestsAmountOpen = (reqOpen.data || []).reduce((s:number,r)=>s+Number((r as { requested_amount?: number | string | null }).requested_amount||0),0);
+    const requestsOpenCount = (requestsActive.data || []).filter((r) => {
+      const status = ((r as { status?: string | null }).status || '').toLowerCase();
+      return status === 'review' || status === 'offered';
+    }).length;
+    const requestsAmountOpen = (requestsActive.data || []).reduce((s:number,r)=>{
+      const status = ((r as { status?: string | null }).status || '').toLowerCase();
+      if (status !== 'review' && status !== 'offered') return s;
+      return s + Number((r as { requested_amount?: number | string | null }).requested_amount || 0);
+    },0);
 
-    // Series últimos 30 días
+    // Series ultimos 30 dias
     const start = new Date(Date.now() - 30*24*3600*1000);
     function makeSeries(rows: Array<Record<string, unknown>>, field: 'created_at', valueField?: string){
       const map = new Map<string, number>();
@@ -54,9 +61,34 @@ export async function GET(
       });
       return Array.from(map.entries()).map(([date,value])=>({date,value}));
     }
+    const nextSteps = (requestsActive.data || [])
+      .map((r) => {
+        const row = r as { id: string; status?: string | null; created_at?: string | null; requested_amount?: number | string | null };
+        const status = (row.status || '').toLowerCase();
+        const base = {
+          id: row.id,
+          status,
+          created_at: row.created_at,
+          requested_amount: Number(row.requested_amount || 0),
+        };
+        switch (status) {
+          case 'review':
+            return { ...base, title: 'Estamos revisando tu solicitud', hint: 'Estamos validando tus documentos y te avisaremos cuando tengamos una oferta.' };
+          case 'offered':
+            return { ...base, title: 'Revisar y responder la oferta', hint: 'Ingresa a la solicitud para aceptar la oferta o pedir ajustes.' };
+          case 'accepted':
+            return { ...base, title: 'Completar documentacion y firmas', hint: 'Sube los documentos faltantes y revisa el contrato para continuar.' };
+          case 'signed':
+            return { ...base, title: 'Esperar desembolso', hint: 'Estamos programando el desembolso y te notificaremos al completarlo.' };
+          default:
+            return { ...base, title: 'Seguimiento en curso', hint: 'Seguimos acompanando tu operacion.' };
+        }
+      })
+      .sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime())
+      .slice(0, 4);
     const invoicesDaily = makeSeries(invAll.data||[], 'created_at');
     const fundedDaily = makeSeries(invFunded.data||[], 'created_at');
-    const requestsDaily = makeSeries(reqOpen.data||[], 'created_at');
+    const requestsDaily = makeSeries(requestsActive.data||[], 'created_at');
 
     return NextResponse.json({
       ok: true,
@@ -70,6 +102,7 @@ export async function GET(
         offersOpen: offerOpen.count ?? 0,
         lastActivity,
         series: { invoicesDaily, fundedDaily, requestsDaily },
+        nextSteps,
       },
     });
   } catch (e: unknown) {
