@@ -378,11 +378,43 @@ export async function PATCH(req: Request) {
         ? existing.is_staff
         : coerceBoolean(payload.is_staff, existing.is_staff);
 
+    let nextEmail = existing.email ?? null;
+    let normalizedExistingEmail = existing.email?.toLowerCase() ?? null;
+
+    if (typeof payload.email !== "undefined") {
+      const emailCandidate = toOptionalString(payload.email);
+      if (!emailCandidate) {
+        return NextResponse.json({ ok: false, error: "Invalid email" }, { status: 400 });
+      }
+      const candidateNormalized = emailCandidate.toLowerCase();
+      if (!EMAIL_REGEX.test(candidateNormalized)) {
+        return NextResponse.json({ ok: false, error: "Invalid email" }, { status: 400 });
+      }
+      if (candidateNormalized !== normalizedExistingEmail) {
+        const adminAuth = (supabaseAdmin.auth as unknown as { admin?: AdminAuthClient }).admin;
+        if (!adminAuth || typeof adminAuth.updateUserById !== "function") {
+          throw new Error("Supabase admin client unavailable");
+        }
+        const { error: updateError } = await adminAuth.updateUserById(userId, {
+          email: candidateNormalized,
+          email_confirm: true,
+          user_metadata: {
+            full_name: nextFullName ?? existing.full_name ?? candidateNormalized,
+            is_staff: nextIsStaff,
+          },
+        });
+        if (updateError) {
+          throw new Error(updateError.message ?? "Failed to update auth user");
+        }
+        nextEmail = candidateNormalized;
+        normalizedExistingEmail = candidateNormalized;
+      }
+    }
     const profileResult = await supabaseAdmin
       .from("profiles")
       .upsert({
         user_id: userId,
-        full_name: nextFullName ?? existing.email ?? null,
+        full_name: nextFullName ?? nextEmail ?? null,
         is_staff: nextIsStaff,
       }, { onConflict: "user_id" });
 
@@ -447,12 +479,13 @@ export async function PATCH(req: Request) {
       }
     }
 
+    const inviteEmail = nextEmail ?? existing.email ?? null;
     const inviteFlag = typeof payload.invite === "undefined" ? false : coerceBoolean(payload.invite, false);
-    if (inviteFlag && existing.email) {
+    if (inviteFlag && inviteEmail) {
       const adminAuth = (supabaseAdmin.auth as unknown as { admin?: AdminAuthClient }).admin;
       if (adminAuth && typeof adminAuth.inviteUserByEmail === "function") {
         try {
-          await adminAuth.inviteUserByEmail(existing.email);
+          await adminAuth.inviteUserByEmail(inviteEmail);
         } catch (inviteError) {
           console.warn("Failed to resend invite email", inviteError);
         }
@@ -598,6 +631,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type UpdateUserPayload = {
   id?: unknown;
   full_name?: unknown;
+  email?: unknown;
   is_staff?: unknown;
   companies?: unknown;
   memberships?: unknown;
@@ -628,6 +662,12 @@ type AdminAuthClient = {
     email_confirm?: boolean;
     user_metadata?: Record<string, unknown> | null;
   }) => Promise<{ data: { user?: { id: string; created_at?: string | null } | null } | null; error: { message?: string } | null }>; 
+  updateUserById?: (id: string, attributes: {
+    email?: string;
+    email_confirm?: boolean;
+    password?: string;
+    user_metadata?: Record<string, unknown> | null;
+  }) => Promise<{ data: { user?: { id: string; email?: string | null } | null } | null; error: { message?: string } | null }>;
   inviteUserByEmail?: (email: string) => Promise<unknown>;
   deleteUser?: (id: string) => Promise<{ data: unknown; error: { message?: string } | null }>;
   getUserById?: (id: string) => Promise<{ data: { user?: { id: string; email?: string | null; created_at?: string | null; last_sign_in_at?: string | null } | null } | null; error: { message?: string } | null }>;

@@ -317,12 +317,16 @@ type ManageUserDrawerProps = {
 function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved }: ManageUserDrawerProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState<string>(user?.full_name || "");
+  const [emailDraft, setEmailDraft] = useState<string>(user?.email || "");
+  const [editingEmail, setEditingEmail] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [newMembership, setNewMembership] = useState<{ company_id: string; role: string; status: string } | null>(null);
 
   useEffect(() => {
     if (user) {
       setNameDraft(user.full_name || "");
+      setEmailDraft(user.email || "");
+      setEditingEmail(false);
       setShowAdd(false);
       setNewMembership(null);
     }
@@ -338,7 +342,7 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
     return null;
   }
 
-  const runPatch = async (payload: Record<string, unknown>, actionKey: string) => {
+  const runPatch = async (payload: Record<string, unknown>, actionKey: string): Promise<boolean> => {
     setBusy(actionKey);
     try {
       const response = await fetch("/api/hq/users", {
@@ -352,9 +356,11 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
       }
       toast.success("Cambios guardados");
       await onUpdated();
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error inesperado";
       toast.error(message);
+      return false;
     } finally {
       setBusy(null);
     }
@@ -380,6 +386,25 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
       return;
     }
     await runPatch({ full_name: nameDraft.trim() || null }, "name");
+  };
+
+  const handleEmailSave = async () => {
+    const value = emailDraft.trim();
+    if (!value) {
+      toast.error("El correo es obligatorio");
+      return;
+    }
+    const normalized = value.toLowerCase();
+    const success = await runPatch({ email: normalized }, "email");
+    if (success) {
+      setEmailDraft(normalized);
+      setEditingEmail(false);
+    }
+  };
+
+  const handleEmailCancel = () => {
+    setEditingEmail(false);
+    setEmailDraft(user.email || "");
   };
 
   const handleMembershipUpdate = async (membership: MembershipInfo, next: { role?: string; status?: string }) => {
@@ -461,7 +486,37 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
             </div>
             <div>
               <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Correo</label>
-              <div className="font-medium text-lp-primary-1">{user.email || "Sin email"}</div>
+              {editingEmail ? (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Input
+                    value={emailDraft}
+                    onChange={(event) => setEmailDraft(event.target.value)}
+                    disabled={busy === "email"}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        handleEmailSave().catch(() => null);
+                      }
+                    }}
+                  />
+                  <Button size="sm" onClick={() => { void handleEmailSave(); }} disabled={busy === "email"}>
+                    Guardar
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleEmailCancel} disabled={busy === "email"}>
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <div className="font-medium text-lp-primary-1">{user.email || "Sin email"}</div>
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    setEmailDraft(user.email || "");
+                    setEditingEmail(true);
+                  }}>
+                    Editar
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Button size="sm" variant="outline" disabled={busy === "staff"} onClick={handleToggleStaff}>
