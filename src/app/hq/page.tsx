@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { supabaseServer } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { isBackofficeAllowed } from "@/lib/hq-auth";
 import { RequestsBoard } from "./ui/RequestsBoard";
 import { UsersManager } from "./ui/UsersManager";
 
@@ -22,14 +23,10 @@ export default async function HqPage() {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const allowedList = (process.env.BACKOFFICE_ALLOWED_EMAILS || "")
-    .split(/[ ,\n\t]+/)
-    .filter(Boolean)
-    .map((entry) => entry.toLowerCase());
-  const email = session?.user?.email?.toLowerCase();
+  const isAllowed = session ? await isBackofficeAllowed(session.user?.id, session.user?.email) : false;
 
   let companies: CompanyRow[] | null = null;
-  if (session && (!allowedList.length || (email && allowedList.includes(email)))) {
+  if (session && isAllowed) {
     const { data: rows, error } = await supabaseAdmin
       .from("companies")
       .select("id, name, type, created_at")

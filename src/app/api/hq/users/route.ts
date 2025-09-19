@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
@@ -55,7 +55,12 @@ export async function GET(req: Request) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  if (!session || !isBackofficeAllowed(session.user?.email)) {
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const isAllowed = await isBackofficeAllowed(session.user?.id, session.user?.email);
+  if (!isAllowed) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
@@ -182,7 +187,12 @@ export async function POST(req: Request) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  if (!session || !isBackofficeAllowed(session.user?.email)) {
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const isAllowed = await isBackofficeAllowed(session.user?.id, session.user?.email);
+  if (!isAllowed) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
@@ -245,6 +255,7 @@ export async function POST(req: Request) {
       email_confirm: false,
       user_metadata: {
         full_name: fullName ?? undefined,
+        is_staff: isStaff,
       },
     });
 
@@ -331,7 +342,12 @@ export async function PATCH(req: Request) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  if (!session || !isBackofficeAllowed(session.user?.email)) {
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const isAllowed = await isBackofficeAllowed(session.user?.id, session.user?.email);
+  if (!isAllowed) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
@@ -461,7 +477,12 @@ export async function DELETE(req: Request) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  if (!session || !isBackofficeAllowed(session.user?.email)) {
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const isAllowed = await isBackofficeAllowed(session.user?.id, session.user?.email);
+  if (!isAllowed) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
@@ -822,6 +843,4 @@ async function getUserSummaryById(userId: string): Promise<UserSummary | null> {
   const summaries = await getUserSummariesByIds([userId]);
   return summaries[0] ?? null;
 }
-
-
 

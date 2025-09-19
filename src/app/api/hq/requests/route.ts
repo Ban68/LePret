@@ -92,7 +92,12 @@ export async function GET(req: Request) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  if (!session || !isBackofficeAllowed(session.user?.email)) {
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const isAllowed = await isBackofficeAllowed(session.user?.id, session.user?.email);
+  if (!isAllowed) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
@@ -470,3 +475,4 @@ function toISOEnd(value: string): string | null {
   const date = new Date(`${value}T23:59:59.999Z`);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
+

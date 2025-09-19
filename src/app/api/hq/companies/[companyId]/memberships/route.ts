@@ -2,12 +2,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { supabaseAdmin } from "@/lib/supabase";
-
-function isAllowed(email?: string | null) {
-  const allowed = (process.env.BACKOFFICE_ALLOWED_EMAILS || "").split(/[,\s]+/).filter(Boolean).map(s=>s.toLowerCase());
-  if (!allowed.length) return true;
-  return !!email && allowed.includes(email.toLowerCase());
-}
+import { isBackofficeAllowed } from "@/lib/hq-auth";
 
 export async function GET(
   _req: Request,
@@ -17,7 +12,14 @@ export async function GET(
   const cookieStore = cookies();
   const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session || !isAllowed(session.user?.email)) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const isAllowed = await isBackofficeAllowed(session.user?.id, session.user?.email);
+  if (!isAllowed) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
 
   const { data: rows, error } = await supabaseAdmin
     .from('memberships')
@@ -53,7 +55,14 @@ export async function PATCH(
   const cookieStore = cookies();
   const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session || !isAllowed(session.user?.email)) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const isAllowed = await isBackofficeAllowed(session.user?.id, session.user?.email);
+  if (!isAllowed) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
 
   const body = await req.json().catch(() => ({}));
   const { user_id, status, role } = body || {};
@@ -71,3 +80,4 @@ export async function PATCH(
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
+

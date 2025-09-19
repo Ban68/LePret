@@ -10,7 +10,12 @@ export async function GET() {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  if (!session || !isBackofficeAllowed(session.user?.email)) {
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const isAllowed = await isBackofficeAllowed(session.user?.id, session.user?.email);
+  if (!isAllowed) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
@@ -33,3 +38,4 @@ export async function GET() {
 
   return NextResponse.json({ ok: true, companies: result });
 }
+

@@ -1,4 +1,4 @@
-﻿import type { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 
@@ -66,24 +66,38 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Backoffice: restrict /hq to allowed emails
+  // Backoffice: restrict /hq to staff or allowlisted emails
   if (req.nextUrl.pathname.startsWith("/hq")) {
     const {
       data: { session },
     } = await supabase.auth.getSession();
+
+    const email = session?.user?.email?.toLowerCase();
     const allowed = (process.env.BACKOFFICE_ALLOWED_EMAILS || "")
       .split(/[ ,\n\t]+/)
       .filter(Boolean)
       .map((s) => s.toLowerCase());
-    const email = session?.user?.email?.toLowerCase();
-    if (!session || (allowed.length && (!email || !allowed.includes(email)))) {
+
+    let isStaff = false;
+    if (session) {
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("is_staff")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (!profileError) {
+        isStaff = Boolean(profile?.is_staff);
+      }
+    }
+
+    const emailAllowed = !allowed.length || (email ? allowed.includes(email) : false);
+    if (!session || (!isStaff && !emailAllowed)) {
       const url = req.nextUrl.clone();
       url.pathname = "/login";
       url.searchParams.set("redirectTo", "/hq");
       return NextResponse.redirect(url);
     }
   }
-
   return res;
 }
 
@@ -91,5 +105,4 @@ export const config = {
   // Apply middleware on portal, select-org and hq routes
   matcher: ["/c/:path*", "/select-org", "/hq/:path*", "/api/c/:path*"],
 };
-
 
