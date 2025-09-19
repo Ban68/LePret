@@ -426,7 +426,7 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/40 px-4 py-6" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-60 flex justify-end bg-black/40 px-4 py-6" role="dialog" aria-modal="true">
       <div
         className="h-full w-full max-w-md overflow-y-auto rounded-lg bg-white shadow-xl"
         onClick={(event) => event.stopPropagation()}
