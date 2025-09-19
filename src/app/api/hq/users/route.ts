@@ -213,20 +213,26 @@ export async function POST(req: Request) {
   }
 
   const assignmentsInput = normalizeCompanyAssignments(payload.companies);
-  const membershipRows = assignmentsInput.map((assignment) => {
-    try {
-      const role = normalizeMembershipRole(assignment.role);
-      const status = normalizeMembershipStatus(assignment.status);
-      return {
-        user_id: "",
-        company_id: assignment.company_id,
-        role,
-        status,
-      };
-    } catch (error) {
-      throw new Error(`Invalid membership assignment for company ${assignment.company_id}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  });
+  if (isStaff && assignmentsInput.length) {
+    return NextResponse.json({ ok: false, error: "Los usuarios de backoffice no pueden pertenecer a organizaciones" }, { status: 400 });
+  }
+  const membershipRows = isStaff
+    ? []
+    : assignmentsInput.map((assignment) => {
+        try {
+          const role = normalizeMembershipRole(assignment.role);
+          const status = normalizeMembershipStatus(assignment.status);
+          return {
+            user_id: "",
+            company_id: assignment.company_id,
+            role,
+            status,
+          };
+        } catch (error) {
+          throw new Error(`Invalid membership assignment for company ${assignment.company_id}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      });
+
 
   try {
     const adminAuth = (supabaseAdmin.auth as unknown as { admin?: AdminAuthClient }).admin;
@@ -369,7 +375,19 @@ export async function PATCH(req: Request) {
     }
 
     const assignmentsInput = normalizeCompanyAssignments(payload.companies ?? payload.memberships);
-    if (assignmentsInput.length) {
+    if (nextIsStaff && assignmentsInput.length) {
+      return NextResponse.json({ ok: false, error: "Los usuarios de backoffice no pueden pertenecer a organizaciones" }, { status: 400 });
+    }
+
+    if (nextIsStaff) {
+      const { error: purgeError } = await supabaseAdmin
+        .from("memberships")
+        .delete()
+        .eq("user_id", userId);
+      if (purgeError) {
+        throw purgeError;
+      }
+    } else if (assignmentsInput.length) {
       const assignmentMap = new Map<string, { user_id: string; company_id: string; role: string; status: string }>();
       assignmentsInput.forEach((assignment) => {
         try {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -361,7 +361,14 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
   };
 
   const handleToggleStaff = async () => {
-    await runPatch({ is_staff: !user.is_staff }, "staff");
+    const nextValue = !user.is_staff;
+    if (nextValue && user.companies.length > 0) {
+      const confirmed = confirm("Al convertir este usuario en backoffice se eliminaran sus organizaciones asignadas. Continuar?");
+      if (!confirmed) {
+        return;
+      }
+    }
+    await runPatch({ is_staff: nextValue }, "staff");
   };
 
   const handleResendInvite = async () => {
@@ -472,146 +479,159 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-semibold text-lp-primary-1">Organizaciones</h4>
-              {!showAdd && availableCompanies.length > 0 && (
-                <Button size="sm" variant="outline" onClick={() => {
-                  setShowAdd(true);
-                  setNewMembership({
-                    company_id: availableCompanies[0]?.id || "",
-                    role: "VIEWER",
-                    status: "INVITED",
-                  });
-                }}>
+              {!user.is_staff && !showAdd && availableCompanies.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setShowAdd(true);
+                    setNewMembership({
+                      company_id: availableCompanies[0]?.id || "",
+                      role: "VIEWER",
+                      status: "INVITED",
+                    });
+                  }}
+                >
                   Anadir
                 </Button>
               )}
             </div>
 
-            {user.companies.length === 0 && (
-              <p className="text-xs text-lp-sec-3">Sin asignacion activa.</p>
-            )}
+            {user.is_staff ? (
+              <p className="text-xs text-lp-sec-3">
+                Los usuarios backoffice no pueden tener organizaciones asignadas.
+              </p>
+            ) : (
+              <Fragment>
+                {user.companies.length === 0 && (
+                  <p className="text-xs text-lp-sec-3">Sin asignacion activa.</p>
+                )}
 
-            {user.companies.map((membership) => (
-              <div key={membership.company_id} className="rounded-md border border-lp-sec-4/60 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="font-medium text-lp-primary-1">
-                    {membership.company_name || membership.company_id}
+                {user.companies.map((membership) => (
+                  <div key={membership.company_id} className="rounded-md border border-lp-sec-4/60 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-medium text-lp-primary-1">
+                        {membership.company_name || membership.company_id}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-600 hover:text-red-700"
+                          disabled={busy?.startsWith("remove-")}
+                          onClick={() => handleMembershipRemove(membership.company_id)}
+                        >
+                          Quitar
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Rol</label>
+                        <select
+                          className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
+                          value={membership.role}
+                          onChange={(event) =>
+                            handleMembershipUpdate(membership, { role: event.target.value })
+                          }
+                        >
+                          {ROLE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Estado</label>
+                        <select
+                          className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
+                          value={membership.status}
+                          onChange={(event) =>
+                            handleMembershipUpdate(membership, { status: event.target.value })
+                          }
+                        >
+                          {STATUS_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-red-600 hover:text-red-700"
-                      disabled={busy?.startsWith("remove-")}
-                      onClick={() => handleMembershipRemove(membership.company_id)}
-                    >
-                      Quitar
-                    </Button>
+                ))}
+
+                {showAdd && newMembership && (
+                  <div className="rounded-md border border-dashed border-lp-sec-4/60 p-3">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="sm:col-span-2">
+                        <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Organizacion</label>
+                        <select
+                          className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
+                          value={newMembership.company_id}
+                          onChange={(event) =>
+                            setNewMembership((prev) =>
+                              prev ? { ...prev, company_id: event.target.value } : prev,
+                            )
+                          }
+                        >
+                          {availableCompanies.length === 0 && <option value="">Sin opciones</option>}
+                          {availableCompanies.map((company) => (
+                            <option key={company.id} value={company.id}>
+                              {company.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Rol</label>
+                        <select
+                          className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
+                          value={newMembership.role}
+                          onChange={(event) =>
+                            setNewMembership((prev) =>
+                              prev ? { ...prev, role: event.target.value } : prev,
+                            )
+                          }
+                        >
+                          {ROLE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Estado</label>
+                        <select
+                          className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
+                          value={newMembership.status}
+                          onChange={(event) =>
+                            setNewMembership((prev) =>
+                              prev ? { ...prev, status: event.target.value } : prev,
+                            )
+                          }
+                        >
+                          {STATUS_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-end gap-2">
+                        <Button size="sm" onClick={handleAddMembership} disabled={busy === "add-membership"}>
+                          Guardar
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setShowAdd(false)}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Rol</label>
-                    <select
-                      className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
-                      value={membership.role}
-                      onChange={(event) =>
-                        handleMembershipUpdate(membership, { role: event.target.value })
-                      }
-                    >
-                      {ROLE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Estado</label>
-                    <select
-                      className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
-                      value={membership.status}
-                      onChange={(event) =>
-                        handleMembershipUpdate(membership, { status: event.target.value })
-                      }
-                    >
-                      {STATUS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {showAdd && newMembership && (
-              <div className="rounded-md border border-dashed border-lp-sec-4/60 p-3">
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="sm:col-span-2">
-                    <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Organizacion</label>
-                    <select
-                      className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
-                      value={newMembership.company_id}
-                      onChange={(event) =>
-                        setNewMembership((prev) =>
-                          prev ? { ...prev, company_id: event.target.value } : prev,
-                        )
-                      }
-                    >
-                      {availableCompanies.length === 0 && <option value="">Sin opciones</option>}
-                      {availableCompanies.map((company) => (
-                        <option key={company.id} value={company.id}>
-                          {company.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Rol</label>
-                    <select
-                      className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
-                      value={newMembership.role}
-                      onChange={(event) =>
-                        setNewMembership((prev) =>
-                          prev ? { ...prev, role: event.target.value } : prev,
-                        )
-                      }
-                    >
-                      {ROLE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Estado</label>
-                    <select
-                      className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
-                      value={newMembership.status}
-                      onChange={(event) =>
-                        setNewMembership((prev) =>
-                          prev ? { ...prev, status: event.target.value } : prev,
-                        )
-                      }
-                    >
-                      {STATUS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex items-end gap-2">
-                    <Button size="sm" onClick={handleAddMembership} disabled={busy === "add-membership"}>
-                      Guardar
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setShowAdd(false)}>
-                      Cancelar
-                    </Button>
-                  </div>
-                </div>
-              </div>
+                )}
+              </Fragment>
             )}
           </section>
 
@@ -658,6 +678,12 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
     }
   }, [open]);
 
+  useEffect(() => {
+    if (type === "staff" && memberships.length > 0) {
+      setMemberships([]);
+    }
+  }, [type, memberships.length]);
+
   if (!open) {
     return null;
   }
@@ -701,7 +727,7 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
           full_name: fullName.trim() || undefined,
           type,
           invite: true,
-          companies: memberships,
+          companies: type === "staff" ? [] : memberships,
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -781,68 +807,78 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold text-lp-primary-1">Organizaciones</h4>
-            <Button type="button" size="sm" variant="outline" onClick={addMembership}>
-              Anadir organizacion
-            </Button>
+            {type !== "staff" && (
+              <Button type="button" size="sm" variant="outline" onClick={addMembership}>
+                Anadir organizacion
+              </Button>
+            )}
           </div>
-          {memberships.length === 0 && (
-            <p className="text-xs text-lp-sec-3">Opcional. Puedes asignar organizaciones despues.</p>
-          )}
-          <div className="space-y-3">
-            {memberships.map((membership, index) => (
-              <div key={membership.company_id + index} className="rounded-md border border-lp-sec-4/60 p-3">
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="sm:col-span-2">
-                    <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Organizacion</label>
-                    <select
-                      className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
-                      value={membership.company_id}
-                      onChange={(event) => updateMembership(index, { company_id: event.target.value })}
-                    >
-                      {companies.map((company) => (
-                        <option key={company.id} value={company.id}>
-                          {company.name}
-                        </option>
-                      ))}
-                    </select>
+          {type === "staff" ? (
+            <p className="text-xs text-lp-sec-3">
+              Los usuarios backoffice no pueden tener organizaciones asignadas.
+            </p>
+          ) : (
+            <Fragment>
+              {memberships.length === 0 && (
+                <p className="text-xs text-lp-sec-3">Opcional. Puedes asignar organizaciones despues.</p>
+              )}
+              <div className="space-y-3">
+                {memberships.map((membership, index) => (
+                  <div key={membership.company_id + index} className="rounded-md border border-lp-sec-4/60 p-3">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="sm:col-span-2">
+                        <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Organizacion</label>
+                        <select
+                          className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
+                          value={membership.company_id}
+                          onChange={(event) => updateMembership(index, { company_id: event.target.value })}
+                        >
+                          {companies.map((company) => (
+                            <option key={company.id} value={company.id}>
+                              {company.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Rol</label>
+                        <select
+                          className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
+                          value={membership.role}
+                          onChange={(event) => updateMembership(index, { role: event.target.value })}
+                        >
+                          {ROLE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Estado</label>
+                        <select
+                          className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
+                          value={membership.status}
+                          onChange={(event) => updateMembership(index, { status: event.target.value })}
+                        >
+                          {STATUS_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-right">
+                      <Button type="button" size="sm" variant="ghost" onClick={() => removeMembership(index)}>
+                        Quitar
+                      </Button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Rol</label>
-                    <select
-                      className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
-                      value={membership.role}
-                      onChange={(event) => updateMembership(index, { role: event.target.value })}
-                    >
-                      {ROLE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Estado</label>
-                    <select
-                      className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
-                      value={membership.status}
-                      onChange={(event) => updateMembership(index, { status: event.target.value })}
-                    >
-                      {STATUS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="mt-3 text-right">
-                  <Button type="button" size="sm" variant="ghost" onClick={() => removeMembership(index)}>
-                    Quitar
-                  </Button>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </Fragment>
+          )}
         </section>
 
         <div className="flex items-center justify-end gap-3">
