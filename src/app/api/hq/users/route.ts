@@ -538,12 +538,13 @@ export async function DELETE(req: Request) {
 
   const modeValue = typeof payload.mode === "string" ? payload.mode.trim().toLowerCase() : null;
   const hardFromBody = typeof payload.hard_delete !== "undefined" ? coerceBoolean(payload.hard_delete, false) : undefined;
+  const hardFromQuery = url.searchParams.get("hard_delete");
   const hardFlag =
     typeof hardFromBody === "boolean"
       ? hardFromBody
       : typeof payload.hard !== "undefined"
         ? coerceBoolean(payload.hard, false)
-        : modeValue === "hard" || url.searchParams.get("mode")?.toLowerCase() === "hard";
+        : modeValue === "hard" || url.searchParams.get("mode")?.toLowerCase() === "hard" || coerceBoolean(hardFromQuery, false);
 
   try {
     const existing = await getUserSummaryById(userId);
@@ -886,4 +887,3 @@ async function getUserSummaryById(userId: string): Promise<UserSummary | null> {
   const summaries = await getUserSummariesByIds([userId]);
   return summaries[0] ?? null;
 }
-

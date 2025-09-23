@@ -427,10 +427,9 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
     }
     setBusy("delete");
     try {
-      const response = await fetch(`/api/hq/users?id=${user.id}`, {
+      const response = await fetch(`/api/hq/users?id=${user.id}&hard_delete=true`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: user.id, hard_delete: true }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
