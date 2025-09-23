@@ -671,6 +671,7 @@ type AdminAuthClient = {
   inviteUserByEmail?: (email: string) => Promise<unknown>;
   deleteUser?: (id: string) => Promise<{ data: unknown; error: { message?: string } | null }>;
   getUserById?: (id: string) => Promise<{ data: { user?: { id: string; email?: string | null; created_at?: string | null; last_sign_in_at?: string | null } | null } | null; error: { message?: string } | null }>;
+  listUsers?: (params: { page?: number, perPage?: number }) => Promise<{ data: { users: Array<{ id: string; email?: string | null; created_at?: string | null; last_sign_in_at?: string | null }> } | null; error: { message?: string } | null }>;
 };
 
 
@@ -793,35 +794,37 @@ async function getAuthUsersByIds(userIds: string[]): Promise<Map<string, AuthUse
   }
 
   const adminAuth = (supabaseAdmin.auth as unknown as { admin?: AdminAuthClient }).admin;
-  const getUserById = adminAuth?.getUserById?.bind(adminAuth);
-  if (!getUserById) {
-    throw new Error("Supabase admin client unavailable");
+  if (!adminAuth || typeof adminAuth.listUsers !== 'function') {
+    throw new Error('Supabase admin client unavailable or listUsers method not available');
   }
 
-  const uniqueIds = Array.from(new Set(userIds));
+  const idSet = new Set(userIds);
+  let page = 0;
+  const perPage = 100;
 
-  await Promise.all(
-    uniqueIds.map(async (id) => {
-      const { data, error } = await getUserById(id);
-      if (error) {
-        const message = error.message ?? '';
-        if (message.toLowerCase().includes('not found')) {
-          return;
-        }
-        throw new Error(message || `Failed to load user ${id}`);
+  while (map.size < idSet.size) {
+    const { data, error } = await adminAuth.listUsers({ page, perPage });
+    if (error) {
+      throw new Error(error.message || `Failed to load users on page ${page}`);
+    }
+
+    const users = data?.users ?? [];
+    if (!users.length) {
+      break; 
+    }
+
+    for (const user of users) {
+      if (idSet.has(user.id)) {
+        map.set(user.id, {
+          id: user.id,
+          email: user.email ?? null,
+          created_at: user.created_at ?? null,
+          last_sign_in_at: user.last_sign_in_at ?? null,
+        });
       }
-      const user = data?.user;
-      if (!user) {
-        return;
-      }
-      map.set(user.id, {
-        id: user.id,
-        email: user.email ?? null,
-        created_at: user.created_at ?? null,
-        last_sign_in_at: (user as { last_sign_in_at?: string | null }).last_sign_in_at ?? null,
-      });
-    })
-  );
+    }
+    page++;
+  }
 
   return map;
 }
