@@ -683,7 +683,16 @@ type AdminAuthClient = {
   inviteUserByEmail?: (email: string) => Promise<unknown>;
   deleteUser?: (id: string) => Promise<{ data: unknown; error: { message?: string } | null }>;
   getUserById?: (id: string) => Promise<{ data: { user?: { id: string; email?: string | null; created_at?: string | null; last_sign_in_at?: string | null } | null } | null; error: { message?: string } | null }>;
-  listUsers?: (params: { page?: number, perPage?: number }) => Promise<{ data: { users: Array<{ id: string; email?: string | null; created_at?: string | null; last_sign_in_at?: string | null }> } | null; error: { message?: string } | null }>;
+  listUsers?: (params: { page?: number; perPage?: number }) => Promise<{
+    data:
+      | {
+          users: Array<{ id: string; email?: string | null; created_at?: string | null; last_sign_in_at?: string | null }>;
+          nextPage?: number | null;
+          page?: number | null;
+        }
+      | null;
+    error: { message?: string } | null;
+  }>;
 };
 
 
@@ -811,18 +820,33 @@ async function getAuthUsersByIds(userIds: string[]): Promise<Map<string, AuthUse
   }
 
   const idSet = new Set(userIds);
-  let page = 0;
+  const seenPages = new Set<number>();
+  let page: number | undefined;
   const perPage = 100;
 
   while (map.size < idSet.size) {
-    const { data, error } = await adminAuth.listUsers({ page, perPage });
+    if (typeof page === "number" && seenPages.has(page)) {
+      break;
+    }
+
+    const params = typeof page === "number" ? { page, perPage } : { perPage };
+    const { data, error } = await adminAuth.listUsers(params);
     if (error) {
-      throw new Error(error.message || `Failed to load users on page ${page}`);
+      const suffix = typeof page === "number" ? ` on page ${page}` : "";
+      throw new Error(error.message || `Failed to load users${suffix}`);
     }
 
     const users = data?.users ?? [];
     if (!users.length) {
-      break; 
+      break;
+    }
+
+    const currentPage = typeof data?.page === "number" ? data.page : page;
+    if (typeof currentPage === "number") {
+      if (seenPages.has(currentPage)) {
+        break;
+      }
+      seenPages.add(currentPage);
     }
 
     for (const user of users) {
@@ -835,7 +859,17 @@ async function getAuthUsersByIds(userIds: string[]): Promise<Map<string, AuthUse
         });
       }
     }
-    page++;
+
+    if (map.size >= idSet.size) {
+      break;
+    }
+
+    const nextPage = typeof data?.nextPage === "number" ? data.nextPage : null;
+    if (nextPage === null || seenPages.has(nextPage)) {
+      break;
+    }
+
+    page = nextPage;
   }
 
   return map;
