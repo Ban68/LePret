@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { isBackofficeAllowed } from "@/lib/hq-auth";
@@ -6,12 +7,6 @@ import { UsersManager } from "./ui/UsersManager";
 import { DashboardMetrics } from "./ui/DashboardMetrics";
 
 export const dynamic = "force-dynamic";
-
-type CompanyRow = {
-  id: string;
-  name: string;
-  type: string;
-};
 
 export default async function HqPage() {
   const supabase = await supabaseServer();
@@ -26,7 +21,13 @@ export default async function HqPage() {
       <div className="py-10">
         <div className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            No tienes permiso para ver esta página.
+            <p>
+              No tienes permiso para ver esta página. {" "}
+              <Link href="/login?redirectTo=/hq" className="underline">
+                Inicia sesión con una cuenta autorizada
+              </Link>
+              .
+            </p>
           </div>
         </div>
       </div>

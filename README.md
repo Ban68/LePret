@@ -116,6 +116,11 @@ La lógica para calcular el `cupoEstimado` se encuentra en el archivo `src/app/a
     *   `src/lib/validators`: Esquemas de validación Zod.
 *   `public`: Archivos estáticos (imágenes, fuentes, `robots.txt`, `sitemap.xml`).
 
+## Acceso al Backoffice
+
+*   El flujo de login acepta el parámetro opcional `redirectTo`. Si no se proporciona y el usuario tiene `profiles.is_staff = true`, será dirigido automáticamente al panel `/hq` después de autenticarse.
+*   Los enlaces internos al Backoffice deben utilizar `/login?redirectTo=/hq` para mantener el acceso directo al panel administrativo. Los accesos por Magic Link ahora apuntan a `/auth/callback`, ruta que valida la sesión y decide el destino final según el perfil del usuario.
+
 ---
 
 **Nota:** Este proyecto es un MVP funcional. Las integraciones reales con DIAN/RADIAN y otros sistemas (ERP/Facturadores) están diseñadas a nivel de interfaz (`lib/integrations/`) pero no están conectadas. El sitio está listo para producción y fácil de evolucionar.

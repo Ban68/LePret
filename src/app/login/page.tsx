@@ -7,6 +7,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { isStaffUser } from "@/lib/staff";
 
 const GENERIC_ERROR_MESSAGE = "Error inesperado. Intenta de nuevo.";
 
@@ -39,7 +40,7 @@ const getErrorMessage = (err: unknown) => {
 function LoginForm() {
   const router = useRouter();
   const search = useSearchParams();
-  const redirectTo = search.get("redirectTo") ?? "/select-org";
+  const searchRedirect = search.get("redirectTo");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -52,14 +53,64 @@ function LoginForm() {
 
   useEffect(() => {
     const supabase = createClientComponentClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        router.replace(redirectTo);
-      } else {
-        setCheckingSession(false);
+    let active = true;
+
+    const resolveRedirect = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        let defaultDestination = "/select-org";
+        if (session?.user?.id) {
+          const staff = await isStaffUser(supabase, session.user.id);
+          defaultDestination = staff ? "/hq" : "/select-org";
+        }
+
+        const destination = searchRedirect ?? defaultDestination;
+
+        if (!active) return;
+
+        if (session) {
+          router.replace(destination);
+        }
+      } catch (err) {
+        console.error("Failed to resolve login redirect", err);
+        if (!active) return;
+      } finally {
+        if (active) {
+          setCheckingSession(false);
+        }
       }
-    });
-  }, [router, redirectTo]);
+    };
+
+    resolveRedirect();
+
+    return () => {
+      active = false;
+    };
+  }, [router, searchRedirect]);
+
+  const computePostAuthRedirect = async (supabaseClient: ReturnType<typeof createClientComponentClient>, userId?: string | null) => {
+    if (searchRedirect) {
+      return searchRedirect;
+    }
+
+    let resolvedUserId = userId;
+    if (!resolvedUserId) {
+      const {
+        data: { user },
+      } = await supabaseClient.auth.getUser();
+      resolvedUserId = user?.id ?? null;
+    }
+
+    if (resolvedUserId) {
+      const staff = await isStaffUser(supabaseClient, resolvedUserId);
+      return staff ? "/hq" : "/select-org";
+    }
+
+    return "/select-org";
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,14 +120,19 @@ function LoginForm() {
     const supabase = createClientComponentClient();
     try {
       if (mode === "password") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        router.replace(redirectTo);
+        const destination = await computePostAuthRedirect(supabase, data?.user?.id);
+        router.replace(destination);
       } else if (mode === "magic") {
         if (!validEmail) throw new Error("Ingresa un email valido");
+        const redirectUrl = new URL(`${window.location.origin}/auth/callback`);
+        if (searchRedirect) {
+          redirectUrl.searchParams.set("redirectTo", searchRedirect);
+        }
         const { error } = await supabase.auth.signInWithOtp({
           email,
-          options: { emailRedirectTo: `${window.location.origin}/select-org` },
+          options: { emailRedirectTo: redirectUrl.toString() },
         });
         if (error) throw error;
         setSuccess(true);
