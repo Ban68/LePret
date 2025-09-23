@@ -502,6 +502,7 @@ export async function PATCH(req: Request) {
   }
 }
 export async function DELETE(req: Request) {
+  console.log("DELETE /api/hq/users");
   const url = new URL(req.url);
   const queryId = url.searchParams.get("id")?.trim() ?? "";
   const cookieStore = cookies();
@@ -531,6 +532,7 @@ export async function DELETE(req: Request) {
 
   const bodyId = typeof payload.id === "string" ? payload.id.trim() : "";
   const userId = bodyId || queryId;
+  console.log("userId", userId);
 
   if (!userId) {
     return NextResponse.json({ ok: false, error: "Missing user id" }, { status: 400 });
@@ -545,19 +547,23 @@ export async function DELETE(req: Request) {
       : typeof payload.hard !== "undefined"
         ? coerceBoolean(payload.hard, false)
         : modeValue === "hard" || url.searchParams.get("mode")?.toLowerCase() === "hard" || coerceBoolean(hardFromQuery, false);
+  console.log("hardFlag", hardFlag);
 
   try {
     const existing = await getUserSummaryById(userId);
+    console.log("existing", existing);
     if (!existing && !hardFlag) {
       return NextResponse.json({ ok: false, error: "User not found" }, { status: 404 });
     }
 
     if (hardFlag) {
+      console.log("hard delete");
       const { error: membershipDeleteError } = await supabaseAdmin
         .from("memberships")
         .delete()
         .eq("user_id", userId);
       if (membershipDeleteError) {
+        console.error("membershipDeleteError", membershipDeleteError);
         throw membershipDeleteError;
       }
 
@@ -566,6 +572,7 @@ export async function DELETE(req: Request) {
         .delete()
         .eq("user_id", userId);
       if (profileDeleteError) {
+        console.error("profileDeleteError", profileDeleteError);
         throw profileDeleteError;
       }
 
@@ -573,6 +580,7 @@ export async function DELETE(req: Request) {
       if (adminAuth && typeof adminAuth.deleteUser === "function") {
         const result = (await adminAuth.deleteUser(userId)) as { error?: { message?: string } | null } | null;
         if (result && result.error) {
+          console.error("adminAuth.deleteUser error", result.error);
           throw new Error(result.error.message ?? "Failed to delete auth user");
         }
       }
@@ -584,11 +592,13 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ ok: false, error: "User not found" }, { status: 404 });
     }
 
+    console.log("soft delete");
     const { error: membershipDisableError } = await supabaseAdmin
       .from("memberships")
       .update({ status: "DISABLED" })
       .eq("user_id", userId);
     if (membershipDisableError) {
+      console.error("membershipDisableError", membershipDisableError);
       throw membershipDisableError;
     }
 
@@ -603,6 +613,7 @@ export async function DELETE(req: Request) {
         { onConflict: "user_id" }
       );
     if (profileUpdateError) {
+      console.error("profileUpdateError", profileUpdateError);
       throw profileUpdateError;
     }
 
@@ -887,3 +898,4 @@ async function getUserSummaryById(userId: string): Promise<UserSummary | null> {
   const summaries = await getUserSummariesByIds([userId]);
   return summaries[0] ?? null;
 }
+
