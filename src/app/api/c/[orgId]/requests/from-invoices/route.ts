@@ -15,6 +15,7 @@ export async function POST(
 
     const body = await req.json().catch(() => ({}));
     const invoice_ids: string[] = Array.isArray(body?.invoice_ids) ? body.invoice_ids : [];
+    const requested_amount_raw = Number(body?.requested_amount ?? 0);
     if (!invoice_ids.length) return NextResponse.json({ ok: false, error: 'missing_invoice_ids' }, { status: 400 });
 
     // Leer facturas y validar que pertenezcan a la empresa
@@ -29,13 +30,15 @@ export async function POST(
     const total = invoices.reduce((acc: number, it) => acc + Number((it as { amount?: number | string | null }).amount || 0), 0);
     if (total <= 0) return NextResponse.json({ ok: false, error: 'invalid_total' }, { status: 400 });
 
+    const requested_amount = requested_amount_raw > 0 ? requested_amount_raw : total;
+
     // Crear solicitud
     const { data: reqRow, error: rErr } = await supabase
       .from('funding_requests')
       .insert({
         company_id: orgId,
         created_by: session.user.id,
-        requested_amount: total,
+        requested_amount,
         status: 'review',
       })
       .select()
