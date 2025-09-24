@@ -6,6 +6,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_MEMBER_ROLE,
+  DEFAULT_MEMBER_STATUS,
+  MemberRole,
+  MemberStatus,
+  MEMBER_ROLE_VALUES,
+  MEMBER_STATUS_VALUES,
+} from "@/lib/rbac";
 
 const TYPE_LABEL: Record<string, string> = {
   all: "Todos",
@@ -13,18 +21,28 @@ const TYPE_LABEL: Record<string, string> = {
   client: "Clientes",
 };
 
-const ROLE_OPTIONS = [
-  { value: "OWNER", label: "Owner" },
-  { value: "ADMIN", label: "Admin" },
-  { value: "OPERATOR", label: "Operator" },
-  { value: "VIEWER", label: "Viewer" },
-];
+const ROLE_LABELS: Record<MemberRole, string> = {
+  OWNER: "Owner",
+  ADMIN: "Admin",
+  OPERATOR: "Operator",
+  VIEWER: "Viewer",
+};
 
-const STATUS_OPTIONS = [
-  { value: "ACTIVE", label: "Activa" },
-  { value: "INVITED", label: "Invitado" },
-  { value: "DISABLED", label: "Suspendida" },
-];
+const STATUS_LABELS: Record<MemberStatus, string> = {
+  ACTIVE: "Activa",
+  INVITED: "Invitado",
+  DISABLED: "Suspendida",
+};
+
+const ROLE_OPTIONS = MEMBER_ROLE_VALUES.map((value) => ({
+  value,
+  label: ROLE_LABELS[value],
+}));
+
+const STATUS_OPTIONS = MEMBER_STATUS_VALUES.map((value) => ({
+  value,
+  label: STATUS_LABELS[value],
+}));
 
 type CompanyOption = {
   id: string;
@@ -35,8 +53,8 @@ type CompanyOption = {
 type MembershipInfo = {
   company_id: string;
   company_name: string | null;
-  role: string;
-  status: string;
+  role: MemberRole;
+  status: MemberStatus;
 };
 
 type UserEntry = {
@@ -320,7 +338,9 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
   const [emailDraft, setEmailDraft] = useState<string>(user?.email || "");
   const [editingEmail, setEditingEmail] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [newMembership, setNewMembership] = useState<{ company_id: string; role: string; status: string } | null>(null);
+  const [newMembership, setNewMembership] = useState<{ company_id: string; role: MemberRole; status: MemberStatus } | null>(
+    null
+  );
 
   useEffect(() => {
     if (user) {
@@ -407,7 +427,10 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
     setEmailDraft(user.email || "");
   };
 
-  const handleMembershipUpdate = async (membership: MembershipInfo, next: { role?: string; status?: string }) => {
+  const handleMembershipUpdate = async (
+    membership: MembershipInfo,
+    next: { role?: MemberRole; status?: MemberStatus }
+  ) => {
     const role = next.role ?? membership.role;
     const status = next.status ?? membership.status;
     await runPatch({ companies: [{ company_id: membership.company_id, role, status }] }, `membership-${membership.company_id}`);
@@ -551,8 +574,8 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
                     setShowAdd(true);
                     setNewMembership({
                       company_id: availableCompanies[0]?.id || "",
-                      role: "VIEWER",
-                      status: "INVITED",
+                      role: DEFAULT_MEMBER_ROLE,
+                      status: DEFAULT_MEMBER_STATUS,
                     });
                   }}
                 >
@@ -596,7 +619,7 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
                           className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
                           value={membership.role}
                           onChange={(event) =>
-                            handleMembershipUpdate(membership, { role: event.target.value })
+                            handleMembershipUpdate(membership, { role: event.target.value as MemberRole })
                           }
                         >
                           {ROLE_OPTIONS.map((option) => (
@@ -612,7 +635,7 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
                           className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
                           value={membership.status}
                           onChange={(event) =>
-                            handleMembershipUpdate(membership, { status: event.target.value })
+                            handleMembershipUpdate(membership, { status: event.target.value as MemberStatus })
                           }
                         >
                           {STATUS_OPTIONS.map((option) => (
@@ -655,7 +678,7 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
                           value={newMembership.role}
                           onChange={(event) =>
                             setNewMembership((prev) =>
-                              prev ? { ...prev, role: event.target.value } : prev,
+                              prev ? { ...prev, role: event.target.value as MemberRole } : prev,
                             )
                           }
                         >
@@ -673,7 +696,9 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
                           value={newMembership.status}
                           onChange={(event) =>
                             setNewMembership((prev) =>
-                              prev ? { ...prev, status: event.target.value } : prev,
+                              prev
+                                ? { ...prev, status: event.target.value as MemberStatus }
+                                : prev,
                             )
                           }
                         >

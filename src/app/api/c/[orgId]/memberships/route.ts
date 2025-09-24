@@ -3,12 +3,17 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
 import { supabaseAdmin } from "@/lib/supabase";
-
-const MEMBER_ROLES = ["OWNER", "ADMIN", "OPERATOR", "VIEWER"] as const;
-const EDITABLE_ROLES = new Set<MemberRole>(["OWNER", "ADMIN"]);
-
-type MemberRole = (typeof MEMBER_ROLES)[number];
-type MemberStatus = "ACTIVE" | "INVITED" | "DISABLED";
+import {
+  DEFAULT_MEMBER_ROLE,
+  DEFAULT_MEMBER_STATUS,
+  MemberRole,
+  MemberStatus,
+  canManageMembership,
+  normalizeMemberRole,
+  normalizeMemberStatus,
+  parseMemberRole,
+  parseMemberStatus,
+} from "@/lib/rbac";
 
 type MembershipRow = {
   user_id: string;
@@ -27,34 +32,6 @@ type Context = {
 type AdminAuthClient = {
   getUserByEmail(email: string): Promise<{ data: { user: { id: string } | null } | null; error: { message?: string } | null }>;
 };
-
-function normaliseRole(role?: string | null): MemberRole | null {
-  if (!role) return null;
-  const upper = role.toUpperCase();
-  return (MEMBER_ROLES as readonly string[]).includes(upper) ? (upper as MemberRole) : null;
-}
-
-function requireValidRole(value: unknown): MemberRole {
-  if (typeof value !== "string") {
-    throw new Error("Invalid role value");
-  }
-  const normalized = normaliseRole(value);
-  if (!normalized) {
-    throw new Error("Unsupported role");
-  }
-  return normalized;
-}
-
-function requireValidStatus(value: unknown): MemberStatus {
-  if (typeof value !== "string") {
-    throw new Error("Invalid status value");
-  }
-  const upper = value.toUpperCase();
-  if (upper === "ACTIVE" || upper === "INVITED" || upper === "DISABLED") {
-    return upper;
-  }
-  throw new Error("Unsupported status");
-}
 
 async function resolveContext(orgId: string): Promise<Context> {
   const cookieStore = cookies();
@@ -94,8 +71,8 @@ function ensureCanManage(isStaff: boolean, membership: { role?: string | null; s
   if (!membership || membership.status !== "ACTIVE") {
     throw new Error("Forbidden");
   }
-  const normalized = normaliseRole(membership.role);
-  if (!normalized || !EDITABLE_ROLES.has(normalized)) {
+  const normalized = normalizeMemberRole(membership.role);
+  if (!normalized || !canManageMembership(normalized)) {
     throw new Error("Forbidden");
   }
 }
@@ -155,16 +132,18 @@ export async function GET(
 
     const items = (data || []).map((row: MembershipRow) => {
       const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+      const role = normalizeMemberRole(row.role) ?? DEFAULT_MEMBER_ROLE;
+      const status = normalizeMemberStatus(row.status) ?? DEFAULT_MEMBER_STATUS;
       return {
         user_id: row.user_id,
-        role: row.role,
-        status: row.status,
+        role,
+        status,
         full_name: profile ? profile.full_name ?? null : null,
       };
     });
 
-    const currentRole = normaliseRole(context.membership?.role);
-    const canEdit = context.isStaff || (currentRole ? EDITABLE_ROLES.has(currentRole) : false);
+    const currentRole = normalizeMemberRole(context.membership?.role);
+    const canEdit = context.isStaff || canManageMembership(currentRole);
 
     return NextResponse.json({ ok: true, items, canEdit });
   } catch (err) {
@@ -206,25 +185,34 @@ export async function POST(
       return NextResponse.json({ ok: false, error: message }, { status: message === "Usuario no encontrado" ? 404 : 400 });
     }
 
-    let role: MemberRole | undefined;
-    let status: MemberStatus | undefined;
+    let role: MemberRole = DEFAULT_MEMBER_ROLE;
+    let status: MemberStatus = DEFAULT_MEMBER_STATUS;
     try {
-      if (payload.role !== undefined) {
-        role = requireValidRole(payload.role);
-      }
-      if (payload.status !== undefined) {
-        status = requireValidStatus(payload.status);
-      }
+      role = payload.role === undefined ? DEFAULT_MEMBER_ROLE : parseMemberRole(payload.role);
+      status = payload.status === undefined ? DEFAULT_MEMBER_STATUS : parseMemberStatus(payload.status);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Invalid payload";
       return NextResponse.json({ ok: false, error: message }, { status: 400 });
     }
 
+    const { data: existingRows, error: existingLookupError } = await supabaseAdmin
+      .from("memberships")
+      .select("role, status")
+      .eq("company_id", orgId)
+      .eq("user_id", resolvedUserId)
+      .limit(1);
+
+    if (existingLookupError) {
+      return NextResponse.json({ ok: false, error: existingLookupError.message }, { status: 500 });
+    }
+
+    const existingMembership = existingRows?.[0] ?? null;
+
     const insertPayload = {
       user_id: resolvedUserId,
       company_id: orgId,
-      role: role ?? "VIEWER",
-      status: status ?? "INVITED",
+      role,
+      status,
     };
 
     const { data, error } = await supabaseAdmin
@@ -235,6 +223,26 @@ export async function POST(
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    try {
+      const { logAudit } = await import("@/lib/audit");
+      await logAudit({
+        company_id: orgId,
+        actor_id: context.sessionUserId,
+        entity: "membership",
+        entity_id: resolvedUserId,
+        action: existingMembership ? "updated" : "created",
+        data: {
+          previous_role: existingMembership?.role ?? null,
+          previous_status: existingMembership?.status ?? null,
+          role: data?.role ?? insertPayload.role,
+          status: data?.status ?? insertPayload.status,
+          user_id: resolvedUserId,
+        },
+      });
+    } catch {
+      // ignore audit failures
     }
 
     return NextResponse.json({ ok: true, membership: data });
@@ -277,10 +285,10 @@ export async function PATCH(
 
     try {
       if (payload.role !== undefined) {
-        updatePayload.role = requireValidRole(payload.role);
+        updatePayload.role = parseMemberRole(payload.role);
       }
       if (payload.status !== undefined) {
-        updatePayload.status = requireValidStatus(payload.status);
+        updatePayload.status = parseMemberStatus(payload.status);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Invalid payload";
@@ -290,6 +298,17 @@ export async function PATCH(
     if (Object.keys(updatePayload).length === 0) {
       return NextResponse.json({ ok: false, error: "No changes provided" }, { status: 400 });
     }
+
+    const { data: beforeRows, error: beforeError } = await supabaseAdmin
+      .from("memberships")
+      .select("role, status")
+      .eq("company_id", orgId)
+      .eq("user_id", userId)
+      .limit(1);
+    if (beforeError) {
+      return NextResponse.json({ ok: false, error: beforeError.message }, { status: 500 });
+    }
+    const before = beforeRows?.[0] ?? null;
 
     const { data, error } = await supabaseAdmin
       .from("memberships")
@@ -301,6 +320,26 @@ export async function PATCH(
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    try {
+      const { logAudit } = await import("@/lib/audit");
+      await logAudit({
+        company_id: orgId,
+        actor_id: context.sessionUserId,
+        entity: "membership",
+        entity_id: userId,
+        action: "updated",
+        data: {
+          previous_role: before?.role ?? null,
+          previous_status: before?.status ?? null,
+          role: data?.role ?? updatePayload.role ?? null,
+          status: data?.status ?? updatePayload.status ?? null,
+          user_id: userId,
+        },
+      });
+    } catch {
+      // ignore audit failures
     }
 
     return NextResponse.json({ ok: true, membership: data });
@@ -346,15 +385,20 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
 
+    const { data: existingRows, error: existingError } = await supabaseAdmin
+      .from("memberships")
+      .select("role, status")
+      .eq("company_id", orgId)
+      .eq("user_id", userId)
+      .limit(1);
+    if (existingError) {
+      return NextResponse.json({ ok: false, error: existingError.message }, { status: 500 });
+    }
+    const existing = existingRows?.[0] ?? null;
+
     if (!context.isStaff) {
-      const { data: existing } = await supabaseAdmin
-        .from("memberships")
-        .select("role")
-        .eq("company_id", orgId)
-        .eq("user_id", userId)
-        .maybeSingle();
-      const victimRole = normaliseRole(existing?.role);
-      const actorRole = normaliseRole(context.membership?.role);
+      const victimRole = normalizeMemberRole(existing?.role);
+      const actorRole = normalizeMemberRole(context.membership?.role);
       if (victimRole === "OWNER" && actorRole !== "OWNER") {
         return NextResponse.json({ ok: false, error: "Solo otro owner puede eliminar a un owner" }, { status: 403 });
       }
@@ -368,6 +412,24 @@ export async function DELETE(
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    try {
+      const { logAudit } = await import("@/lib/audit");
+      await logAudit({
+        company_id: orgId,
+        actor_id: context.sessionUserId,
+        entity: "membership",
+        entity_id: userId,
+        action: "deleted",
+        data: {
+          previous_role: existing?.role ?? null,
+          previous_status: existing?.status ?? null,
+          user_id: userId,
+        },
+      });
+    } catch {
+      // ignore audit failures
     }
 
     return NextResponse.json({ ok: true });
