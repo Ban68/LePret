@@ -20,7 +20,7 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
 ## Características Principales (MVP)
 
 *   **Página de Inicio (`/`):
-    *   Sección Hero con CTA principal ("Conocer mi cupo") y secundario ("Hablar con un asesor").
+    *   Sección Hero con CTA principal ("Generar oferta") y secundario ("Hablar con un asesor").
     *   Sección "Cómo funciona" (3 pasos).
     *   Sección "Beneficios" (bullets claros).
     *   Sección "Cifras/Confianza" (métricas placeholder).

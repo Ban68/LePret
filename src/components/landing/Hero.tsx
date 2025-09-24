@@ -19,7 +19,7 @@ export function Hero() {
           size="lg"
           className="bg-lp-primary-1 text-lp-primary-2 hover:opacity-90"
         >
-          <Link href="/preaprobacion">Conocer mi cupo</Link>
+          <Link href="/preaprobacion">Generar oferta</Link>
         </Button>
         <Button
           asChild

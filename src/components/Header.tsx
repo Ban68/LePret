@@ -26,9 +26,9 @@ export function Header() {
 
           {/* Columna 3: CTA (derecha) */}
           <div className="flex items-center justify-end">
-            <Link href="/#cupo">
+            <Link href="/preaprobacion">
               <Button className="bg-lp-primary-2 text-lp-primary-1 hover:opacity-90">
-                Conocer mi cupo
+                Generar oferta
               </Button>
             </Link>
           </div>

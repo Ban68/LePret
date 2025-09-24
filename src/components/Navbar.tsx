@@ -60,7 +60,7 @@ export function Navbar() {
                 asChild
                 className="bg-lp-primary-2 text-lp-primary-1 hover:opacity-90"
               >
-                <Link href="/preaprobacion">Conocer mi cupo</Link>
+                <Link href="/preaprobacion">Generar oferta</Link>
               </Button>
             </div>
 
@@ -114,7 +114,7 @@ export function Navbar() {
               className="mt-4 bg-lp-primary-1 text-lp-primary-2 hover:opacity-90"
             >
               <Link href="/preaprobacion" onClick={() => setIsMenuOpen(false)}>
-                Conocer mi cupo
+                Generar oferta
               </Link>
             </Button>
           </nav>
