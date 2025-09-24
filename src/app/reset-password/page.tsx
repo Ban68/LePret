@@ -50,6 +50,7 @@ function ResetForm() {
   );
 
   useEffect(() => {
+
     const supabase = createClientComponentClient();
     let isActive = true;
     setInitializing(true);
@@ -147,6 +148,7 @@ function ResetForm() {
         if (isActive) {
           setInitializing(false);
         }
+
       }
     };
 
