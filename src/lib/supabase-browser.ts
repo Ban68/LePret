@@ -1,3 +1,4 @@
+
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let browserClient: SupabaseClient | undefined;
@@ -20,3 +21,4 @@ export const getSupabaseBrowserClient = () => {
 
   return browserClient;
 };
+
