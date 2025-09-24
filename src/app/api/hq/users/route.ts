@@ -6,6 +6,35 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { isBackofficeAllowed } from "@/lib/hq-auth";
 
 const DEFAULT_LIMIT = 200;
+const DEFAULT_CUSTOMER_LOGIN_PATH = "/login";
+const DEFAULT_HQ_LOGIN_PATH = "/hq/login";
+
+function getRequestOrigin(req: Request): string {
+  const forwardedHost = req.headers.get("x-forwarded-host");
+  const host = forwardedHost ?? req.headers.get("host");
+  if (host) {
+    const forwardedProto = req.headers.get("x-forwarded-proto");
+    const protocol =
+      forwardedProto ?? (host.includes("localhost") || host.startsWith("127.") ? "http" : "https");
+    return `${protocol}://${host}`;
+  }
+
+  try {
+    const url = new URL(req.url);
+    return url.origin;
+  } catch (error) {
+    console.warn("Unable to determine request origin", error);
+    return "http://localhost:3000";
+  }
+}
+
+function buildPasswordSetupRedirect(req: Request, isStaff: boolean): string {
+  const origin = getRequestOrigin(req);
+  const loginPath = isStaff ? DEFAULT_HQ_LOGIN_PATH : DEFAULT_CUSTOMER_LOGIN_PATH;
+  const url = new URL("/reset-password", origin);
+  url.searchParams.set("redirectTo", loginPath);
+  return url.toString();
+}
 
 function sanitizeSearch(value: string | null): string {
   return (value ?? "").trim().toLowerCase();
@@ -273,7 +302,8 @@ export async function POST(req: Request) {
     const inviteFlag = typeof payload.invite === "undefined" ? true : coerceBoolean(payload.invite, true);
     if (inviteFlag && typeof adminAuth.inviteUserByEmail === "function") {
       try {
-        await adminAuth.inviteUserByEmail(emailRaw);
+        const redirectTo = buildPasswordSetupRedirect(req, isStaff);
+        await adminAuth.inviteUserByEmail(emailRaw, { redirectTo });
       } catch (inviteError) {
         console.warn("Failed to send invite email", inviteError);
       }
@@ -485,7 +515,8 @@ export async function PATCH(req: Request) {
       const adminAuth = (supabaseAdmin.auth as unknown as { admin?: AdminAuthClient }).admin;
       if (adminAuth && typeof adminAuth.inviteUserByEmail === "function") {
         try {
-          await adminAuth.inviteUserByEmail(inviteEmail);
+          const redirectTo = buildPasswordSetupRedirect(req, nextIsStaff);
+          await adminAuth.inviteUserByEmail(inviteEmail, { redirectTo });
         } catch (inviteError) {
           console.warn("Failed to resend invite email", inviteError);
         }
@@ -745,7 +776,10 @@ type AdminAuthClient = {
     password?: string;
     user_metadata?: Record<string, unknown> | null;
   }) => Promise<{ data: { user?: { id: string; email?: string | null } | null } | null; error: { message?: string } | null }>;
-  inviteUserByEmail?: (email: string) => Promise<unknown>;
+  inviteUserByEmail?: (
+    email: string,
+    options?: { redirectTo?: string; data?: Record<string, unknown> | null }
+  ) => Promise<unknown>;
   deleteUser?: (id: string) => Promise<{ data: unknown; error: { message?: string } | null }>;
   getUserById?: (id: string) => Promise<{ data: { user?: { id: string; email?: string | null; created_at?: string | null; last_sign_in_at?: string | null } | null } | null; error: { message?: string } | null }>;
   listUsers?: (params: { page?: number; perPage?: number }) => Promise<{
