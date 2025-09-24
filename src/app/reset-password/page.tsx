@@ -3,11 +3,24 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import type { EmailOtpType } from "@supabase/supabase-js";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
 const DEFAULT_REDIRECT_PATH = "/login";
+
+const EMAIL_OTP_TYPES: EmailOtpType[] = [
+  "signup",
+  "invite",
+  "magiclink",
+  "recovery",
+  "email_change",
+  "email",
+];
+
+const isEmailOtpType = (value: string | null): value is EmailOtpType =>
+  Boolean(value && EMAIL_OTP_TYPES.includes(value as EmailOtpType));
 
 const sanitizeRedirect = (value: string | null, fallback: string) => {
   if (!value) {
@@ -43,9 +56,36 @@ function ResetForm() {
       if (code) {
         try {
           await supabase.auth.exchangeCodeForSession(code);
+          if (typeof window !== "undefined") {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("code");
+            window.history.replaceState(window.history.state, "", url.toString());
+          }
           return;
         } catch (err) {
           console.error("Failed to exchange code for session", err);
+        }
+      }
+
+      const tokenHash = search.get("token_hash") ?? search.get("token");
+      const typeParam = search.get("type");
+
+      if (tokenHash && isEmailOtpType(typeParam)) {
+        try {
+          await supabase.auth.verifyOtp({
+            type: typeParam,
+            token_hash: tokenHash,
+          });
+          if (typeof window !== "undefined") {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("token_hash");
+            url.searchParams.delete("token");
+            url.searchParams.delete("type");
+            window.history.replaceState(window.history.state, "", url.toString());
+          }
+          return;
+        } catch (err) {
+          console.error("Failed to verify Supabase token", err);
         }
       }
 
@@ -54,17 +94,31 @@ function ResetForm() {
       }
 
       const hash = window.location.hash;
-      const hasAuthFragment = hash && hash.length > 1;
-      const hasTokenQuery = Boolean(search.get("token") || search.get("type"));
+      if (!hash || hash.length <= 1) {
+        return;
+      }
 
-      if (!hasAuthFragment && !hasTokenQuery) {
+      const params = new URLSearchParams(hash.slice(1));
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+
+      if (!accessToken || !refreshToken) {
         return;
       }
 
       try {
-        await supabase.auth.getSessionFromUrl({ storeSession: true });
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) {
+          throw error;
+        }
+        const url = new URL(window.location.href);
+        url.hash = "";
+        window.history.replaceState(window.history.state, "", url.toString());
       } catch (err) {
-        console.error("Failed to recover session from URL", err);
+        console.error("Failed to recover session from URL fragment", err);
       }
     };
 
