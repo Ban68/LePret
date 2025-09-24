@@ -40,6 +40,7 @@ function ResetForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [initializing, setInitializing] = useState(true);
   const [pw1, setPw1] = useState("");
   const [pw2, setPw2] = useState("");
   const redirectParam = search.get("redirectTo");
@@ -49,80 +50,113 @@ function ResetForm() {
   );
 
   useEffect(() => {
-    const code = search.get("code");
+
     const supabase = createClientComponentClient();
+    let isActive = true;
+    setInitializing(true);
 
     const run = async () => {
-      if (code) {
-        try {
-          await supabase.auth.exchangeCodeForSession(code);
-          if (typeof window !== "undefined") {
-            const url = new URL(window.location.href);
-            url.searchParams.delete("code");
-            window.history.replaceState(window.history.state, "", url.toString());
-          }
-          return;
-        } catch (err) {
-          console.error("Failed to exchange code for session", err);
-        }
-      }
-
-      const tokenHash = search.get("token_hash") ?? search.get("token");
-      const typeParam = search.get("type");
-
-      if (tokenHash && isEmailOtpType(typeParam)) {
-        try {
-          await supabase.auth.verifyOtp({
-            type: typeParam,
-            token_hash: tokenHash,
-          });
-          if (typeof window !== "undefined") {
-            const url = new URL(window.location.href);
-            url.searchParams.delete("token_hash");
-            url.searchParams.delete("token");
-            url.searchParams.delete("type");
-            window.history.replaceState(window.history.state, "", url.toString());
-          }
-          return;
-        } catch (err) {
-          console.error("Failed to verify Supabase token", err);
-        }
-      }
-
-      if (typeof window === "undefined") {
-        return;
-      }
-
-      const hash = window.location.hash;
-      if (!hash || hash.length <= 1) {
-        return;
-      }
-
-      const params = new URLSearchParams(hash.slice(1));
-      const accessToken = params.get("access_token");
-      const refreshToken = params.get("refresh_token");
-
-      if (!accessToken || !refreshToken) {
-        return;
-      }
+      let handled = false;
 
       try {
-        const { error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        if (error) {
-          throw error;
+        const code = search.get("code");
+        if (code) {
+          try {
+            const { error } = await supabase.auth.exchangeCodeForSession(code);
+            if (error) {
+              throw error;
+            }
+            handled = true;
+            if (typeof window !== "undefined") {
+              const url = new URL(window.location.href);
+              url.searchParams.delete("code");
+              window.history.replaceState(window.history.state, "", url.toString());
+            }
+          } catch (err) {
+            console.error("Failed to exchange code for session", err);
+            if (isActive) {
+              setError("No pudimos validar tu enlace. Solicita uno nuevo.");
+            }
+          }
         }
-        const url = new URL(window.location.href);
-        url.hash = "";
-        window.history.replaceState(window.history.state, "", url.toString());
-      } catch (err) {
-        console.error("Failed to recover session from URL fragment", err);
+
+        if (!handled) {
+          const tokenHash = search.get("token_hash") ?? search.get("token");
+          const typeParam = search.get("type");
+          const emailParam = search.get("email");
+
+          if (tokenHash && isEmailOtpType(typeParam)) {
+            try {
+              const verifyPayload: { type: EmailOtpType; token_hash: string; email?: string } = {
+                type: typeParam,
+                token_hash: tokenHash,
+              };
+              if (emailParam) {
+                verifyPayload.email = emailParam;
+              }
+              const { error } = await supabase.auth.verifyOtp(verifyPayload);
+              if (error) {
+                throw error;
+              }
+              handled = true;
+              if (typeof window !== "undefined") {
+                const url = new URL(window.location.href);
+                ["token_hash", "token", "type", "email"].forEach((param) => {
+                  url.searchParams.delete(param);
+                });
+                window.history.replaceState(window.history.state, "", url.toString());
+              }
+            } catch (err) {
+              console.error("Failed to verify Supabase token", err);
+              if (isActive) {
+                setError("No pudimos validar tu enlace. Solicita uno nuevo.");
+              }
+            }
+          }
+        }
+
+        if (!handled && typeof window !== "undefined") {
+          const hash = window.location.hash;
+          if (hash && hash.length > 1) {
+            const params = new URLSearchParams(hash.slice(1));
+            const accessToken = params.get("access_token");
+            const refreshToken = params.get("refresh_token");
+
+            if (accessToken && refreshToken) {
+              try {
+                const { error } = await supabase.auth.setSession({
+                  access_token: accessToken,
+                  refresh_token: refreshToken,
+                });
+                if (error) {
+                  throw error;
+                }
+                handled = true;
+                const url = new URL(window.location.href);
+                url.hash = "";
+                window.history.replaceState(window.history.state, "", url.toString());
+              } catch (err) {
+                console.error("Failed to recover session from URL fragment", err);
+                if (isActive) {
+                  setError("No pudimos validar tu enlace. Solicita uno nuevo.");
+                }
+              }
+            }
+          }
+        }
+      } finally {
+        if (isActive) {
+          setInitializing(false);
+        }
+
       }
     };
 
     run();
+
+    return () => {
+      isActive = false;
+    };
   }, [search]);
 
   const onSubmit = async (event: React.FormEvent) => {
@@ -166,8 +200,17 @@ function ResetForm() {
               required
             />
           </div>
+          {initializing && (
+            <p className="text-sm text-lp-sec-3">Validando tu enlace, un momento por favor...</p>
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <Button type="submit" disabled={loading} className="bg-lp-primary-1 text-lp-primary-2 hover:opacity-90">{loading? 'Guardando...' : 'Guardar'}</Button>
+          <Button
+            type="submit"
+            disabled={loading || initializing}
+            className="bg-lp-primary-1 text-lp-primary-2 hover:opacity-90"
+          >
+            {loading ? "Guardando..." : initializing ? "Preparando..." : "Guardar"}
+          </Button>
         </form>
       </div>
     </div>
