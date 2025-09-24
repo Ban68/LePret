@@ -2,10 +2,42 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin as defaultSupabaseAdmin } from "@/lib/supabase";
+
+type RouteSupabaseClient = ReturnType<typeof createRouteHandlerClient>;
+type SupabaseAdminClient = typeof defaultSupabaseAdmin;
+
+let supabaseClientFactory: (() => RouteSupabaseClient) | null = null;
+let supabaseAdminOverride: SupabaseAdminClient | null = null;
+let cookiesOverride: (() => ReturnType<typeof cookies>) | null = null;
+
+function getSupabaseClient(cookieStore: ReturnType<typeof cookies>) {
+  return supabaseClientFactory ? supabaseClientFactory() : createRouteHandlerClient({ cookies: () => cookieStore });
+}
+
+function getSupabaseAdmin(): SupabaseAdminClient {
+  return supabaseAdminOverride ?? defaultSupabaseAdmin;
+}
+
+function getCookieStore() {
+  return cookiesOverride ? cookiesOverride() : cookies();
+}
+
+export function __setMembershipsSupabaseClientFactory(factory: (() => RouteSupabaseClient) | null) {
+  supabaseClientFactory = factory;
+}
+
+export function __setMembershipsSupabaseAdmin(client: SupabaseAdminClient | null) {
+  supabaseAdminOverride = client;
+}
+
+export function __setMembershipsCookies(override: (() => ReturnType<typeof cookies>) | null) {
+  cookiesOverride = override;
+}
 
 const MEMBER_ROLES = ["OWNER", "ADMIN", "OPERATOR", "VIEWER"] as const;
 const EDITABLE_ROLES = new Set<MemberRole>(["OWNER", "ADMIN"]);
+const HQ_STAFF_ERROR_CODE = "HQ_STAFF";
 
 type MemberRole = (typeof MEMBER_ROLES)[number];
 type MemberStatus = "ACTIVE" | "INVITED" | "DISABLED";
@@ -27,6 +59,10 @@ type Context = {
 type AdminAuthClient = {
   getUserByEmail(email: string): Promise<{ data: { user: { id: string } | null } | null; error: { message?: string } | null }>;
 };
+
+class HqStaffError extends Error {
+  readonly code = HQ_STAFF_ERROR_CODE;
+}
 
 function normaliseRole(role?: string | null): MemberRole | null {
   if (!role) return null;
@@ -57,8 +93,8 @@ function requireValidStatus(value: unknown): MemberStatus {
 }
 
 async function resolveContext(orgId: string): Promise<Context> {
-  const cookieStore = cookies();
-  const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+  const cookieStore = getCookieStore();
+  const supabase = getSupabaseClient(cookieStore);
 
   const {
     data: { session },
@@ -89,6 +125,23 @@ async function resolveContext(orgId: string): Promise<Context> {
   };
 }
 
+async function ensureTargetNotStaff(userId: string) {
+  const supabaseAdmin = getSupabaseAdmin();
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("is_staff")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || "No se pudo consultar el perfil del usuario");
+  }
+
+  if (data?.is_staff) {
+    throw new HqStaffError("Los usuarios de HQ no pueden gestionarse desde el portal");
+  }
+}
+
 function ensureCanManage(isStaff: boolean, membership: { role?: string | null; status?: string | null } | null) {
   if (isStaff) return;
   if (!membership || membership.status !== "ACTIVE") {
@@ -111,7 +164,8 @@ async function resolveUserIdFromPayload(payload: Record<string, unknown>) {
     throw new Error("Missing user identifier");
   }
 
-  const adminAuth = (supabaseAdmin.auth as unknown as { admin?: AdminAuthClient }).admin;
+  const adminClient = getSupabaseAdmin();
+  const adminAuth = (adminClient.auth as unknown as { admin?: AdminAuthClient }).admin;
   if (!adminAuth || typeof adminAuth.getUserByEmail !== "function") {
     throw new Error("Supabase admin client unavailable");
   }
@@ -143,6 +197,7 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
 
+    const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("memberships")
       .select("user_id, role, status, profiles(full_name)")
@@ -206,6 +261,19 @@ export async function POST(
       return NextResponse.json({ ok: false, error: message }, { status: message === "Usuario no encontrado" ? 404 : 400 });
     }
 
+    try {
+      await ensureTargetNotStaff(resolvedUserId);
+    } catch (err) {
+      if (err instanceof HqStaffError) {
+        return NextResponse.json(
+          { ok: false, error: err.message, code: err.code },
+          { status: 403 }
+        );
+      }
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    }
+
     let role: MemberRole | undefined;
     let status: MemberStatus | undefined;
     try {
@@ -227,6 +295,7 @@ export async function POST(
       status: status ?? "INVITED",
     };
 
+    const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("memberships")
       .upsert(insertPayload, { onConflict: "user_id,company_id" })
@@ -273,6 +342,19 @@ export async function PATCH(
       return NextResponse.json({ ok: false, error: "Invalid user_id" }, { status: 400 });
     }
 
+    try {
+      await ensureTargetNotStaff(userId);
+    } catch (err) {
+      if (err instanceof HqStaffError) {
+        return NextResponse.json(
+          { ok: false, error: err.message, code: err.code },
+          { status: 403 }
+        );
+      }
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    }
+
     const updatePayload: Record<string, unknown> = {};
 
     try {
@@ -291,6 +373,7 @@ export async function PATCH(
       return NextResponse.json({ ok: false, error: "No changes provided" }, { status: 400 });
     }
 
+    const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("memberships")
       .update(updatePayload)
@@ -347,6 +430,7 @@ export async function DELETE(
     }
 
     if (!context.isStaff) {
+      const supabaseAdmin = getSupabaseAdmin();
       const { data: existing } = await supabaseAdmin
         .from("memberships")
         .select("role")
@@ -360,6 +444,7 @@ export async function DELETE(
       }
     }
 
+    const supabaseAdmin = getSupabaseAdmin();
     const { error } = await supabaseAdmin
       .from("memberships")
       .delete()

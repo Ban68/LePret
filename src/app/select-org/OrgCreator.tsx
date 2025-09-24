@@ -8,6 +8,7 @@ export function OrgCreator() {
   const [type, setType] = useState<"CLIENT" | "INVESTOR">("CLIENT");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isStaffBlocked, setIsStaffBlocked] = useState(false);
 
   // Sugerir nombre a partir del usuario
   useEffect(() => {
@@ -40,10 +41,13 @@ export function OrgCreator() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        const isStaffError = data?.code === "HQ_STAFF";
+        setIsStaffBlocked(isStaffError);
         setError(data.error ?? `Error creando organización (HTTP ${res.status})`);
         console.error("Create org error:", data);
         return;
       }
+      setIsStaffBlocked(false);
       const data = await res.json();
       window.location.href = `/c/${data.org.id}`;
     } catch (err) {
@@ -53,6 +57,9 @@ export function OrgCreator() {
       setLoading(false);
     }
   };
+
+  const inputsDisabled = isStaffBlocked;
+  const submitDisabled = loading || isStaffBlocked;
 
   return (
     <form onSubmit={onSubmit} className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-6">
@@ -65,6 +72,7 @@ export function OrgCreator() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
+          disabled={inputsDisabled}
         />
       </div>
       <div className="sm:col-span-2">
@@ -74,6 +82,7 @@ export function OrgCreator() {
           className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2"
           value={type}
           onChange={(e) => setType(e.target.value as 'CLIENT' | 'INVESTOR')}
+          disabled={inputsDisabled}
         >
           <option value="CLIENT">CLIENT</option>
           <option value="INVESTOR">INVESTOR</option>
@@ -82,7 +91,7 @@ export function OrgCreator() {
       <div className="sm:col-span-6">
         <button
           type="submit"
-          disabled={loading}
+          disabled={submitDisabled}
           className="rounded-md bg-lp-primary-1 px-4 py-2 text-sm font-medium text-lp-primary-2 hover:opacity-90"
         >
           {loading ? "Creando..." : "Crear y entrar"}

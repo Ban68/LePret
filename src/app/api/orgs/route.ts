@@ -2,12 +2,47 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
+type RouteSupabaseClient = ReturnType<typeof createRouteHandlerClient>;
+type SupabaseAdminClient = typeof import("@/lib/supabase").supabaseAdmin;
+
+let supabaseClientFactory: (() => RouteSupabaseClient) | null = null;
+let supabaseAdminOverride: SupabaseAdminClient | null = null;
+let cookiesOverride: (() => ReturnType<typeof cookies>) | null = null;
+
+function getSupabaseClient(cookieStore: ReturnType<typeof cookies>) {
+  return supabaseClientFactory ? supabaseClientFactory() : createRouteHandlerClient({ cookies: () => cookieStore });
+}
+
+function getCookieStore() {
+  return cookiesOverride ? cookiesOverride() : cookies();
+}
+
+async function getSupabaseAdmin(): Promise<SupabaseAdminClient> {
+  if (supabaseAdminOverride) {
+    return supabaseAdminOverride;
+  }
+  const { supabaseAdmin } = await import("@/lib/supabase");
+  return supabaseAdmin;
+}
+
+export function __setOrgRouteSupabaseClientFactory(factory: (() => RouteSupabaseClient) | null) {
+  supabaseClientFactory = factory;
+}
+
+export function __setOrgRouteSupabaseAdmin(client: SupabaseAdminClient | null) {
+  supabaseAdminOverride = client;
+}
+
+export function __setOrgRouteCookies(override: (() => ReturnType<typeof cookies>) | null) {
+  cookiesOverride = override;
+}
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const cookieStore = cookies();
-  const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+  const cookieStore = getCookieStore();
+  const supabase = getSupabaseClient(cookieStore);
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -40,17 +75,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Invalid payload" }, { status: 400 });
     }
 
-    const cookieStore = cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    const cookieStore = getCookieStore();
+    const supabase = getSupabaseClient(cookieStore);
     const {
       data: { session },
     } = await supabase.auth.getSession();
     if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("is_staff")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+    if (profileError) {
+      console.error("profiles lookup error", profileError);
+      return NextResponse.json({ ok: false, error: profileError.message }, { status: 500 });
+    }
+    if (profile?.is_staff) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "El personal de HQ no puede crear organizaciones",
+          code: "HQ_STAFF",
+        },
+        { status: 403 }
+      );
+    }
     console.log("POST /api/orgs", { userId: session.user.id, name, type });
 
     // Ensure profile exists (user may predate trigger) via UPSERT
     {
-      const { supabaseAdmin } = await import("@/lib/supabase");
+      const supabaseAdmin = await getSupabaseAdmin();
       const { error: pErr } = await supabaseAdmin
         .from("profiles")
         .upsert(
@@ -70,7 +125,7 @@ export async function POST(req: Request) {
     }
 
     // Create company and membership
-    const { supabaseAdmin } = await import("@/lib/supabase");
+    const supabaseAdmin = await getSupabaseAdmin();
     const { data: org, error: orgErr } = await supabaseAdmin
       .from("companies")
       .insert({ name, type })

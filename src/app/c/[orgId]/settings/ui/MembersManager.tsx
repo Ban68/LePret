@@ -38,6 +38,7 @@ type MutationResponse = {
   ok: boolean;
   membership?: MemberItem;
   error?: string;
+  code?: string;
 };
 
 type MembersManagerProps = {
@@ -53,6 +54,9 @@ export function MembersManager({ orgId }: MembersManagerProps) {
   const [adding, setAdding] = useState(false);
   const [newIdentifier, setNewIdentifier] = useState("");
   const [newRole, setNewRole] = useState<string>("VIEWER");
+  const [hqBlockedMembers, setHqBlockedMembers] = useState<Record<string, boolean>>({});
+  const [hqAddBlockedIdentifier, setHqAddBlockedIdentifier] = useState<string | null>(null);
+  const [hqAddError, setHqAddError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -65,6 +69,7 @@ export function MembersManager({ orgId }: MembersManagerProps) {
       }
       setMembers(data.items);
       setCanEdit(Boolean(data.canEdit));
+      setError(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error inesperado";
       setError(message);
@@ -91,8 +96,17 @@ export function MembersManager({ orgId }: MembersManagerProps) {
       });
       const data: MutationResponse = await res.json().catch(() => ({ ok: false, error: "No se pudo leer la respuesta" }));
       if (!res.ok || !data.ok) {
+        if (data.code === "HQ_STAFF") {
+          setHqBlockedMembers((prev) => ({ ...prev, [userId]: true }));
+        }
         throw new Error(data.error || "No se pudo actualizar el rol");
       }
+      setHqBlockedMembers((prev) => {
+        if (!prev[userId]) return prev;
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
       toast.success("Rol actualizado");
       await load();
     } catch (err) {
@@ -110,8 +124,17 @@ export function MembersManager({ orgId }: MembersManagerProps) {
       });
       const data: MutationResponse = await res.json().catch(() => ({ ok: false, error: "No se pudo leer la respuesta" }));
       if (!res.ok || !data.ok) {
+        if (data.code === "HQ_STAFF") {
+          setHqBlockedMembers((prev) => ({ ...prev, [userId]: true }));
+        }
         throw new Error(data.error || "No se pudo actualizar el estado");
       }
+      setHqBlockedMembers((prev) => {
+        if (!prev[userId]) return prev;
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
       toast.success("Estado actualizado");
       await load();
     } catch (err) {
@@ -164,8 +187,14 @@ export function MembersManager({ orgId }: MembersManagerProps) {
       });
       const data: MutationResponse = await res.json().catch(() => ({ ok: false, error: "No se pudo leer la respuesta" }));
       if (!res.ok || !data.ok) {
+        if (data.code === "HQ_STAFF") {
+          setHqAddBlockedIdentifier(identifier);
+          setHqAddError(data.error || "Los usuarios de HQ no pueden agregarse desde el portal");
+        }
         throw new Error(data.error || "No se pudo agregar el miembro");
       }
+      setHqAddBlockedIdentifier(null);
+      setHqAddError(null);
       toast.success("Miembro agregado");
       setNewIdentifier("");
       setNewRole("VIEWER");
@@ -177,6 +206,11 @@ export function MembersManager({ orgId }: MembersManagerProps) {
       setAdding(false);
     }
   };
+
+  const normalizedNewIdentifier = newIdentifier.trim();
+  const isHqAddBlocked = Boolean(
+    hqAddBlockedIdentifier && normalizedNewIdentifier && normalizedNewIdentifier === hqAddBlockedIdentifier
+  );
 
   return (
     <section className="space-y-4 rounded-lg border border-lp-sec-4/60 p-5">
@@ -219,7 +253,7 @@ export function MembersManager({ orgId }: MembersManagerProps) {
                   <td className="px-3 py-2 align-top">
                     <select
                       className="w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
-                      disabled={!canEdit}
+                      disabled={!canEdit || hqBlockedMembers[member.user_id]}
                       value={member.role}
                       onChange={(event) => handleRoleChange(member.user_id, event.target.value)}
                     >
@@ -233,7 +267,7 @@ export function MembersManager({ orgId }: MembersManagerProps) {
                   <td className="px-3 py-2 align-top">
                     <select
                       className="w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
-                      disabled={!canEdit}
+                      disabled={!canEdit || hqBlockedMembers[member.user_id]}
                       value={member.status}
                       onChange={(event) => handleStatusChange(member.user_id, event.target.value)}
                     >
@@ -250,10 +284,13 @@ export function MembersManager({ orgId }: MembersManagerProps) {
                       variant="ghost"
                       className="text-red-600 hover:text-red-700"
                       onClick={() => handleRemove(member.user_id)}
-                      disabled={!canEdit}
+                      disabled={!canEdit || hqBlockedMembers[member.user_id]}
                     >
                       Eliminar
                     </Button>
+                    {hqBlockedMembers[member.user_id] && (
+                      <p className="mt-2 text-xs text-lp-sec-3">Gestionado por el equipo HQ.</p>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -274,7 +311,14 @@ export function MembersManager({ orgId }: MembersManagerProps) {
               <Input
                 id="member-identifier"
                 value={newIdentifier}
-                onChange={(event) => setNewIdentifier(event.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setNewIdentifier(value);
+                  if (hqAddBlockedIdentifier && value.trim() !== hqAddBlockedIdentifier) {
+                    setHqAddBlockedIdentifier(null);
+                    setHqAddError(null);
+                  }
+                }}
                 placeholder="persona@empresa.com"
               />
             </div>
@@ -295,10 +339,13 @@ export function MembersManager({ orgId }: MembersManagerProps) {
             </div>
           </div>
           <div className="flex justify-end">
-            <Button type="submit" disabled={adding}>
+            <Button type="submit" disabled={adding || isHqAddBlocked}>
               {adding ? "Agregando..." : "Agregar miembro"}
             </Button>
           </div>
+          {isHqAddBlocked && hqAddError && (
+            <p className="text-xs text-red-600">{hqAddError}</p>
+          )}
         </form>
       )}
     </section>
