@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { getCompanyActiveMemberEmails } from "@/lib/notifications";
+import { isStaffUser } from "@/lib/staff";
 
 export async function POST(
   req: Request,
@@ -13,6 +14,11 @@ export async function POST(
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
+    const allowed = await isStaffUser(supabase, session.user.id);
+    if (!allowed) {
+      return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
+    }
 
     // Validar que la solicitud exista y esté aceptada
     const { data: reqRow, error: rErr } = await supabase

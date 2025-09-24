@@ -26,8 +26,6 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isStaff, setIsStaff] = useState<boolean>(false);
-
   const [amount, setAmount] = useState<string>('');
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [saving, setSaving] = useState(false);
@@ -81,21 +79,6 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     for (const inv of invoices) map[inv.id] = Number(inv.amount || 0);
     return map;
   }, [invoices]);
-
-  useEffect(() => {
-    // Detectar si el usuario es staff global (puede marcar desembolso y bypass de membresia)
-    const checkStaff = async () => {
-      try {
-        const supabase = createClientComponentClient();
-        const { data } = await supabase
-          .from('profiles')
-          .select('is_staff')
-          .single();
-        setIsStaff(!!data?.is_staff);
-      } catch { setIsStaff(false); }
-    };
-    checkStaff();
-  }, [orgId]);
 
   const parseCurrency = (s: string) => Number((s || '-').replace(/[^0-9]/g, ''));
   const formatCurrency = (n: string) => {
@@ -315,7 +298,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
               </tr>
             ) : (
               items.map((it) => (
-                <RequestRow key={it.id} orgId={orgId} req={it} onChanged={load} isStaff={isStaff} amountByInvoice={invoiceAmountById} />
+                <RequestRow key={it.id} orgId={orgId} req={it} onChanged={load} amountByInvoice={invoiceAmountById} />
               ))
             )}
           </tbody>
@@ -333,7 +316,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   );
 }
 
-function RequestRow({ orgId, req, onChanged, isStaff, amountByInvoice }: { orgId: string; req: RequestItem; onChanged: () => Promise<void> | void; isStaff: boolean; amountByInvoice: Record<string, number> }) {
+function RequestRow({ orgId, req, onChanged, amountByInvoice }: { orgId: string; req: RequestItem; onChanged: () => Promise<void> | void; amountByInvoice: Record<string, number> }) {
   const [editing, setEditing] = useState(false);
   const [amt, setAmt] = useState(new Intl.NumberFormat('es-CO').format(req.requested_amount));
   const [invId, setInvId] = useState(req.invoice_id || "");
@@ -469,51 +452,6 @@ function RequestRow({ orgId, req, onChanged, isStaff, amountByInvoice }: { orgId
             )}
             <span className="text-lp-sec-3">|</span>
             <OfferActions orgId={orgId} requestId={req.id} status={req.status} onChanged={onChanged} />
-            {/* Preparar contrato (tras aceptación) */}
-            {req.status === 'accepted' && (
-              <>
-                <span className="text-lp-sec-3">|</span>
-                <button
-                  className="underline"
-                  disabled={busy}
-                  onClick={async () => {
-                    setBusy(true);
-                    try {
-                      const res = await fetch(`/api/c/${orgId}/requests/${req.id}/contract`, { method: 'POST' });
-                      const data = await res.json().catch(() => ({}));
-                      if (!res.ok) throw new Error(data.error || '-');
-                      toast.success('Contrato preparado. Si queda en borrador, usa "Abrir en PandaDoc"');
-                      await onChanged();
-                    } catch (e: unknown) { const msg = e instanceof Error ? e.message : 'Error'; toast.error(msg); } finally { setBusy(false); }
-                  }}
-                >
-                  Preparar contrato
-                </button>
-              </>
-            )}
-            {/* Marcar desembolso (sólo staff) */}
-            {isStaff && (req.status === 'signed' || req.status === 'accepted') && (
-              <>
-                <span className="text-lp-sec-3">|</span>
-                <button
-                  className="underline"
-                  disabled={busy}
-                  onClick={async () => {
-                    if (!confirm('Marcar como desembolsado\?')) return;
-                    setBusy(true);
-                    try {
-                      const res = await fetch(`/api/c/${orgId}/requests/${req.id}/fund`, { method: 'POST' });
-                      const data = await res.json().catch(() => ({}));
-                      if (!res.ok) throw new Error(data.error || '-');
-                      toast.success('Solicitud marcada como funded');
-                      await onChanged();
-                    } catch (e: unknown) { const msg = e instanceof Error ? e.message : 'Error'; toast.error(msg); } finally { setBusy(false); }
-                  }}
-                >
-                  Marcar desembolso
-                </button>
-              </>
-            )}
             {/* Mas acciones (compacto) */}
             {true && (
               <>
