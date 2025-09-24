@@ -68,34 +68,50 @@ export async function middleware(req: NextRequest) {
 
   // Backoffice: restrict /hq to staff or allowlisted emails
   if (req.nextUrl.pathname.startsWith("/hq")) {
+    const isLoginRoute = req.nextUrl.pathname.startsWith("/hq/login");
+    const targetPath = `${req.nextUrl.pathname}${req.nextUrl.search}`;
+
     const {
       data: { session },
     } = await supabase.auth.getSession();
 
-    const email = session?.user?.email?.toLowerCase();
+    if (!session) {
+      if (!isLoginRoute) {
+        const url = req.nextUrl.clone();
+        url.pathname = "/hq/login";
+        url.search = "";
+        url.searchParams.set("redirectTo", targetPath);
+        return NextResponse.redirect(url);
+      }
+      return res;
+    }
+
+    const email = session.user?.email?.toLowerCase();
     const allowed = (process.env.BACKOFFICE_ALLOWED_EMAILS || "")
       .split(/[ ,\n\t]+/)
       .filter(Boolean)
       .map((s) => s.toLowerCase());
 
     let isStaff = false;
-    if (session) {
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("is_staff")
-        .eq("user_id", session.user.id)
-        .maybeSingle();
-      if (!profileError) {
-        isStaff = Boolean(profile?.is_staff);
-      }
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("is_staff")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+    if (!profileError) {
+      isStaff = Boolean(profile?.is_staff);
     }
 
     const emailAllowed = !allowed.length || (email ? allowed.includes(email) : false);
-    if (!session || (!isStaff && !emailAllowed)) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/login";
-      url.searchParams.set("redirectTo", "/hq");
-      return NextResponse.redirect(url);
+    if (!isStaff && !emailAllowed) {
+      if (!isLoginRoute) {
+        const url = req.nextUrl.clone();
+        url.pathname = "/hq/login";
+        url.search = "";
+        url.searchParams.set("redirectTo", targetPath);
+        url.searchParams.set("reason", "forbidden");
+        return NextResponse.redirect(url);
+      }
     }
   }
   return res;

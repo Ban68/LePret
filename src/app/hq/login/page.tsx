@@ -10,10 +10,10 @@ const LoadingFallback = () => (
   </div>
 );
 
-export default function LoginPage() {
+export default function HqLoginPage() {
   return (
     <Suspense fallback={<LoadingFallback />}>
-      <LoginForm audience="customer" />
+      <LoginForm audience="hq" />
     </Suspense>
   );
 }
