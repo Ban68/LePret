@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase-server";
+import { getOrganizationDisplayName } from "@/lib/organizations";
 
 export default async function ClientPortalLayout({
   children,
@@ -15,45 +16,7 @@ export default async function ClientPortalLayout({
     data: { session },
   } = await supabase.auth.getSession();
 
-  const extractCompanyName = (companies: unknown): string | null => {
-    if (!companies) return null;
-    if (Array.isArray(companies)) {
-      const [first] = companies;
-      if (first && typeof first === "object" && "name" in first) {
-        const value = (first as { name?: unknown }).name;
-        return typeof value === "string" ? value : null;
-      }
-      return null;
-    }
-    if (typeof companies === "object" && "name" in companies) {
-      const value = (companies as { name?: unknown }).name;
-      return typeof value === "string" ? value : null;
-    }
-    return null;
-  };
-
-  let orgName: string | null = null;
-
-  if (session) {
-    const { data: membership } = await supabase
-      .from("memberships")
-      .select("companies(name)")
-      .eq("company_id", orgId)
-      .eq("user_id", session.user.id)
-      .maybeSingle();
-
-    orgName = extractCompanyName(membership?.companies);
-
-    if (!orgName) {
-      const { data: company } = await supabase
-        .from("companies")
-        .select("name")
-        .eq("id", orgId)
-        .maybeSingle();
-      orgName = typeof company?.name === "string" ? company.name : null;
-    }
-  }
-
+  const orgName = await getOrganizationDisplayName(supabase, orgId, session?.user?.id ?? null);
   const displayOrg = orgName ?? orgId;
 
   const links = [

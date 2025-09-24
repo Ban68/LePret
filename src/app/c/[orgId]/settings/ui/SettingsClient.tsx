@@ -175,13 +175,18 @@ export function SettingsClient({ orgId }: SettingsClientProps) {
     }
   };
 
+  const displayOrgName = (() => {
+    const fromForm = form?.name?.trim() || baselineRef.current?.name?.trim() || "";
+    return fromForm || orgId;
+  })();
+
   return (
     <div className="space-y-6">
       <Toaster position="top-center" richColors />
       <div>
         <h1 className="font-colette text-2xl font-bold text-lp-primary-1">Configuracion</h1>
         <p className="text-sm text-lp-sec-3">
-          Gestiona los datos de la organizacion <span className="font-semibold text-lp-primary-1">{orgId}</span>.
+          Gestiona los datos de la organizacion <span className="font-semibold text-lp-primary-1">{displayOrgName}</span>.
         </p>
         <div className="mt-2 text-xs text-lp-sec-3">
           Rol: {isStaff ? "staff" : membershipRole ? membershipRole.toLowerCase() : "miembro"}
