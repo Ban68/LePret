@@ -1,11 +1,22 @@
 import { supabaseAdmin } from "@/lib/supabase";
 
+type AuditEntity = 'invoice' | 'request' | 'offer' | 'document' | 'contract' | 'membership';
+type AuditAction =
+  | 'created'
+  | 'updated'
+  | 'status_changed'
+  | 'deleted'
+  | 'signed'
+  | 'funded'
+  | 'archived'
+  | 'denied';
+
 export async function logAudit(input: {
   company_id: string;
   actor_id?: string | null;
-  entity: 'invoice' | 'request' | 'offer' | 'document' | 'contract';
+  entity: AuditEntity;
   entity_id?: string | null;
-  action: 'created' | 'updated' | 'status_changed' | 'deleted' | 'signed' | 'funded' | 'archived' | 'denied';
+  action: AuditAction;
   data?: Record<string, unknown> | null;
 }) {
   try {

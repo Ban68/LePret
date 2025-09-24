@@ -6,25 +6,42 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  DEFAULT_MEMBER_ROLE,
+  MemberRole,
+  MemberStatus,
+  MEMBER_ROLE_VALUES,
+  MEMBER_STATUS_VALUES,
+} from "@/lib/rbac";
 
-const ROLE_OPTIONS = [
-  { value: "OWNER", label: "Owner" },
-  { value: "ADMIN", label: "Admin" },
-  { value: "OPERATOR", label: "Operador" },
-  { value: "VIEWER", label: "Consulta" },
-] as const;
+const ROLE_LABELS: Record<MemberRole, string> = {
+  OWNER: "Owner",
+  ADMIN: "Admin",
+  OPERATOR: "Operador",
+  VIEWER: "Consulta",
+};
 
-const STATUS_OPTIONS = [
-  { value: "ACTIVE", label: "Activa" },
-  { value: "INVITED", label: "Invitado" },
-  { value: "DISABLED", label: "Suspendida" },
-] as const;
+const STATUS_LABELS: Record<MemberStatus, string> = {
+  ACTIVE: "Activa",
+  INVITED: "Invitado",
+  DISABLED: "Suspendida",
+};
+
+const ROLE_OPTIONS = MEMBER_ROLE_VALUES.map((value) => ({
+  value,
+  label: ROLE_LABELS[value],
+}));
+
+const STATUS_OPTIONS = MEMBER_STATUS_VALUES.map((value) => ({
+  value,
+  label: STATUS_LABELS[value],
+}));
 
 type MemberItem = {
   user_id: string;
   full_name: string | null;
-  role: string;
-  status: string;
+  role: MemberRole;
+  status: MemberStatus;
 };
 
 type MembersResponse = {
@@ -52,7 +69,7 @@ export function MembersManager({ orgId }: MembersManagerProps) {
 
   const [adding, setAdding] = useState(false);
   const [newIdentifier, setNewIdentifier] = useState("");
-  const [newRole, setNewRole] = useState<string>("VIEWER");
+  const [newRole, setNewRole] = useState<MemberRole>(DEFAULT_MEMBER_ROLE);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,10 +96,12 @@ export function MembersManager({ orgId }: MembersManagerProps) {
   }, [load]);
 
   const sortedMembers = useMemo(() => {
-    return [...members].sort((a, b) => a.full_name?.localeCompare(b.full_name ?? "") || a.role.localeCompare(b.role));
+    return [...members].sort(
+      (a, b) => a.full_name?.localeCompare(b.full_name ?? "") || a.role.localeCompare(b.role)
+    );
   }, [members]);
 
-  const handleRoleChange = async (userId: string, role: string) => {
+  const handleRoleChange = async (userId: string, role: MemberRole) => {
     try {
       const res = await fetch(`/api/c/${orgId}/memberships`, {
         method: "PATCH",
@@ -101,7 +120,7 @@ export function MembersManager({ orgId }: MembersManagerProps) {
     }
   };
 
-  const handleStatusChange = async (userId: string, status: string) => {
+  const handleStatusChange = async (userId: string, status: MemberStatus) => {
     try {
       const res = await fetch(`/api/c/${orgId}/memberships`, {
         method: "PATCH",
@@ -168,7 +187,7 @@ export function MembersManager({ orgId }: MembersManagerProps) {
       }
       toast.success("Miembro agregado");
       setNewIdentifier("");
-      setNewRole("VIEWER");
+      setNewRole(DEFAULT_MEMBER_ROLE);
       await load();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error inesperado";
@@ -221,7 +240,7 @@ export function MembersManager({ orgId }: MembersManagerProps) {
                       className="w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
                       disabled={!canEdit}
                       value={member.role}
-                      onChange={(event) => handleRoleChange(member.user_id, event.target.value)}
+                      onChange={(event) => handleRoleChange(member.user_id, event.target.value as MemberRole)}
                     >
                       {ROLE_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -235,7 +254,7 @@ export function MembersManager({ orgId }: MembersManagerProps) {
                       className="w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
                       disabled={!canEdit}
                       value={member.status}
-                      onChange={(event) => handleStatusChange(member.user_id, event.target.value)}
+                      onChange={(event) => handleStatusChange(member.user_id, event.target.value as MemberStatus)}
                     >
                       {STATUS_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -284,7 +303,7 @@ export function MembersManager({ orgId }: MembersManagerProps) {
                 id="member-role"
                 className="w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
                 value={newRole}
-                onChange={(event) => setNewRole(event.target.value)}
+                onChange={(event) => setNewRole(event.target.value as MemberRole)}
               >
                 {ROLE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>

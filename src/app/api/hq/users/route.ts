@@ -4,6 +4,16 @@ import { cookies } from "next/headers";
 
 import { supabaseAdmin } from "@/lib/supabase";
 import { isBackofficeAllowed } from "@/lib/hq-auth";
+import {
+  DEFAULT_MEMBER_ROLE,
+  DEFAULT_MEMBER_STATUS,
+  MemberRole,
+  MemberStatus,
+  normalizeMemberRole,
+  normalizeMemberStatus,
+  parseMemberRole,
+  parseMemberStatus,
+} from "@/lib/rbac";
 
 const DEFAULT_LIMIT = 200;
 const DEFAULT_CUSTOMER_LOGIN_PATH = "/login";
@@ -72,8 +82,8 @@ type UserSummary = {
   companies: Array<{
     company_id: string;
     company_name: string | null;
-    role: string;
-    status: string;
+    role: MemberRole;
+    status: MemberStatus;
   }>;
 };
 
@@ -257,20 +267,12 @@ export async function POST(req: Request) {
   }
   const membershipRows = isStaff
     ? []
-    : assignmentsInput.map((assignment) => {
-        try {
-          const role = normalizeMembershipRole(assignment.role);
-          const status = normalizeMembershipStatus(assignment.status);
-          return {
-            user_id: "",
-            company_id: assignment.company_id,
-            role,
-            status,
-          };
-        } catch (error) {
-          throw new Error(`Invalid membership assignment for company ${assignment.company_id}: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      });
+    : assignmentsInput.map((assignment) => ({
+        user_id: "",
+        company_id: assignment.company_id,
+        role: assignment.role ?? DEFAULT_MEMBER_ROLE,
+        status: assignment.status ?? DEFAULT_MEMBER_STATUS,
+      }));
 
 
   try {
@@ -466,20 +468,14 @@ export async function PATCH(req: Request) {
         throw purgeError;
       }
     } else if (assignmentsInput.length) {
-      const assignmentMap = new Map<string, { user_id: string; company_id: string; role: string; status: string }>();
+      const assignmentMap = new Map<string, { user_id: string; company_id: string; role: MemberRole; status: MemberStatus }>();
       assignmentsInput.forEach((assignment) => {
-        try {
-          const role = normalizeMembershipRole(assignment.role);
-          const status = normalizeMembershipStatus(assignment.status);
-          assignmentMap.set(assignment.company_id, {
-            user_id: userId,
-            company_id: assignment.company_id,
-            role,
-            status,
-          });
-        } catch (error) {
-          throw new Error(`Invalid membership assignment for company ${assignment.company_id}: ${error instanceof Error ? error.message : String(error)}`);
-        }
+        assignmentMap.set(assignment.company_id, {
+          user_id: userId,
+          company_id: assignment.company_id,
+          role: assignment.role ?? DEFAULT_MEMBER_ROLE,
+          status: assignment.status ?? DEFAULT_MEMBER_STATUS,
+        });
       });
 
       const upsertRows = Array.from(assignmentMap.values());
@@ -721,18 +717,6 @@ function isForeignKeyConstraintError(error: unknown): boolean {
 
   return false;
 }
-const MEMBERSHIP_ROLES = new Set([
-  "client",
-  "admin",
-  "investor",
-  "OWNER",
-  "ADMIN",
-  "OPERATOR",
-  "VIEWER",
-]);
-
-const MEMBERSHIP_STATUSES = new Set(["ACTIVE", "INVITED", "DISABLED"]);
-
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 
@@ -750,8 +734,8 @@ type UpdateUserPayload = {
 
 type CompanyAssignmentInput = {
   company_id: string;
-  role?: string;
-  status?: string;
+  role?: MemberRole;
+  status?: MemberStatus;
 };
 
 type CreateUserPayload = {
@@ -796,36 +780,6 @@ type AdminAuthClient = {
 
 
 
-function normalizeMembershipRole(value?: string): string {
-  if (!value) {
-    return "client";
-  }
-  const trimmed = value.trim();
-  if (MEMBERSHIP_ROLES.has(trimmed)) {
-    return trimmed;
-  }
-  const upper = trimmed.toUpperCase();
-  if (MEMBERSHIP_ROLES.has(upper)) {
-    return upper;
-  }
-  const lower = trimmed.toLowerCase();
-  if (MEMBERSHIP_ROLES.has(lower)) {
-    return lower;
-  }
-  throw new Error(`Invalid membership role: ${value}`);
-}
-
-function normalizeMembershipStatus(value?: string): string {
-  if (!value) {
-    return "INVITED";
-  }
-  const upper = value.trim().toUpperCase();
-  if (MEMBERSHIP_STATUSES.has(upper)) {
-    return upper;
-  }
-  throw new Error(`Invalid membership status: ${value}`);
-}
-
 function coerceBoolean(value: unknown, fallback: boolean): boolean {
   if (typeof value === "boolean") {
     return value;
@@ -865,10 +819,24 @@ function normalizeCompanyAssignments(input: unknown): CompanyAssignmentInput[] {
     }
     const roleRaw = (entry as { role?: unknown }).role;
     const statusRaw = (entry as { status?: unknown }).status;
+    let role: MemberRole | undefined;
+    let status: MemberStatus | undefined;
+    if (roleRaw !== undefined) {
+      if (roleRaw === null || (typeof roleRaw === "string" && roleRaw.trim() === "")) {
+        throw new Error(`Invalid membership role for company ${companyId}`);
+      }
+      role = parseMemberRole(roleRaw);
+    }
+    if (statusRaw !== undefined) {
+      if (statusRaw === null || (typeof statusRaw === "string" && statusRaw.trim() === "")) {
+        throw new Error(`Invalid membership status for company ${companyId}`);
+      }
+      status = parseMemberStatus(statusRaw);
+    }
     acc.push({
       company_id: companyId,
-      role: typeof roleRaw === "string" ? roleRaw : undefined,
-      status: typeof statusRaw === "string" ? statusRaw : undefined,
+      role,
+      status,
     });
     return acc;
   }, []);
@@ -896,14 +864,14 @@ function extractCompanyName(value: RawMembershipRow["companies"]): string | null
 function mapMembershipRows(rows: RawMembershipRow[]): Array<{
   company_id: string;
   company_name: string | null;
-  role: string;
-  status: string;
+  role: MemberRole;
+  status: MemberStatus;
 }> {
   return rows.map((row) => ({
     company_id: row.company_id,
     company_name: extractCompanyName(row.companies),
-    role: row.role,
-    status: row.status,
+    role: normalizeMemberRole(row.role) ?? DEFAULT_MEMBER_ROLE,
+    status: normalizeMemberStatus(row.status) ?? DEFAULT_MEMBER_STATUS,
   }));
 }
 

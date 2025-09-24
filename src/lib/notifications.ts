@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabase";
+import { canManageMembership, normalizeMemberRole } from "@/lib/rbac";
 
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
@@ -32,10 +33,16 @@ export async function getCompanyActiveMemberEmails(companyId: string): Promise<{
     const row = m as { user_id: string; role: string };
     const email = emailById[row.user_id];
     if (!email) return;
-    const role = String(row.role || "").toUpperCase();
-    if (role === "OWNER" || role === "ADMIN") admins.push(email);
-    if (role === "CLIENT" || role === "VIEWER" || role === "OPERATOR") clients.push(email);
-    if (role === "OWNER") owners.push(email);
+    const canonicalRole = normalizeMemberRole(row.role);
+    if (!canonicalRole) return;
+    if (canManageMembership(canonicalRole)) {
+      admins.push(email);
+    } else {
+      clients.push(email);
+    }
+    if (canonicalRole === "OWNER") {
+      owners.push(email);
+    }
   });
   const all = Array.from(new Set([...owners, ...admins, ...clients]));
   return { owners, admins, clients, all };
