@@ -5,9 +5,19 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Logo } from './Logo';
 import Image from 'next/image';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useRouter, usePathname } from 'next/navigation';
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const supabase = createClientComponentClient();
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    router.replace('/');
+  };
 
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {
@@ -18,10 +28,12 @@ export function Navbar() {
 
     if (isMenuOpen) {
       document.addEventListener("keydown", handleEsc);
+      document.body.style.overflow = 'hidden';
     };
 
     return () => {
       document.removeEventListener("keydown", handleEsc);
+      document.body.style.overflow = '';
     };
   }, [isMenuOpen]);
 
@@ -30,7 +42,15 @@ export function Navbar() {
     { href: "/costos", label: "Costos" },
     { href: "/empresa", label: "Empresa" },
     { href: "/contacto", label: "Contacto" },
+    { href: "/login?redirectTo=/select-org", label: "Portal clientes" },
+    { href: "/hq/login", label: "Headquarters" },
   ];
+
+  const currentPath = pathname ?? '';
+  const isInPortal =
+    currentPath.startsWith('/c/') ||
+    (currentPath.startsWith('/hq') && !currentPath.startsWith('/hq/login')) ||
+    currentPath.startsWith('/select-org');
 
   return (
     <>
@@ -43,15 +63,18 @@ export function Navbar() {
           
           {/* Desktop Navigation */}
           <nav className="hidden items-center space-x-4 md:flex ml-36">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="rounded-md px-3 py-2 text-sm font-medium text-lp-primary-2 transition-colors hover:bg-lp-primary-2 hover:text-lp-primary-1"
-              >
-                {link.label}
-              </Link>
-            ))}
+            {navLinks.map((link) => {
+              const isActive = pathname === link.href || pathname === link.href.split('?')[0];
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${isActive ? 'bg-lp-primary-2 text-lp-primary-1' : 'text-lp-primary-2 hover:bg-lp-primary-2 hover:text-lp-primary-1'}`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
           </nav>
 
           <div className="flex items-center space-x-4 ml-auto">
@@ -63,6 +86,14 @@ export function Navbar() {
                 <Link href="/preaprobacion">Generar oferta</Link>
               </Button>
             </div>
+
+            {isInPortal && (
+              <div className="hidden md:block">
+                <Button onClick={signOut} variant="outline" className="border-lp-sec-4/60 text-lp-primary-1 hover:bg-lp-primary-2/80">
+                  Salir
+                </Button>
+              </div>
+            )}
 
             {/* Mobile Menu Button */}
             <button
@@ -94,18 +125,34 @@ export function Navbar() {
 
       {/* Mobile Navigation Menu */}
       {isMenuOpen && (
-        <div
-          id="mobile-menu"
-          className="md:hidden absolute top-16 left-0 w-full bg-lp-primary-2/95 backdrop-blur-sm shadow-lg z-40"
-        >
-          <nav className="container mx-auto flex flex-col items-center space-y-4 py-8">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="w-full rounded-md px-4 py-2 text-lg font-medium text-lp-primary-1 transition-colors hover:bg-lp-primary-1/10"
-                onClick={() => setIsMenuOpen(false)}
+        <>
+          <div
+            className="fixed inset-0 top-16 bg-black/50 backdrop-blur-sm z-40 md:hidden"
+            onClick={() => setIsMenuOpen(false)}
+          />
+          <div
+            id="mobile-menu"
+            className="md:hidden fixed top-16 left-0 w-full bg-lp-primary-2/95 backdrop-blur-sm shadow-lg z-50"
+          >
+            <nav className="container mx-auto flex flex-col items-center space-y-4 py-8">
+              {navLinks.map((link) => {
+                const isActive = pathname === link.href || pathname === link.href.split('?')[0];
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`w-full rounded-md px-4 py-2 text-lg font-medium transition-colors ${isActive ? 'bg-lp-primary-1 text-lp-primary-2' : 'text-lp-primary-1 hover:bg-lp-primary-1/10'}`}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
+              <Button
+                asChild
+                className="mt-4 bg-lp-primary-1 text-lp-primary-2 hover:opacity-90"
               >
+
                 {link.label}
               </Link>
             ))}
@@ -119,6 +166,7 @@ export function Navbar() {
             </Button>
           </nav>
         </div>
+
       )}
     </>
   );

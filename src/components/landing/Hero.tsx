@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import Image from 'next/image';
 
 import { Button } from '@/components/ui/button';
@@ -32,15 +32,17 @@ export function Hero() {
       <div className="mt-16 flow-root w-full sm:w-5/6 lg:w-5/6 mx-auto">
         <div className="rounded-2xl bg-lp-sec-4 p-2 ring-1 ring-inset ring-lp-sec-1/10 lg:p-4">
           <div className="bg-white rounded-xl shadow-2xl ring-1 ring-gray-900/10 overflow-hidden">
-            <Image
-              src="/Liquidez.png"
-              alt="Dashboard Mockup"
-              width={1024}
-              height={768}
-              className="w-full object-cover max-h-[500px] mx-auto"
-            />
+            <div className="relative aspect-[16/9] w-full">
+              <Image
+                src="/Liquidez.png"
+                alt="Dashboard Mockup"
+                fill
+                priority
+                sizes="(min-width: 1280px) 53vw, (min-width: 640px) 70vw, 100vw"
+                className="object-cover"
+              />
+            </div>
           </div>
-
         </div>
       </div>
     </Section>

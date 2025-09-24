@@ -59,10 +59,14 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
     ```
     SUPABASE_URL="https://TU_PROYECTO.supabase.co"
     SUPABASE_SERVICE_ROLE_KEY="TU_SERVICE_ROLE_KEY"
+    NEXT_PUBLIC_SUPABASE_URL="https://TU_PROYECTO.supabase.co"
+    NEXT_PUBLIC_SUPABASE_ANON_KEY="TU_ANON_KEY"
     RESEND_API_KEY="re_YOUR_RESEND_API_KEY"
     ```
     *   `SUPABASE_URL`: URL de tu proyecto Supabase.
     *   `SUPABASE_SERVICE_ROLE_KEY`: Clave de servicio de Supabase para operaciones del lado del servidor.
+    *   `NEXT_PUBLIC_SUPABASE_URL`: URL del proyecto expuesta al cliente (debe coincidir con `SUPABASE_URL`).
+    *   `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Clave pública (`anon`) usada por el cliente para establecer sesiones temporales.
     *   `RESEND_API_KEY`: Clave API de Resend para el envío de correos. (Opcional para el funcionamiento básico, pero necesaria para notificaciones).
 
 4.  **Ejecutar el Servidor de Desarrollo:**
@@ -76,7 +80,7 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
 Este proyecto está optimizado para despliegue en Vercel.
 
 1.  **Conectar Repositorio:** Conecta tu repositorio de GitHub/GitLab/Bitbucket a Vercel.
-2.  **Configurar Variables de Entorno:** En la configuración del proyecto en Vercel, añade las mismas variables de entorno (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`) que usaste localmente.
+2.  **Configurar Variables de Entorno:** En la configuración del proyecto en Vercel, añade las mismas variables de entorno (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RESEND_API_KEY`) que usaste localmente.
 3.  **Despliegue Automático:** Cada push a la rama principal (o a una PR, si configuras los preview deploys) activará un nuevo despliegue.
 
 ## Supabase como Base de Datos
@@ -90,9 +94,11 @@ Asegúrate de definir en tu archivo `.env` las variables:
 ```
 SUPABASE_URL="https://TU_PROYECTO.supabase.co"
 SUPABASE_SERVICE_ROLE_KEY="TU_SERVICE_ROLE_KEY"
+NEXT_PUBLIC_SUPABASE_URL="https://TU_PROYECTO.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="TU_ANON_KEY"
 ```
 
-Estas permiten que el servidor se conecte a tu instancia de Supabase.
+Las variables sin el prefijo `NEXT_PUBLIC_` se utilizan del lado del servidor, mientras que las públicas permiten que el cliente establezca sesiones válidas para operaciones como el restablecimiento de contraseñas.
 
 ### Aplicar el esquema inicial
 
