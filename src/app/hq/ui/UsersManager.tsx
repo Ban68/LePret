@@ -431,11 +431,21 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
       });
-      const data = await response.json().catch(() => ({}));
+      const data = (await response.json().catch(() => ({}))) as {
+        deleted?: boolean;
+        message?: string;
+        error?: string;
+      };
       if (!response.ok) {
         throw new Error(data?.error || "No se pudo eliminar al usuario");
       }
-      toast.success("Usuario eliminado");
+      const successMessage =
+        typeof data?.message === "string" && data.message.trim().length
+          ? data.message
+          : data?.deleted
+            ? "Usuario eliminado"
+            : "Usuario desactivado";
+      toast.success(successMessage);
       await onRemoved();
       onClose();
     } catch (err) {

@@ -4,6 +4,7 @@ import { isBackofficeAllowed } from "@/lib/hq-auth";
 import { RequestsBoard } from "./ui/RequestsBoard";
 import { UsersManager } from "./ui/UsersManager";
 import { DashboardMetrics } from "./ui/DashboardMetrics";
+import { Toaster } from "@/components/ui/sonner";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,7 @@ export default async function HqPage() {
           <UsersManager companies={companies ?? []} />
         </div>
       </div>
+      <Toaster position="top-right" richColors />
     </div>
   );
 }
