@@ -7,12 +7,6 @@ import { DashboardMetrics } from "./ui/DashboardMetrics";
 
 export const dynamic = "force-dynamic";
 
-type CompanyRow = {
-  id: string;
-  name: string;
-  type: string;
-};
-
 export default async function HqPage() {
   const supabase = await supabaseServer();
   const {

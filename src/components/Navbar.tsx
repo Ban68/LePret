@@ -42,11 +42,15 @@ export function Navbar() {
     { href: "/costos", label: "Costos" },
     { href: "/empresa", label: "Empresa" },
     { href: "/contacto", label: "Contacto" },
-    { href: "/login?redirectTo=/select-org", label: "Portal" },
+    { href: "/login?redirectTo=/select-org", label: "Portal clientes" },
+    { href: "/hq/login", label: "Headquarters" },
   ];
 
   const currentPath = pathname ?? '';
-  const isInPortal = currentPath.startsWith('/c/') || currentPath.startsWith('/hq') || currentPath === '/select-org' || currentPath.startsWith('/select-org');
+  const isInPortal =
+    currentPath.startsWith('/c/') ||
+    (currentPath.startsWith('/hq') && !currentPath.startsWith('/hq/login')) ||
+    currentPath.startsWith('/select-org');
 
   return (
     <>
