@@ -558,34 +558,25 @@ export async function DELETE(req: Request) {
 
     if (hardFlag) {
       console.log("hard delete");
-      const { error: membershipDeleteError } = await supabaseAdmin
-        .from("memberships")
-        .delete()
-        .eq("user_id", userId);
-      if (membershipDeleteError) {
-        console.error("membershipDeleteError", membershipDeleteError);
-        throw membershipDeleteError;
-      }
-
-      const { error: profileDeleteError } = await supabaseAdmin
-        .from("profiles")
-        .delete()
-        .eq("user_id", userId);
-      if (profileDeleteError) {
-        console.error("profileDeleteError", profileDeleteError);
-        throw profileDeleteError;
-      }
-
-      const adminAuth = (supabaseAdmin.auth as unknown as { admin?: AdminAuthClient }).admin;
-      if (adminAuth && typeof adminAuth.deleteUser === "function") {
-        const result = (await adminAuth.deleteUser(userId)) as { error?: { message?: string } | null } | null;
-        if (result && result.error) {
-          console.error("adminAuth.deleteUser error", result.error);
-          throw new Error(result.error.message ?? "Failed to delete auth user");
+      try {
+        await performHardDelete(userId);
+        return NextResponse.json({ ok: true, user: null, deleted: true });
+      } catch (hardError) {
+        if (isForeignKeyConstraintError(hardError)) {
+          console.warn("Hard delete blocked by foreign key constraint, performing soft delete", hardError);
+          const summary = await softDeleteUser(userId, existing);
+          return NextResponse.json({
+            ok: true,
+            user: summary ?? existing,
+            deleted: false,
+            fallback: "soft",
+            message:
+              "El usuario tiene actividad histórica, por lo que se desactivó en lugar de eliminarse definitivamente.",
+          });
         }
-      }
 
-      return NextResponse.json({ ok: true, user: null, deleted: true });
+        throw hardError;
+      }
     }
 
     if (!existing) {
@@ -593,37 +584,111 @@ export async function DELETE(req: Request) {
     }
 
     console.log("soft delete");
-    const { error: membershipDisableError } = await supabaseAdmin
-      .from("memberships")
-      .update({ status: "DISABLED" })
-      .eq("user_id", userId);
-    if (membershipDisableError) {
-      console.error("membershipDisableError", membershipDisableError);
-      throw membershipDisableError;
-    }
-
-    const { error: profileUpdateError } = await supabaseAdmin
-      .from("profiles")
-      .upsert(
-        {
-          user_id: userId,
-          full_name: existing.full_name ?? existing.email ?? null,
-          is_staff: false,
-        },
-        { onConflict: "user_id" }
-      );
-    if (profileUpdateError) {
-      console.error("profileUpdateError", profileUpdateError);
-      throw profileUpdateError;
-    }
-
-    const summary = await getUserSummaryById(userId);
+    const summary = await softDeleteUser(userId, existing);
     return NextResponse.json({ ok: true, user: summary ?? existing, deleted: false });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("DELETE /api/hq/users error", message);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
+}
+async function performHardDelete(userId: string): Promise<void> {
+  const { error: profileDeleteError } = await supabaseAdmin
+    .from("profiles")
+    .delete()
+    .eq("user_id", userId);
+  if (profileDeleteError) {
+    console.error("profileDeleteError", profileDeleteError);
+    throw profileDeleteError;
+  }
+
+  const { error: membershipDeleteError } = await supabaseAdmin
+    .from("memberships")
+    .delete()
+    .eq("user_id", userId);
+  if (membershipDeleteError) {
+    console.error("membershipDeleteError", membershipDeleteError);
+    throw membershipDeleteError;
+  }
+
+  const adminAuth = (supabaseAdmin.auth as unknown as { admin?: AdminAuthClient }).admin;
+  if (adminAuth && typeof adminAuth.deleteUser === "function") {
+    const result = (await adminAuth.deleteUser(userId)) as { error?: { message?: string } | null } | null;
+    if (result && result.error) {
+      console.error("adminAuth.deleteUser error", result.error);
+      throw new Error(result.error.message ?? "Failed to delete auth user");
+    }
+  }
+}
+
+async function softDeleteUser(userId: string, existing: UserSummary | null): Promise<UserSummary | null> {
+  const assignments = existing?.companies ?? [];
+
+  if (assignments.length) {
+    const disableRows = assignments.map((membership) => ({
+      user_id: userId,
+      company_id: membership.company_id,
+      role: membership.role,
+      status: "DISABLED",
+    }));
+
+    const { error: membershipUpsertError } = await supabaseAdmin
+      .from("memberships")
+      .upsert(disableRows, { onConflict: "user_id,company_id" });
+    if (membershipUpsertError) {
+      console.error("membershipUpsertError", membershipUpsertError);
+      throw membershipUpsertError;
+    }
+  } else {
+    const { error: membershipCleanupError } = await supabaseAdmin
+      .from("memberships")
+      .delete()
+      .eq("user_id", userId);
+    if (membershipCleanupError) {
+      console.error("membershipCleanupError", membershipCleanupError);
+      throw membershipCleanupError;
+    }
+  }
+
+  const { error: profileUpdateError } = await supabaseAdmin
+    .from("profiles")
+    .upsert(
+      {
+        user_id: userId,
+        full_name: existing?.full_name ?? existing?.email ?? null,
+        is_staff: false,
+      },
+      { onConflict: "user_id" }
+    );
+  if (profileUpdateError) {
+    console.error("profileUpdateError", profileUpdateError);
+    throw profileUpdateError;
+  }
+
+  return getUserSummaryById(userId);
+}
+
+function isForeignKeyConstraintError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const code = (error as { code?: unknown }).code;
+  if (code === "23503") {
+    return true;
+  }
+
+  const message = (error as { message?: unknown }).message;
+  if (typeof message === "string" && message.toLowerCase().includes("foreign key constraint")) {
+    return true;
+  }
+
+  const details = (error as { details?: unknown }).details;
+  if (typeof details === "string" && details.toLowerCase().includes("is still referenced")) {
+    return true;
+  }
+
+  return false;
 }
 const MEMBERSHIP_ROLES = new Set([
   "client",
