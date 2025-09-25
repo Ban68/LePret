@@ -1196,7 +1196,7 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
               <Button
                 type="button"
                 size="sm"
-                variant="primary"
+                variant="default"
                 className="mt-1"
                 onClick={() => onAcceptOffer(nextStep.cta!.offer_id!)}
                 disabled={busy}
@@ -1220,7 +1220,7 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
             {nextStep?.cta?.kind === "accept_offer" && nextStep.cta.offer_id ? (
               <button
                 type="button"
-                className="w-full rounded-md px-2 py-1 text-left text-lp-primary-1 hover:bg-lp-sec-4/30"
+                className="w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
                 onClick={() => onAcceptOffer(nextStep.cta!.offer_id!)}
                 disabled={busy}
               >
