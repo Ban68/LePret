@@ -22,6 +22,7 @@ export default async function ClientPortalLayout({
   const links = [
     { href: `/c/${orgId}`, label: "Resumen" },
     { href: `/c/${orgId}/invoices`, label: "Facturas" },
+    { href: `/c/${orgId}/payers`, label: "Pagadores" },
     { href: `/c/${orgId}/requests`, label: "Solicitudes" },
     { href: `/c/${orgId}/settings`, label: "Ajustes" },
   ];

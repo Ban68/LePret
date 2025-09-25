@@ -59,6 +59,7 @@ type SummaryMetrics = {
 
 export function InvoicesClient({ orgId }: { orgId: string }) {
   const [items, setItems] = useState<Invoice[]>([]);
+  const [payerOptions, setPayerOptions] = useState<Array<{ id: string; name: string; tax_id: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -161,6 +162,30 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(`/api/c/${orgId}/payers?status=ACTIVE&limit=100`, { signal: controller.signal });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && Array.isArray(data?.items)) {
+          setPayerOptions(
+            (data.items as Array<{ id: string; name: string; tax_id: string | null }>).map((item) => ({
+              id: item.id,
+              name: item.name,
+              tax_id: item.tax_id ?? null,
+            })),
+          );
+        }
+      } catch (err) {
+        if ((err as { name?: string } | null)?.name !== "AbortError") {
+          console.error("Failed to load payers", err);
+        }
+      }
+    })();
+    return () => controller.abort();
+  }, [orgId]);
 
   useEffect(() => {
     loadSummary();
@@ -619,6 +644,7 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
                   </Label>
                   <Input
                     id="invoice-payer"
+                    list="payer-options"
                     ref={payerRef}
                     value={payer}
                     onChange={(e) => setPayer(e.target.value)}
@@ -626,7 +652,14 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
                     required
                     aria-invalid={formError ? payer.trim().length === 0 : undefined}
                   />
-                  <p className="text-xs text-lp-sec-3">Indica quién realizará el pago de la factura.</p>
+                  <datalist id="payer-options">
+                    {payerOptions.map((option) => (
+                      <option key={option.id} value={option.name}>
+                        {option.tax_id ? `${option.name} (${option.tax_id})` : option.name}
+                      </option>
+                    ))}
+                  </datalist>
+                  <p className="text-xs text-lp-sec-3">Indica quien realizara el pago de la factura.</p>
                 </div>
                 <div className="sm:col-span-3 space-y-1">
                   <Label htmlFor="invoice-forecast">
@@ -1156,3 +1189,4 @@ function CreateRequestFromInvoices({
     </div>
   );
 }
+
