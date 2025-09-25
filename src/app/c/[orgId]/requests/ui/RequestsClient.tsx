@@ -28,6 +28,24 @@ type RequestItem = {
   invoice_ids?: string[];
   invoices_total?: number;
   invoices_count?: number;
+  current_offer?: {
+    id: string;
+    status: string;
+    annual_rate?: number | null;
+    advance_pct?: number | null;
+    net_amount?: number | null;
+    valid_until?: string | null;
+  } | null;
+  contract_status?: string | null;
+  next_step?: {
+    label: string;
+    hint?: string | null;
+    cta?: {
+      kind: string;
+      label?: string | null;
+      offer_id?: string;
+    } | null;
+  } | null;
 };
 
 type Invoice = {
@@ -243,15 +261,16 @@ export function RequestsClient({ orgId }: { orgId: string }) {
 
   const pendingSteps = useMemo(() => {
     return items
-      .filter((item) => ["review", "offered"].includes((item.status || "").toLowerCase()))
-      .map((item) => ({
-        id: item.id,
-        title: item.status === "offered" ? "Responder oferta" : "Solicitud en revisión",
-        hint:
-          item.status === "offered"
-            ? "Revisa las condiciones propuestas y responde desde el detalle."
-            : "Estamos validando la información. Mantén tus documentos al día.",
-      }));
+      .map((item) => {
+        const step = item.next_step;
+        if (!step || !step.label) return null;
+        return {
+          id: item.id,
+          title: step.label,
+          hint: step.hint || "",
+        };
+      })
+      .filter((entry): entry is { id: string; title: string; hint: string } => entry !== null);
   }, [items]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -668,19 +687,20 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                   <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Estado</th>
                   <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Creada</th>
                   <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Soporte</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Siguiente paso</th>
                   <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td className="px-4 py-3 text-sm" colSpan={7}>
-                      Cargando…
+                    <td className="px-4 py-3 text-sm" colSpan={8}>
+                      Cargando...
                     </td>
                   </tr>
                 ) : items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-3 text-sm" colSpan={7}>
+                    <td className="px-4 py-3 text-sm" colSpan={8}>
                       <EmptyState
                         title="No hay solicitudes"
                         description="Crea una nueva solicitud para avanzar con el factoring."
@@ -1012,6 +1032,8 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
   const parseCurrency = (s: string) => Number((s || "").replace(/[^0-9]/g, ""));
   const invoiceCount = req.invoices_count ?? (req.invoice_ids?.length || (req.invoice_id ? 1 : 0));
   const invoicesTotal = req.invoices_total ?? req.requested_amount;
+  const nextStep = req.next_step ?? null;
+  const currentOffer = req.current_offer ?? null;
 
   const onSave = async () => {
     setBusy(true);
@@ -1035,7 +1057,7 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
   };
 
   const onDelete = async () => {
-    if (!confirm("¿Eliminar solicitud?")) return;
+    if (!confirm("Eliminar solicitud?")) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/c/${orgId}/requests/${req.id}`, { method: "DELETE" });
@@ -1097,6 +1119,29 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
     }
   };
 
+  const onAcceptOffer = async (offerId: string) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/offers/${offerId}/accept`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "No se pudo aceptar la oferta");
+      toast.success("Oferta aceptada");
+      await onChanged();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error aceptando oferta";
+      setErr(msg);
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const formatCurrencyValue = (value: number | null | undefined) => {
+    if (typeof value !== "number" || Number.isNaN(value)) return null;
+    return new Intl.NumberFormat("es-CO").format(value);
+  };
+
   return (
     <tr className="border-t border-lp-sec-4/60 text-sm">
       <td className="px-4 py-2">
@@ -1126,7 +1171,7 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
         )}
       </td>
       <td className="px-4 py-2 text-xs text-lp-sec-3">
-        {invoiceCount} factura{invoiceCount === 1 ? "" : "s"} • ${new Intl.NumberFormat("es-CO").format(invoicesTotal)}
+        {invoiceCount} factura{invoiceCount === 1 ? "" : "s"} | ${new Intl.NumberFormat("es-CO").format(invoicesTotal)}
       </td>
       <td className="px-4 py-2">
         <StatusBadge kind="request" status={req.status} />
@@ -1134,6 +1179,35 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
       <td className="px-4 py-2 text-xs text-lp-sec-3">{new Date(req.created_at).toLocaleDateString()}</td>
       <td className="px-4 py-2 text-xs text-lp-sec-3">
         {req.file_path ? <span className="text-lp-primary-1">Cargado</span> : "Pendiente"}
+      </td>
+      <td className="px-4 py-2 text-xs">
+        {nextStep ? (
+          <div className="space-y-2">
+            <div>
+              <p className="font-medium text-lp-primary-1">{nextStep.label}</p>
+              {nextStep.hint ? <p className="text-xs text-lp-sec-3">{nextStep.hint}</p> : null}
+            </div>
+            {currentOffer && currentOffer.status === "offered" && (
+              <p className="text-xs text-lp-sec-3">
+                Anticipo {typeof currentOffer.advance_pct === "number" ? `${Math.round(currentOffer.advance_pct)}%` : "-"} | Neto ${formatCurrencyValue(currentOffer.net_amount) ?? "-"}
+              </p>
+            )}
+            {nextStep.cta?.kind === "accept_offer" && nextStep.cta.offer_id ? (
+              <Button
+                type="button"
+                size="sm"
+                className="mt-1"
+                onClick={() => onAcceptOffer(nextStep.cta!.offer_id!)}
+                disabled={busy}
+              >
+                {nextStep.cta.label ?? "Aceptar oferta"}
+              </Button>
+            ) : null}
+            {err && <p className="text-xs text-red-600">{err}</p>}
+          </div>
+        ) : (
+          <span className="text-lp-sec-3">-</span>
+        )}
       </td>
       <td className="px-4 py-2">
         <details className="relative">
@@ -1193,10 +1267,11 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
               Eliminar solicitud
             </button>
             {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
-            {busy && <p className="mt-1 text-xs text-lp-sec-3">Procesando…</p>}
+            {busy && <p className="mt-1 text-xs text-lp-sec-3">Procesando...</p>}
           </div>
         </details>
       </td>
     </tr>
   );
 }
+

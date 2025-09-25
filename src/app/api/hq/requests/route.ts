@@ -381,6 +381,7 @@ function computeNextAction(status: string | null | undefined, summary: { missing
   const normalized = (status || '').toLowerCase();
   const hasMissingDocs = summary.missing.length > 0;
   const hasUnsignedDocs = summary.unsigned.length > 0;
+  const hasOffer = typeof offerStatus === 'string' && offerStatus.length > 0;
 
   if (!normalized) {
     return {
@@ -391,8 +392,15 @@ function computeNextAction(status: string | null | undefined, summary: { missing
   }
 
   if (normalized === 'review') {
+    if (hasMissingDocs) {
+      return {
+        label: 'Solicitar documentacion pendiente',
+        needsAction: true,
+        pendingDocuments: summary.missing,
+      };
+    }
     return {
-      label: 'Analizar solicitud y definir oferta',
+      label: hasOffer ? 'Dar seguimiento a la oferta' : 'Generar oferta para el cliente',
       needsAction: true,
       pendingDocuments: summary.missing,
     };
@@ -401,15 +409,31 @@ function computeNextAction(status: string | null | undefined, summary: { missing
   if (normalized === 'offered') {
     const waitingAcceptance = offerStatus !== 'accepted';
     return {
-      label: waitingAcceptance ? 'Esperando aceptacion del cliente' : 'Continuar con documentacion',
+      label: waitingAcceptance ? 'Dar seguimiento a la aceptacion del cliente' : 'Preparar contrato y anexos',
       needsAction: waitingAcceptance,
       pendingDocuments: summary.missing,
     };
   }
 
   if (normalized === 'accepted') {
+    if (hasMissingDocs) {
+      return {
+        label: 'Solicitar documentacion KYC pendiente',
+        needsAction: true,
+        pendingDocuments: [...summary.missing, ...summary.unsigned],
+      };
+    }
+
+    if (hasUnsignedDocs) {
+      return {
+        label: 'Gestionar firma del contrato',
+        needsAction: true,
+        pendingDocuments: [...summary.missing, ...summary.unsigned],
+      };
+    }
+
     return {
-      label: hasMissingDocs ? 'Completar documentacion KYC/contrato' : hasUnsignedDocs ? 'Obtener firmas de contrato' : 'Preparar contrato',
+      label: 'Generar contrato y enviarlo a firma',
       needsAction: true,
       pendingDocuments: [...summary.missing, ...summary.unsigned],
     };
@@ -445,7 +469,6 @@ function computeNextAction(status: string | null | undefined, summary: { missing
     pendingDocuments: [...summary.missing, ...summary.unsigned],
   };
 }
-
 function formatOffer(offer: OfferRow): string {
   const parts: string[] = [];
   if (typeof offer.annual_rate === 'number') {
