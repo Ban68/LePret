@@ -1034,6 +1034,11 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
   const invoicesTotal = req.invoices_total ?? req.requested_amount;
   const nextStep = req.next_step ?? null;
   const currentOffer = req.current_offer ?? null;
+  const contractActionLabel =
+    nextStep?.cta?.label ??
+    (typeof req.contract_status === "string" && req.contract_status.toLowerCase() === "signed"
+      ? "Ver contrato"
+      : "Abrir contrato");
 
   const onSave = async () => {
     setBusy(true);
@@ -1137,6 +1142,31 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
     }
   };
 
+  const onOpenContract = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/c/${orgId}/requests/${req.id}/contract/link`);
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
+      if (!res.ok || !data?.ok || typeof data.url !== "string") {
+        throw new Error(data?.error || "No se pudo abrir el contrato");
+      }
+      const popup = window.open(data.url, "_blank", "noopener,noreferrer");
+      if (!popup) {
+        window.location.href = data.url;
+      } else {
+        popup.opener = null;
+      }
+      toast.success("Contrato listo para firma");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error abriendo contrato";
+      setErr(msg);
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const formatCurrencyValue = (value: number | null | undefined) => {
     if (typeof value !== "number" || Number.isNaN(value)) return null;
     return new Intl.NumberFormat("es-CO").format(value);
@@ -1204,6 +1234,18 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
                 {nextStep.cta.label ?? "Aceptar oferta"}
               </Button>
             ) : null}
+            {nextStep.cta?.kind === "open_contract" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="default"
+                className="mt-1"
+                onClick={onOpenContract}
+                disabled={busy}
+              >
+                {contractActionLabel}
+              </Button>
+            ) : null}
             {err && <p className="text-xs text-red-600">{err}</p>}
           </div>
         ) : (
@@ -1225,6 +1267,16 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
                 disabled={busy}
               >
                 {nextStep.cta.label ?? "Aceptar oferta"}
+              </button>
+            ) : null}
+            {nextStep?.cta?.kind === "open_contract" ? (
+              <button
+                type="button"
+                className="mt-1 w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
+                onClick={onOpenContract}
+                disabled={busy}
+              >
+                {contractActionLabel}
               </button>
             ) : null}
             {editing ? (
