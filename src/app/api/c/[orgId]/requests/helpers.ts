@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getUsedInvoiceIds } from "../../invoices/helpers";
+import { getUsedInvoiceIds } from "../invoices/helpers";
 
 type CreateRequestParams = {
   supabase: SupabaseClient;
