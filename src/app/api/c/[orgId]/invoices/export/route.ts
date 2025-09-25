@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { getUsedInvoiceIds } from "../helpers";
 
 const toCsv = (value: unknown) => {
   if (value === null || value === undefined) return "";
@@ -20,17 +21,20 @@ export async function GET(_req: Request, context: { params: Promise<{ orgId: str
 
   const { data, error } = await supabase
     .from("invoices")
-    .select("id, amount, issue_date, due_date, status")
+    .select("id, amount, issue_date, due_date, status, payer, forecast_payment_date")
     .eq("company_id", orgId);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const header = ["id", "amount", "issue_date", "due_date", "status"].join(",");
+  const usedIds = await getUsedInvoiceIds(supabase, orgId);
+
+  const header = ["id", "amount", "issue_date", "due_date", "forecast_payment_date", "payer", "status"].join(",");
   const rows = (data ?? [])
+    .filter((row) => !usedIds.has(row.id))
     .map((row) =>
-      [row.id, row.amount, row.issue_date, row.due_date, row.status]
+      [row.id, row.amount, row.issue_date, row.due_date, row.forecast_payment_date, row.payer, row.status]
         .map(toCsv)
         .join(","),
     )

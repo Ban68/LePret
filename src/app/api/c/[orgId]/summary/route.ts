@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { getUsedInvoiceIds } from "../invoices/helpers";
 
 export const runtime = "nodejs";
 
@@ -20,7 +21,7 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const [invAll, invFunded, requestsActive, offerOpen] = await Promise.all([
+    const [invAll, invFunded, requestsActive, offerOpen, usedIds] = await Promise.all([
       supabase.from('invoices').select('id, amount, created_at, status').eq('company_id', orgId),
       supabase.from('invoices').select('id, amount, created_at, status').eq('company_id', orgId).eq('status', 'funded'),
       supabase
@@ -30,6 +31,7 @@ export async function GET(
         .is('archived_at', null)
         .in('status', ['review', 'offered', 'accepted', 'signed']),
       supabase.from('offers').select('id', { count: 'exact', head: true }).eq('company_id', orgId).eq('status', 'offered'),
+      getUsedInvoiceIds(supabase, orgId),
     ]);
 
     const allDates: string[] = [];
@@ -38,13 +40,17 @@ export async function GET(
       const key = d.slice(0, 10);
       allDates.push(key);
     };
-    invAll.data?.forEach((r) => addDate((r as { created_at?: string | null }).created_at || null));
+    const invRows = (invAll.data || []).filter((row) => !usedIds.has((row as { id: string }).id));
+    invRows.forEach((r) => addDate((r as { created_at?: string | null }).created_at || null));
     const lastActivity = allDates.sort().pop() || null;
 
     const requestsRows = (requestsActive.data || []) as Array<{ id: string; status?: string | null; requested_amount?: number | string | null; created_at?: string | null }>;
 
-    const invoicesCount = invAll.data?.length ?? 0;
-    const invoicesAmountTotal = (invAll.data || []).reduce((sum: number, row) => sum + Number((row as { amount?: number | string | null }).amount || 0), 0);
+    const invoicesCount = invRows.length;
+    const invoicesAmountTotal = invRows.reduce(
+      (sum: number, row) => sum + Number((row as { amount?: number | string | null }).amount || 0),
+      0,
+    );
     const fundedCount = invFunded.data?.length ?? 0;
     const fundedAmountTotal = (invFunded.data || []).reduce((sum: number, row) => sum + Number((row as { amount?: number | string | null }).amount || 0), 0);
     const requestsOpenCount = requestsRows.filter((row) => {
@@ -106,7 +112,7 @@ export async function GET(
       .sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime())
       .slice(0, 4);
 
-    const invoicesDaily = makeSeries(invAll.data || [], 'created_at');
+    const invoicesDaily = makeSeries(invRows as Array<Record<string, unknown>>, 'created_at');
     const fundedDaily = makeSeries(invFunded.data || [], 'created_at');
     const requestsDaily = makeSeries(requestsRows as unknown as Array<Record<string, unknown>>, 'created_at');
 

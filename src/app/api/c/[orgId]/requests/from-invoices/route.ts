@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { getUsedInvoiceIds } from "../../invoices/helpers";
 
 export async function POST(
   req: Request,
@@ -26,6 +27,15 @@ export async function POST(
       .eq('company_id', orgId);
     if (invErr) return NextResponse.json({ ok: false, error: invErr.message }, { status: 500 });
     if (!invoices || !invoices.length) return NextResponse.json({ ok: false, error: 'no_invoices_found' }, { status: 404 });
+
+    const usedIds = await getUsedInvoiceIds(supabase, orgId);
+    const alreadyUsed = invoice_ids.filter((id) => usedIds.has(id));
+    if (alreadyUsed.length > 0) {
+      return NextResponse.json(
+        { ok: false, error: 'invoice_already_used', details: { invoice_ids: alreadyUsed } },
+        { status: 409 },
+      );
+    }
 
     const total = invoices.reduce((acc: number, it) => acc + Number((it as { amount?: number | string | null }).amount || 0), 0);
     if (total <= 0) return NextResponse.json({ ok: false, error: 'invalid_total' }, { status: 400 });

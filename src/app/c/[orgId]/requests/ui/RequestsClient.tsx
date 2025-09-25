@@ -30,7 +30,15 @@ type RequestItem = {
   invoices_count?: number;
 };
 
-type Invoice = { id: string; issue_date: string; due_date: string; amount: number; status?: string | null };
+type Invoice = {
+  id: string;
+  issue_date: string;
+  due_date: string;
+  amount: number;
+  status?: string | null;
+  payer?: string | null;
+  forecast_payment_date?: string | null;
+};
 
 type BannerState = { tone: "success" | "info" | "warning" | "error"; title: string; description?: string };
 
@@ -376,7 +384,13 @@ export function RequestsClient({ orgId }: { orgId: string }) {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "No se pudo crear la solicitud");
+        if (!res.ok) {
+          const errKey = data.error;
+          if (errKey === "invoice_already_used") {
+            throw new Error("Una o más facturas ya están asociadas a otra solicitud");
+          }
+          throw new Error(errKey || "No se pudo crear la solicitud");
+        }
       const createdId: string | undefined = data?.request?.id;
       if (createdId && wizardData.documents[0]) {
         const file = wizardData.documents[0];
@@ -452,7 +466,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
             value={Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(
               metrics.invoicesAmountTotal,
             )}
-            subtitle="Suma de facturas registradas"
+            subtitle="Suma de facturas disponibles"
           />
         </div>
       )}
