@@ -83,6 +83,7 @@ type RequestResponseItem = {
     summary: string;
   } | null;
   archived_at: string | null;
+  force_sign_enabled: boolean;
 };
 
 export async function GET(req: Request) {
@@ -100,6 +101,8 @@ export async function GET(req: Request) {
   if (!isAllowed) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
+
+  const allowForceSign = (process.env.PANDADOC_ALLOW_FORCE_SIGN || '').toLowerCase() === 'true' || process.env.NODE_ENV !== 'production';
 
   const url = new URL(req.url);
   const statusFilter = url.searchParams.get("status");
@@ -284,6 +287,7 @@ export async function GET(req: Request) {
       pending_documents: nextStep.pendingDocuments,
       documents: documents.map((doc) => ({ type: doc.type, status: doc.status, created_at: doc.created_at })),
       archived_at: request.archived_at ?? null,
+      force_sign_enabled: allowForceSign,
       offer: activeOffer
         ? {
             id: activeOffer.id,

@@ -47,6 +47,7 @@ type RequestItem = {
   documents: Array<{ type: string; status: string; created_at: string }>;
   archived_at: string | null;
   offer: { id: string; status: string; summary: string } | null;
+  force_sign_enabled: boolean;
 };
 
 type GroupValue = "needs" | "client" | "payer" | "status" | "month" | "none";
@@ -276,9 +277,12 @@ export function RequestsBoard() {
         }
 
         const response = await fetch(endpoint, requestInit);
-        const responsePayload = await response.json().catch(() => ({}));
+        const responsePayload = await response.json().catch(() => ({})) as { error?: string; code?: string };
         if (!response.ok) {
-          throw new Error((responsePayload as { error?: string })?.error || 'No se pudo completar la accion');
+          if (responsePayload.code === 'force_sign_disabled' || responsePayload.error === 'force_sign_disabled') {
+            throw new Error('Marcar como firmada esta deshabilitada en este ambiente.');
+          }
+          throw new Error(responsePayload.error || 'No se pudo completar la accion');
         }
         toast.success(successMessage);
         await refreshSelection();
@@ -587,7 +591,8 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
   const canGenerateOffer = !isArchived && request.status === 'review';
   const hasContract = request.documents.some((doc) => doc.type === 'CONTRATO_MARCO');
   const canGenerateContract = !isArchived && (request.status === 'accepted' || request.status === 'offered') && !hasContract;
-  const canForceSign = !isArchived && (request.status === 'accepted' || request.status === 'offered');
+  const allowForceSign = Boolean(request.force_sign_enabled);
+  const canForceSign = allowForceSign && !isArchived && (request.status === 'accepted' || request.status === 'offered');
   const canFund = !isArchived && request.status === 'signed';
   const canDeny = !isArchived && (request.status === 'review' || request.status === 'offered');
   const canArchive = !isArchived;
@@ -726,6 +731,9 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
                 loading={actionLoading === 'force-sign'}
                 onClick={() => onAction('force-sign')}
               />
+              {!allowForceSign && !isArchived && (request.status === 'accepted' || request.status === 'offered') ? (
+                <p className="mt-1 text-xs text-lp-sec-3">Disponible solo en ambientes autorizados.</p>
+              ) : null}
               <ActionButton
                 label="Marcar desembolso"
                 disabled={!canFund}

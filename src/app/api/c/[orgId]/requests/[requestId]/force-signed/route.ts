@@ -15,8 +15,10 @@ export async function POST(
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
-    const allow = (process.env.PANDADOC_ALLOW_FORCE_SIGN || '').toLowerCase() === 'true' || process.env.NODE_ENV !== 'production';
-    if (!allow) return NextResponse.json({ ok: false, error: 'forbidden_in_env' }, { status: 403 });
+    const allowForceSign = (process.env.PANDADOC_ALLOW_FORCE_SIGN || '').toLowerCase() === 'true' || process.env.NODE_ENV !== 'production';
+    if (!allowForceSign) {
+      return NextResponse.json({ ok: false, error: 'Accion deshabilitada en este ambiente.', code: 'force_sign_disabled' }, { status: 403 });
+    }
 
     const { data: doc } = await supabaseAdmin
       .from('documents')
