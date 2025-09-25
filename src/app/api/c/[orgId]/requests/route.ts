@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
+import { createRequestWithInvoices } from "./helpers";
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ orgId: string }> }
@@ -94,29 +96,41 @@ export async function POST(
   if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const payload = {
-    company_id: orgId,
-    created_by: session.user.id,
-    invoice_id: body.invoice_id ?? null,
-    requested_amount: body.requested_amount,
-    file_path: body.file_path ?? null,
-    status: body.status ?? "review",
-  };
-  const { data, error } = await supabase
-    .from("funding_requests")
-    .insert(payload)
-    .select()
-    .single();
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
-  // Notificar al staff (nueva solicitud)
+  const invoiceIds = [
+    ...(Array.isArray(body?.invoice_ids) ? body.invoice_ids : []),
+    ...(typeof body?.invoice_id === "string" ? [body.invoice_id] : []),
+  ];
+  const requestedAmountRaw = Number(body?.requested_amount ?? 0);
+  const status = typeof body?.status === "string" && body.status.trim().length > 0 ? body.status : undefined;
+  const filePath = typeof body?.file_path === "string" && body.file_path.trim().length > 0 ? body.file_path : null;
+
+  const result = await createRequestWithInvoices({
+    supabase,
+    orgId,
+    userId: session.user.id,
+    invoiceIds,
+    requestedAmount: Number.isFinite(requestedAmountRaw) ? requestedAmountRaw : undefined,
+    status,
+    filePath,
+  });
+
+  if (!result.ok) {
+    const payload: Record<string, unknown> = { ok: false, error: result.error };
+    if (result.details) payload.details = result.details;
+    return NextResponse.json(payload, { status: result.status });
+  }
+
+  const requestId = (result.request as { id: string }).id;
+
   try {
     const { notifyStaffNewRequest } = await import("@/lib/notifications");
-    await notifyStaffNewRequest(orgId, data.id);
+    await notifyStaffNewRequest(orgId, requestId);
   } catch {}
-  // Auditoría
+
   try {
     const { logAudit } = await import("@/lib/audit");
-    await logAudit({ company_id: orgId, actor_id: session.user.id, entity: 'request', entity_id: data.id, action: 'created', data: { requested_amount: body.requested_amount } });
+    await logAudit({ company_id: orgId, actor_id: session.user.id, entity: 'request', entity_id: requestId, action: 'created', data: { requested_amount: result.request.requested_amount } });
   } catch {}
-  return NextResponse.json({ ok: true, created: data }, { status: 201 });
+
+  return NextResponse.json({ ok: true, created: result.request, total: result.total, count: result.count }, { status: 201 });
 }

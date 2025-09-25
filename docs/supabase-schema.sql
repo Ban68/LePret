@@ -299,6 +299,9 @@ create table if not exists funding_request_invoices (
   created_at timestamptz not null default now(),
   primary key (request_id, invoice_id)
 );
+-- Garantizar que cada factura solo pertenezca a una solicitud
+create unique index if not exists funding_request_invoices_invoice_unique
+  on funding_request_invoices (invoice_id);
 
 alter table funding_request_invoices enable row level security;
 
