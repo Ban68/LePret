@@ -1036,7 +1036,7 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
   const currentOffer = req.current_offer ?? null;
   const contractActionLabel =
     nextStep?.cta?.label ??
-    (typeof req.contract_status === "string" && req.contract_status.toLowerCase() === "signed"
+    (typeof req.contract_status === "string" && (req.contract_status.toLowerCase().includes('signed') || req.contract_status.toLowerCase().includes('completed'))
       ? "Ver contrato"
       : "Abrir contrato");
 
@@ -1149,7 +1149,10 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
       const res = await fetch(`/api/c/${orgId}/requests/${req.id}/contract/link`);
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
       if (!res.ok || !data?.ok || typeof data.url !== "string") {
-        throw new Error(data?.error || "No se pudo abrir el contrato");
+        const friendly = data?.error === 'contract_not_ready'
+          ? "Aun estamos preparando tu contrato. Te avisaremos en cuanto este listo."
+          : data?.error || "No se pudo abrir el contrato";
+        throw new Error(friendly);
       }
       const popup = window.open(data.url, "_blank", "noopener,noreferrer");
       if (!popup) {

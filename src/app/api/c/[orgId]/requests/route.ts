@@ -58,15 +58,14 @@ function computeClientNextStep(
 ): ClientNextStep {
   const normalized = (status || "").toLowerCase();
   const contractStatus = (contract?.status || "").toLowerCase();
-  const contractCTA = contract
-    ? {
+  const contractSigned = contractStatus.includes('signed') || contractStatus.includes('completed');
+  const isContractDraftLike = contractStatus.includes('draft') || contractStatus.includes('creating');
+  const contractCTA = !contract || isContractDraftLike
+    ? null
+    : {
         kind: "open_contract",
-        label:
-          contractStatus === "signed" || contractStatus === "completed"
-            ? "Ver contrato"
-            : "Firmar contrato",
-      }
-    : null;
+        label: contractSigned ? "Ver contrato" : "Firmar contrato",
+      };
 
   if (normalized === "offered") {
     if (offer && offer.status === "offered") {
@@ -91,18 +90,25 @@ function computeClientNextStep(
       };
     }
 
-    if (contractStatus === "signed" || contractStatus === "completed") {
+    if (!contractCTA) {
+      return {
+        label: "Esperar contrato",
+        hint: "Estamos ultimando el documento antes de compartirlo.",
+      };
+    }
+
+    if (contractSigned) {
       return {
         label: "Desembolso en proceso",
         hint: "Estamos programando el desembolso de tu operacion.",
-        cta: contractCTA ?? undefined,
+        cta: contractCTA,
       };
     }
 
     return {
       label: "Firmar contrato",
       hint: "Revisa tu correo y firma el contrato enviado.",
-      cta: contractCTA ?? undefined,
+      cta: contractCTA,
     };
   }
 

@@ -16,7 +16,7 @@ export async function GET(
 
     const { data: doc, error: dErr } = await supabase
       .from('documents')
-      .select('id, provider, provider_envelope_id')
+      .select('id, provider, provider_envelope_id, status')
       .eq('company_id', orgId)
       .eq('request_id', requestId)
       .eq('provider', 'PANDADOC')
@@ -24,6 +24,11 @@ export async function GET(
       .limit(1)
       .maybeSingle();
     if (dErr || !doc) return NextResponse.json({ ok: false, error: dErr?.message || 'document_not_found' }, { status: 404 });
+
+    const status = (doc.status || '').toLowerCase();
+    if (!doc.provider_envelope_id || status.includes('draft') || status.includes('creating')) {
+      return NextResponse.json({ ok: false, error: 'contract_not_ready' }, { status: 409 });
+    }
 
     try {
       const link = await createRecipientSession(doc.provider_envelope_id, session.user.email || '');
