@@ -63,7 +63,7 @@ type GroupedBlock = {
   };
 };
 
-type DrawerAction = "offer" | "force-sign" | "fund" | "deny" | "archive";
+type DrawerAction = "offer" | "contract" | "force-sign" | "fund" | "deny" | "archive";
 
 type CustomOfferValues = {
   annualRate: number;
@@ -251,6 +251,9 @@ export function RequestsBoard() {
         } else if (action === 'force-sign') {
           endpoint = `/api/c/${selected.company_id}/requests/${selected.id}/force-signed`;
           successMessage = 'Solicitud marcada como firmada';
+        } else if (action === 'contract') {
+          endpoint = `/api/c/${selected.company_id}/requests/${selected.id}/contract`;
+          successMessage = 'Contrato generado';
         } else if (action === 'fund') {
           endpoint = `/api/c/${selected.company_id}/requests/${selected.id}/fund`;
           successMessage = 'Solicitud marcada como desembolsada';
@@ -260,6 +263,10 @@ export function RequestsBoard() {
         } else if (action === 'archive') {
           endpoint = `/api/c/${selected.company_id}/requests/${selected.id}/archive`;
           successMessage = 'Solicitud archivada';
+        }
+
+        if (!endpoint) {
+          throw new Error('Accion no soportada');
         }
 
         const requestInit: RequestInit = { method: 'POST' };
@@ -578,6 +585,8 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
   const statusFlow = ['review', 'offered', 'accepted', 'signed', 'funded'];
   const isArchived = Boolean(request.archived_at);
   const canGenerateOffer = !isArchived && request.status === 'review';
+  const hasContract = request.documents.some((doc) => doc.type === 'CONTRATO_MARCO');
+  const canGenerateContract = !isArchived && (request.status === 'accepted' || request.status === 'offered') && !hasContract;
   const canForceSign = !isArchived && (request.status === 'accepted' || request.status === 'offered');
   const canFund = !isArchived && request.status === 'signed';
   const canDeny = !isArchived && (request.status === 'review' || request.status === 'offered');
@@ -704,6 +713,12 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
                 disabled={!canGenerateOffer}
                 loading={actionLoading === 'offer'}
                 onClick={handleOfferWizardOpen}
+              />
+              <ActionButton
+                label="Generar contrato"
+                disabled={!canGenerateContract}
+                loading={actionLoading === 'contract'}
+                onClick={() => onAction('contract')}
               />
               <ActionButton
                 label="Marcar como firmada"
