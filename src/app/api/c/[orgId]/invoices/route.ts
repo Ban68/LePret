@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { formatIdsForNotIn, getUsedInvoiceIds } from "./helpers";
 
 export async function GET(
   req: Request,
@@ -26,8 +27,16 @@ export async function GET(
 
   let query = supabase
     .from("invoices")
-    .select("id, amount, issue_date, due_date, status, file_path, created_by", { count: 'exact' })
+    .select(
+      "id, amount, issue_date, due_date, status, file_path, created_by, payer, forecast_payment_date",
+      { count: 'exact' },
+    )
     .eq("company_id", orgId);
+
+  const usedIds = await getUsedInvoiceIds(supabase, orgId);
+  if (usedIds.size > 0) {
+    query = query.not("id", "in", formatIdsForNotIn(Array.from(usedIds)));
+  }
 
   if (status && status !== 'all') query = query.eq('status', status);
   if (start) query = query.gte('issue_date', start);
@@ -65,6 +74,8 @@ export async function POST(
     due_date: body.due_date,
     file_path: body.file_path ?? null,
     status: body.status ?? "uploaded",
+    payer: body.payer ?? null,
+    forecast_payment_date: body.forecast_payment_date ?? null,
   };
   const { data, error } = await supabase
     .from("invoices")
