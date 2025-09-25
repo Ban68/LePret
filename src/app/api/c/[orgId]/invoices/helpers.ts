@@ -44,5 +44,14 @@ export async function getUsedInvoiceIds(
       if (invoiceId && requestId && allowed.has(requestId)) used.add(invoiceId);
     });
   }
+
+
+
   return used;
 }
+
+export function formatIdsForNotIn(ids: string[]): string {
+  return `(${ids.map((id) => `"${id}"`).join(",")})`;
+}
+
+

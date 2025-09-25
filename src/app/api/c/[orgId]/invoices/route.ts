@@ -3,6 +3,10 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { getUsedInvoiceIds } from "./helpers";
 
+import { getUsedInvoiceIds } from "./helpers";
+
+
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ orgId: string }> }
@@ -35,9 +39,11 @@ export async function GET(
 
   const usedIds = await getUsedInvoiceIds(supabase, orgId);
   if (usedIds.size > 0) {
+
     for (const id of usedIds) {
       query = query.neq("id", id);
     }
+
   }
 
   if (status && status !== 'all') query = query.eq('status', status);
