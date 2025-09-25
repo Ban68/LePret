@@ -100,6 +100,33 @@ alter table memberships drop constraint if exists memberships_role_check;
 alter table memberships add constraint memberships_role_check
   check (role in ('client','admin','investor','OWNER','ADMIN','OPERATOR','VIEWER'));
 
+-- Pagadores (catálogo de pagadores por organización)
+create table if not exists payers (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies(id) on delete cascade,
+  name text not null,
+  status text not null default 'ACTIVE',
+  created_at timestamptz not null default now()
+);
+
+alter table payers add column if not exists tax_id text;
+alter table payers add column if not exists contact_email text;
+alter table payers add column if not exists contact_phone text;
+alter table payers add column if not exists sector text;
+alter table payers add column if not exists credit_limit numeric(14,2);
+alter table payers add column if not exists risk_rating text;
+alter table payers add column if not exists notes text;
+alter table payers add column if not exists created_by uuid references profiles(user_id) on delete set null;
+alter table payers add column if not exists updated_at timestamptz default now();
+
+alter table payers drop constraint if exists payers_status_check;
+alter table payers add constraint payers_status_check
+  check (status in ('ACTIVE','BLOCKED','ARCHIVED'));
+
+create index if not exists payers_company_idx on payers (company_id);
+create index if not exists payers_company_status_idx on payers (company_id, status);
+create unique index if not exists payers_company_tax_id_unique on payers (company_id, tax_id)
+  where tax_id is not null;
 -- Facturas (simplificado)
 create table if not exists invoices (
   id uuid primary key default gen_random_uuid(),
@@ -145,6 +172,7 @@ alter table funding_requests add column if not exists archived_by uuid reference
 alter table profiles enable row level security;
 alter table companies enable row level security;
 alter table memberships enable row level security;
+alter table payers enable row level security;
 alter table invoices enable row level security;
 alter table funding_requests enable row level security;
 
@@ -171,6 +199,64 @@ create policy "companies_member_select" on companies for select using (
   )
 );
 
+-- payers: miembros activos pueden leer; administración restringida a owners/admins o staff
+drop policy if exists "payers_member_select" on payers;
+create policy "payers_member_select" on payers for select using (
+  exists (
+    select 1 from memberships m where m.company_id = payers.company_id and m.user_id = auth.uid() and m.status = 'ACTIVE'
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+
+drop policy if exists "payers_manager_insert" on payers;
+create policy "payers_manager_insert" on payers for insert with check (
+  exists (
+    select 1 from memberships m
+    where m.company_id = payers.company_id
+      and m.user_id = auth.uid()
+      and m.status = 'ACTIVE'
+      and upper(m.role) in ('OWNER','ADMIN')
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+
+drop policy if exists "payers_manager_update" on payers;
+create policy "payers_manager_update" on payers for update using (
+  exists (
+    select 1 from memberships m
+    where m.company_id = payers.company_id
+      and m.user_id = auth.uid()
+      and m.status = 'ACTIVE'
+      and upper(m.role) in ('OWNER','ADMIN')
+  ) or payers.created_by = auth.uid() or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+) with check (
+  exists (
+    select 1 from memberships m
+    where m.company_id = payers.company_id
+      and m.user_id = auth.uid()
+      and m.status = 'ACTIVE'
+      and upper(m.role) in ('OWNER','ADMIN')
+  ) or payers.created_by = auth.uid() or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+
+drop policy if exists "payers_manager_delete" on payers;
+create policy "payers_manager_delete" on payers for delete using (
+  exists (
+    select 1 from memberships m
+    where m.company_id = payers.company_id
+      and m.user_id = auth.uid()
+      and m.status = 'ACTIVE'
+      and upper(m.role) in ('OWNER','ADMIN')
+  ) or payers.created_by = auth.uid() or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
 -- invoices: miembros pueden ver; crear; actualizar si son autores
 drop policy if exists "invoices_member_select" on invoices;
 create policy "invoices_member_select" on invoices for select using (
@@ -454,6 +540,63 @@ create policy "requests_delete" on storage.objects for delete using (
   )
 );
 
+-- === STORAGE (Bucket de pagadores) ===
+do $$ begin
+  if not exists (
+    select 1 from storage.buckets where id = 'payers'
+  ) then
+    insert into storage.buckets (id, name, public) values ('payers', 'payers', false);
+  end if;
+end $$;
+update storage.buckets set file_size_limit = 10485760 where id = 'payers';
+
+drop policy if exists "payers_files_read" on storage.objects;
+create policy "payers_files_read" on storage.objects for select using (
+  bucket_id = 'payers' and exists (
+    select 1 from memberships m
+    where m.user_id = auth.uid() and m.status = 'ACTIVE'
+      and (storage.foldername(name))[1] = m.company_id::text
+  )
+  or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+
+drop policy if exists "payers_files_insert" on storage.objects;
+create policy "payers_files_insert" on storage.objects for insert with check (
+  bucket_id = 'payers' and exists (
+    select 1 from memberships m
+    where m.user_id = auth.uid() and m.status = 'ACTIVE'
+      and (storage.foldername(name))[1] = m.company_id::text
+  )
+  or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+
+drop policy if exists "payers_files_update" on storage.objects;
+create policy "payers_files_update" on storage.objects for update using (
+  bucket_id = 'payers' and exists (
+    select 1 from memberships m
+    where m.user_id = auth.uid() and m.status = 'ACTIVE'
+      and (storage.foldername(name))[1] = m.company_id::text
+  )
+  or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+
+drop policy if exists "payers_files_delete" on storage.objects;
+create policy "payers_files_delete" on storage.objects for delete using (
+  bucket_id = 'payers' and exists (
+    select 1 from memberships m
+    where m.user_id = auth.uid() and m.status = 'ACTIVE'
+      and (storage.foldername(name))[1] = m.company_id::text
+  )
+  or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
 -- Trigger: crear profile al crear usuario en auth.users
 create or replace function public.handle_new_user()
 returns trigger as $$
