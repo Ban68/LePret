@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import Link from "next/link";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -72,8 +73,17 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [showPayerForm, setShowPayerForm] = useState(false);
+  const [creatingPayer, setCreatingPayer] = useState(false);
+  const [newPayerError, setNewPayerError] = useState<string | null>(null);
+  const [newPayer, setNewPayer] = useState({
+    name: "",
+    tax_id: "",
+    contact_email: "",
+    contact_phone: "",
+  });
   const amountRef = useRef<HTMLInputElement | null>(null);
-  const payerRef = useRef<HTMLInputElement | null>(null);
+  const payerRef = useRef<HTMLSelectElement | null>(null);
   const previousDueDateRef = useRef<string | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -281,6 +291,61 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
     () => items.filter((it) => selected[it.id]).reduce((acc, it) => acc + Number(it.amount || 0), 0),
     [items, selected],
   );
+
+  const resetNewPayerForm = () => {
+    setNewPayer({
+      name: "",
+      tax_id: "",
+      contact_email: "",
+      contact_phone: "",
+    });
+    setNewPayerError(null);
+  };
+
+  const handleCreatePayer = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (creatingPayer) return;
+    const trimmedName = newPayer.name.trim();
+    if (!trimmedName) {
+      setNewPayerError("Ingresa el nombre del pagador");
+      return;
+    }
+    setCreatingPayer(true);
+    setNewPayerError(null);
+    try {
+      const payload = {
+        name: trimmedName,
+        tax_id: newPayer.tax_id.trim() ? newPayer.tax_id.trim() : null,
+        contact_email: newPayer.contact_email.trim() ? newPayer.contact_email.trim() : null,
+        contact_phone: newPayer.contact_phone.trim() ? newPayer.contact_phone.trim() : null,
+      };
+      const response = await fetch(`/api/c/${orgId}/payers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.ok) {
+        throw new Error(data?.error || "No se pudo crear el pagador");
+      }
+      const created = data.payer as { id: string; name: string; tax_id: string | null };
+      setPayerOptions((prev) => {
+        const exists = prev.some((item) => item.id === created.id);
+        const next = exists ? prev : [...prev, { id: created.id, name: created.name, tax_id: created.tax_id ?? null }];
+        return next.slice().sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }));
+      });
+      setPayer(created.name);
+      setShowPayerForm(false);
+      resetNewPayerForm();
+      toast.success("Pagador creado");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error creando pagador";
+      setNewPayerError(message);
+      toast.error(message);
+    } finally {
+      setCreatingPayer(false);
+    }
+  };
 
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -637,28 +702,119 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
                     helperText="No permitimos vencimientos anteriores a la emisión."
                   />
                 </div>
-                <div className="sm:col-span-3 space-y-1">
+                <div className="sm:col-span-3 space-y-2">
                   <Label htmlFor="invoice-payer">
                     Pagador
                     <span className="ml-1 text-xs text-lp-primary-1" aria-hidden="true">*</span>
                   </Label>
-                  <Input
+                  <select
                     id="invoice-payer"
-                    list="payer-options"
                     ref={payerRef}
                     value={payer}
-                    onChange={(e) => setPayer(e.target.value)}
-                    placeholder="Nombre del pagador"
+                    onChange={(event) => setPayer(event.target.value)}
                     required
                     aria-invalid={formError ? payer.trim().length === 0 : undefined}
-                  />
-                  <datalist id="payer-options">
+                    className={cn(
+                      "h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+                      formError && payer.trim().length === 0 ? "border-red-300" : undefined
+                    )}
+                  >
+                    <option value="">{payerOptions.length ? "Selecciona un pagador" : "No hay pagadores disponibles"}</option>
                     {payerOptions.map((option) => (
                       <option key={option.id} value={option.name}>
                         {option.tax_id ? `${option.name} (${option.tax_id})` : option.name}
                       </option>
                     ))}
-                  </datalist>
+                  </select>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-lp-sec-3">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="link"
+                      className="px-0"
+                      onClick={() => {
+                        setShowPayerForm(true);
+                        if (!showPayerForm) {
+                          resetNewPayerForm();
+                        }
+                      }}
+                    >
+                      Crear pagador rapido
+                    </Button>
+                    <span aria-hidden="true" className="text-lp-sec-4/80">|</span>
+                    <Link href={`/c/${orgId}/payers`} className="text-lp-primary-1 hover:underline">
+                      Ver todos los pagadores
+                    </Link>
+                  </div>
+                  {showPayerForm ? (
+                    <form className="space-y-3 rounded-md border border-lp-sec-4/60 bg-white p-3 text-sm" onSubmit={handleCreatePayer}>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <Label htmlFor="quick-payer-name" className="text-xs font-medium text-lp-primary-1">
+                            Nombre
+                          </Label>
+                          <Input
+                            id="quick-payer-name"
+                            value={newPayer.name}
+                            onChange={(event) => setNewPayer((prev) => ({ ...prev, name: event.target.value }))}
+                            placeholder="Nombre del pagador"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="quick-payer-nit" className="text-xs font-medium text-lp-primary-1">
+                            NIT (opcional)
+                          </Label>
+                          <Input
+                            id="quick-payer-nit"
+                            value={newPayer.tax_id}
+                            onChange={(event) => setNewPayer((prev) => ({ ...prev, tax_id: event.target.value }))}
+                            placeholder="Ej: 900123456"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="quick-payer-email" className="text-xs font-medium text-lp-primary-1">
+                            Correo (opcional)
+                          </Label>
+                          <Input
+                            id="quick-payer-email"
+                            type="email"
+                            value={newPayer.contact_email}
+                            onChange={(event) => setNewPayer((prev) => ({ ...prev, contact_email: event.target.value }))}
+                            placeholder="correo@empresa.com"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="quick-payer-phone" className="text-xs font-medium text-lp-primary-1">
+                            Telefono (opcional)
+                          </Label>
+                          <Input
+                            id="quick-payer-phone"
+                            value={newPayer.contact_phone}
+                            onChange={(event) => setNewPayer((prev) => ({ ...prev, contact_phone: event.target.value }))}
+                            placeholder="3001234567"
+                          />
+                        </div>
+                      </div>
+                      {newPayerError ? <p className="text-xs text-red-600">{newPayerError}</p> : null}
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="submit" size="sm" disabled={creatingPayer}>
+                          {creatingPayer ? "Guardando..." : "Guardar pagador"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setShowPayerForm(false);
+                            resetNewPayerForm();
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    </form>
+                  ) : null}
                   <p className="text-xs text-lp-sec-3">Indica quien realizara el pago de la factura.</p>
                 </div>
                 <div className="sm:col-span-3 space-y-1">
