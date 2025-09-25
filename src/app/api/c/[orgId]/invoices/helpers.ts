@@ -45,9 +45,11 @@ export async function getUsedInvoiceIds(
     });
   }
 
+
   return used;
 }
 
 export function formatIdsForNotIn(ids: string[]): string {
   return `(${ids.map((id) => `"${id}"`).join(",")})`;
 }
+
