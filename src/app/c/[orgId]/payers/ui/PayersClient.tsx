@@ -171,7 +171,7 @@ export function PayersClient({ orgId }: PayersClientProps) {
   };
 
   const onArchive = async (payer: Payer) => {
-    if (!confirm(`¿Archivar a ${payer.name}?`)) return;
+    if (!confirm(`Archivar a ${payer.name}?`)) return;
     try {
       const response = await fetch(`/api/c/${orgId}/payers/${payer.id}`, { method: "DELETE" });
       const data = await response.json().catch(() => ({}));
@@ -214,7 +214,7 @@ export function PayersClient({ orgId }: PayersClientProps) {
           <div>
             <h1 className="text-2xl font-semibold text-lp-primary-1">Pagadores</h1>
             <p className="text-sm text-lp-sec-3">
-              Administra los pagadores vinculados a tu organización. Estos datos se usan al crear solicitudes y facturas.
+              Administra los pagadores vinculados a tu organizacion. Estos datos se usan al crear solicitudes y facturas.
             </p>
           </div>
           {formMode === "edit" ? (
@@ -252,7 +252,7 @@ export function PayersClient({ orgId }: PayersClientProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="payer-phone">Teléfono de contacto</Label>
+            <Label htmlFor="payer-phone">Telefono de contacto</Label>
             <Input
               id="payer-phone"
               value={form.contact_phone}
@@ -277,7 +277,7 @@ export function PayersClient({ orgId }: PayersClientProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="payer-rating">Calificación</Label>
+            <Label htmlFor="payer-rating">Calificacion</Label>
             <Input
               id="payer-rating"
               value={form.risk_rating}
@@ -358,7 +358,7 @@ export function PayersClient({ orgId }: PayersClientProps) {
         </div>
 
         {loading ? (
-          <TableSkeleton rows={limit} columns={6} />
+          <TableSkeleton rows={limit} cols={6} />
         ) : error ? (
           <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
         ) : items.length === 0 ? (
