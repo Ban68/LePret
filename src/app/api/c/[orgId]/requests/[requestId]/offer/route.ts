@@ -26,6 +26,46 @@ function computeOffer(input: { requested: number }): {
   };
 }
 
+function computeCustomOffer(input: {
+  requested: number;
+  annualRatePct: number;
+  advancePct: number;
+  processingFee: number;
+  wireFee: number;
+  validForDays: number;
+}): {
+  annual_rate: number;
+  advance_pct: number;
+  fees: Record<string, number>;
+  net_amount: number;
+  valid_until: string;
+} {
+  const annual_pct = Number.isFinite(input.annualRatePct) ? input.annualRatePct : 30;
+  const advance_pct = Number.isFinite(input.advancePct) ? input.advancePct : 85;
+  const processing = Number.isFinite(input.processingFee) ? input.processingFee : 0;
+  const wire = Number.isFinite(input.wireFee) ? input.wireFee : 0;
+  const valid_days = Number.isFinite(input.validForDays) ? input.validForDays : 7;
+
+  const normalizedAdvancePct = Math.max(0, Math.min(100, advance_pct));
+  const normalizedAnnualRate = Math.max(0, Math.min(200, annual_pct));
+  const normalizedProcessing = Math.max(0, Math.round(processing));
+  const normalizedWire = Math.max(0, Math.round(wire));
+  const normalizedValidDays = Math.max(1, Math.min(90, Math.round(valid_days)));
+
+  const advance = input.requested * (normalizedAdvancePct / 100);
+  const fees_total = normalizedProcessing + normalizedWire;
+  const net_amount = Math.max(0, Math.round(advance - fees_total));
+  const valid_until = new Date(Date.now() + normalizedValidDays * 24 * 3600 * 1000).toISOString();
+
+  return {
+    annual_rate: normalizedAnnualRate / 100,
+    advance_pct: normalizedAdvancePct,
+    fees: { processing: normalizedProcessing, wire: normalizedWire },
+    net_amount,
+    valid_until,
+  };
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ orgId: string; requestId: string }> }
@@ -49,7 +89,7 @@ export async function GET(
 }
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ orgId: string; requestId: string }> }
 ) {
   try {
@@ -68,7 +108,23 @@ export async function POST(
       .single();
     if (rErr || !reqRow) throw new Error(rErr?.message || "Request not found");
 
-    const calc = computeOffer({ requested: Number(reqRow.requested_amount) || 0 });
+    const payload = await req.json().catch(() => null);
+    const requestedAmount = Number(reqRow.requested_amount) || 0;
+    const manualPayload =
+      payload && typeof payload === "object" && payload !== null && "mode" in payload && (payload as { mode?: string }).mode === "manual"
+        ? payload as { mode: "manual"; values?: Partial<Record<string, unknown>> }
+        : null;
+
+    const calc = manualPayload
+      ? computeCustomOffer({
+          requested: requestedAmount,
+          annualRatePct: Number(manualPayload.values?.annualRate),
+          advancePct: Number(manualPayload.values?.advancePct),
+          processingFee: Number(manualPayload.values?.processingFee),
+          wireFee: Number(manualPayload.values?.wireFee),
+          validForDays: Number(manualPayload.values?.validForDays),
+        })
+      : computeOffer({ requested: requestedAmount });
 
     const { data: offer, error: insErr } = await supabase
       .from("offers")
