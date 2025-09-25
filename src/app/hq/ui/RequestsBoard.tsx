@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { FormEvent, ReactNode } from "react";
 import Link from "next/link";
 
 import { Input } from "@/components/ui/input";
@@ -64,6 +64,14 @@ type GroupedBlock = {
 };
 
 type DrawerAction = "offer" | "force-sign" | "fund" | "deny" | "archive";
+
+type CustomOfferValues = {
+  annualRate: number;
+  advancePct: number;
+  processingFee: number;
+  wireFee: number;
+  validForDays: number;
+};
 
 export function RequestsBoard() {
   const [items, setItems] = useState<RequestItem[]>([]);
@@ -224,15 +232,16 @@ export function RequestsBoard() {
   }, [fetchData, selected]);
 
   const handleAction = useCallback(
-    async (action: DrawerAction) => {
-      if (!selected) return;
+    async (action: DrawerAction, payload?: unknown) => {
+      if (!selected) return false;
       if (action === 'deny' && !confirm('Seguro que quieres denegar la solicitud?')) {
-        return;
+        return false;
       }
       if (action === 'archive' && !confirm('Archivar esta solicitud?')) {
-        return;
+        return false;
       }
       setActionLoading(action);
+      let success = false;
       try {
         let endpoint = '';
         let successMessage = '';
@@ -253,19 +262,27 @@ export function RequestsBoard() {
           successMessage = 'Solicitud archivada';
         }
 
-        const response = await fetch(endpoint, { method: 'POST' });
-        const payload = await response.json().catch(() => ({}));
+        const requestInit: RequestInit = { method: 'POST' };
+        if (action === 'offer' && payload && typeof payload === 'object') {
+          requestInit.body = JSON.stringify(payload);
+          requestInit.headers = { 'Content-Type': 'application/json' };
+        }
+
+        const response = await fetch(endpoint, requestInit);
+        const responsePayload = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(payload?.error || 'No se pudo completar la accion');
+          throw new Error((responsePayload as { error?: string })?.error || 'No se pudo completar la accion');
         }
         toast.success(successMessage);
         await refreshSelection();
+        success = true;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error inesperado';
         toast.error(message);
       } finally {
         setActionLoading(null);
       }
+      return success;
     },
     [selected, refreshSelection]
   );
@@ -540,11 +557,19 @@ type RequestDetailDrawerProps = {
   open: boolean;
   request: RequestItem | null;
   onClose: () => void;
-  onAction: (action: DrawerAction) => Promise<void> | void;
+  onAction: (action: DrawerAction, payload?: unknown) => Promise<boolean> | boolean;
   actionLoading: DrawerAction | null;
 };
 
 function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }: RequestDetailDrawerProps) {
+  const [offerWizardOpen, setOfferWizardOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setOfferWizardOpen(false);
+    }
+  }, [open]);
+
   if (!open || !request) {
     return null;
   }
@@ -558,6 +583,25 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
   const canDeny = !isArchived && (request.status === 'review' || request.status === 'offered');
   const canArchive = !isArchived;
   const archiveLabel = isArchived ? 'Solicitud archivada' : 'Archivar solicitud';
+
+  const handleOfferWizardOpen = () => {
+    if (!canGenerateOffer || actionLoading === 'offer') {
+      return;
+    }
+    setOfferWizardOpen(true);
+  };
+
+  const handleOfferWizardClose = () => {
+    setOfferWizardOpen(false);
+  };
+
+  const handleAutoOffer = () => {
+    return onAction('offer');
+  };
+
+  const handleManualOffer = (values: CustomOfferValues) => {
+    return onAction('offer', { mode: 'manual', values });
+  };
 
   return (
     <>
@@ -659,7 +703,7 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
                 label="Generar oferta"
                 disabled={!canGenerateOffer}
                 loading={actionLoading === 'offer'}
-                onClick={() => onAction('offer')}
+                onClick={handleOfferWizardOpen}
               />
               <ActionButton
                 label="Marcar como firmada"
@@ -691,7 +735,387 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
           </section>
         </div>
       </aside>
+      {offerWizardOpen ? (
+        <OfferWizard
+          request={request}
+          onClose={handleOfferWizardClose}
+          onAuto={handleAutoOffer}
+          onSubmit={handleManualOffer}
+          loading={actionLoading === 'offer'}
+        />
+      ) : null}
     </>
+  );
+}
+
+type OfferWizardProps = {
+  request: RequestItem;
+  onClose: () => void;
+  onAuto: () => Promise<boolean> | boolean;
+  onSubmit: (values: CustomOfferValues) => Promise<boolean> | boolean;
+  loading: boolean;
+};
+
+type OfferWizardFormState = {
+  annualRate: string;
+  advancePct: string;
+  processingFee: string;
+  wireFee: string;
+  validForDays: string;
+};
+
+type OfferWizardStep = {
+  key: keyof OfferWizardFormState;
+  title: string;
+  description: string;
+  unit: string;
+  min: number;
+  max?: number;
+  isCurrency?: boolean;
+};
+
+function OfferWizard({ request, onClose, onAuto, onSubmit, loading }: OfferWizardProps) {
+  const requestedAmount = Number(request.requested_amount) || 0;
+  const defaultProcessing = useMemo(
+    () => Math.round(Math.max(50000, Math.min(200000, requestedAmount * 0.005))),
+    [requestedAmount]
+  );
+  const steps: OfferWizardStep[] = useMemo(
+    () => [
+      {
+        key: 'annualRate',
+        title: '¿Cuál es la tasa anual efectiva (EA)?',
+        description: 'Define el porcentaje anual que esperas aplicar a la operación.',
+        unit: '% EA',
+        min: 0,
+        max: 200,
+      },
+      {
+        key: 'advancePct',
+        title: '¿Qué porcentaje de anticipo deseas ofrecer?',
+        description: 'Establece el aforo máximo respecto al valor solicitado por el cliente.',
+        unit: '% de anticipo',
+        min: 0,
+        max: 100,
+      },
+      {
+        key: 'processingFee',
+        title: 'Tarifa de procesamiento',
+        description: 'Incluye los costos administrativos únicos que se descontarán del anticipo.',
+        unit: 'COP',
+        min: 0,
+        isCurrency: true,
+      },
+      {
+        key: 'wireFee',
+        title: 'Costo de transferencia',
+        description: 'Define los gastos asociados al envío de los recursos al cliente.',
+        unit: 'COP',
+        min: 0,
+        isCurrency: true,
+      },
+      {
+        key: 'validForDays',
+        title: '¿Cuántos días estará vigente la oferta?',
+        description: 'Una vez cumplido el plazo la oferta expirará automáticamente.',
+        unit: 'días',
+        min: 1,
+        max: 90,
+      },
+    ],
+    []
+  );
+  const [stepIndex, setStepIndex] = useState(0);
+  const [inputTouched, setInputTouched] = useState(false);
+  const [flowLoading, setFlowLoading] = useState<null | 'auto' | 'manual'>(null);
+  const [formValues, setFormValues] = useState<OfferWizardFormState>(() => ({
+    annualRate: '30',
+    advancePct: '85',
+    processingFee: String(defaultProcessing),
+    wireFee: '5000',
+    validForDays: '7',
+  }));
+
+  useEffect(() => {
+    setStepIndex(0);
+    setInputTouched(false);
+    setFormValues({
+      annualRate: '30',
+      advancePct: '85',
+      processingFee: String(defaultProcessing),
+      wireFee: '5000',
+      validForDays: '7',
+    });
+  }, [request.id, defaultProcessing]);
+
+  useEffect(() => {
+    if (!loading) {
+      setFlowLoading(null);
+    }
+  }, [loading]);
+
+  useEffect(() => {
+    setInputTouched(false);
+  }, [stepIndex]);
+
+  const parseNumber = useCallback((value: string) => {
+    if (typeof value !== 'string') return Number.NaN;
+    const sanitized = value.replace(/[\s,]/g, (match) => (match === ',' ? '.' : ''));
+    const parsed = Number(sanitized);
+    return Number.isFinite(parsed) ? parsed : Number.NaN;
+  }, []);
+
+  const resolvedValues = useMemo<CustomOfferValues>(() => {
+    const annualRate = parseNumber(formValues.annualRate);
+    const advancePct = parseNumber(formValues.advancePct);
+    const processingFee = parseNumber(formValues.processingFee);
+    const wireFee = parseNumber(formValues.wireFee);
+    const validForDays = parseNumber(formValues.validForDays);
+
+    const normalizedAnnual = Number.isFinite(annualRate) ? Math.max(0, Math.min(200, annualRate)) : 30;
+    const normalizedAdvance = Number.isFinite(advancePct) ? Math.max(0, Math.min(100, advancePct)) : 85;
+    const normalizedProcessing = Number.isFinite(processingFee) ? Math.max(0, Math.round(processingFee)) : defaultProcessing;
+    const normalizedWire = Number.isFinite(wireFee) ? Math.max(0, Math.round(wireFee)) : 5000;
+    const normalizedValid = Number.isFinite(validForDays) ? Math.max(1, Math.min(90, Math.round(validForDays))) : 7;
+
+    return {
+      annualRate: normalizedAnnual,
+      advancePct: normalizedAdvance,
+      processingFee: normalizedProcessing,
+      wireFee: normalizedWire,
+      validForDays: normalizedValid,
+    };
+  }, [defaultProcessing, formValues, parseNumber]);
+
+  const summary = useMemo(() => {
+    const advanceAmount = requestedAmount * (resolvedValues.advancePct / 100);
+    const netAmount = Math.max(0, Math.round(advanceAmount - resolvedValues.processingFee - resolvedValues.wireFee));
+    const validUntil = new Date(Date.now() + resolvedValues.validForDays * 24 * 60 * 60 * 1000);
+    const validUntilLabel = validUntil.toLocaleDateString('es-CO', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+    return {
+      advanceAmount,
+      netAmount,
+      validUntil,
+      validUntilLabel,
+    };
+  }, [requestedAmount, resolvedValues]);
+
+  const isSummary = stepIndex >= steps.length;
+  const currentStep = !isSummary ? steps[stepIndex] : steps[steps.length - 1];
+  const currentValue = formValues[currentStep.key];
+  const currentNumber = parseNumber(currentValue);
+  const isCurrentValid =
+    isSummary ||
+    (Number.isFinite(currentNumber) &&
+      currentNumber >= currentStep.min &&
+      (typeof currentStep.max === 'number' ? currentNumber <= currentStep.max : true));
+  const progress = ((Math.min(stepIndex, steps.length) + 1) / (steps.length + 1)) * 100;
+  const busy = flowLoading !== null || loading;
+
+  const handleChange = useCallback(
+    (key: keyof OfferWizardFormState, value: string) => {
+      setFormValues((prev) => ({ ...prev, [key]: value }));
+    },
+    []
+  );
+
+  const handleBack = useCallback(() => {
+    if (stepIndex === 0) {
+      onClose();
+      return;
+    }
+    setStepIndex((prev) => Math.max(0, prev - 1));
+  }, [onClose, stepIndex]);
+
+  const handleNextStep = useCallback(() => {
+    if (!isCurrentValid) {
+      setInputTouched(true);
+      return;
+    }
+    setStepIndex((prev) => Math.min(steps.length, prev + 1));
+  }, [isCurrentValid, steps.length]);
+
+  const handleSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (isSummary) {
+        if (busy) return;
+        setFlowLoading('manual');
+        try {
+          const ok = await onSubmit(resolvedValues);
+          if (ok) {
+            onClose();
+          }
+        } finally {
+          setFlowLoading(null);
+        }
+        return;
+      }
+      handleNextStep();
+    },
+    [busy, handleNextStep, isSummary, onClose, onSubmit, resolvedValues]
+  );
+
+  const handleAuto = useCallback(async () => {
+    if (busy) return;
+    setFlowLoading('auto');
+    try {
+      const ok = await onAuto();
+      if (ok) {
+        onClose();
+      }
+    } finally {
+      setFlowLoading(null);
+    }
+  }, [busy, onAuto, onClose]);
+
+  const fieldLabel = isSummary ? 'Resumen de la oferta personalizada' : currentStep.title;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 px-4 py-8 backdrop-blur-sm">
+      <div className="relative flex w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-white shadow-2xl">
+        <div className="flex flex-col gap-4 bg-gradient-to-br from-lp-primary-1 to-lp-primary-3 p-8 text-white md:flex-row md:items-start md:justify-between">
+          <div className="max-w-xl space-y-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-white/70">Generar oferta</p>
+            <h2 className="text-3xl font-semibold leading-tight">Personaliza la propuesta para {request.company_name}</h2>
+            <p className="text-sm text-white/80">
+              Responde algunas preguntas para ajustar las variables claves y crear una oferta hecha a la medida.
+              También puedes generar la propuesta con la fórmula estándar si lo prefieres.
+            </p>
+            <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1 text-xs font-medium">
+              <span className="uppercase tracking-wide text-white/80">Solicitud</span>
+              <span className="text-white">${formatCurrency(requestedAmount)}</span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 text-right text-sm">
+            <button
+              type="button"
+              onClick={handleAuto}
+              disabled={busy}
+              className="rounded-full border border-white/70 px-4 py-2 font-semibold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:border-white/40 disabled:text-white/60"
+            >
+              {busy && flowLoading === 'auto' ? 'Procesando...' : 'Generar automáticamente'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+              className="text-xs font-medium text-white/80 underline underline-offset-2 transition hover:text-white disabled:cursor-not-allowed disabled:text-white/50"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-8 p-8">
+          <div>
+            <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-wide text-lp-sec-3">
+              <span>Paso {Math.min(stepIndex + 1, steps.length + 1)} de {steps.length + 1}</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-lp-sec-4/30">
+              <div className="h-full rounded-full bg-lp-primary-1 transition-all" style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-2xl font-semibold text-lp-primary-1">{fieldLabel}</h3>
+              {!isSummary ? (
+                <p className="mt-2 text-sm text-lp-sec-3">{currentStep.description}</p>
+              ) : (
+                <p className="mt-2 text-sm text-lp-sec-3">
+                  Repasa los valores clave antes de crear la oferta personalizada.
+                </p>
+              )}
+            </div>
+
+            {!isSummary ? (
+              <div className="flex flex-col gap-4">
+                <label className="text-sm font-medium text-lp-primary-1" htmlFor={`offer-${currentStep.key}`}>
+                  {currentStep.title}
+                </label>
+                <div className="flex flex-wrap items-end gap-4">
+                  {currentStep.isCurrency ? (
+                    <span className="text-4xl font-semibold text-lp-primary-1">$</span>
+                  ) : null}
+                  <input
+                    id={`offer-${currentStep.key}`}
+                    type="number"
+                    inputMode="decimal"
+                    step={currentStep.isCurrency ? 1000 : 0.01}
+                    min={currentStep.min}
+                    max={currentStep.max}
+                    value={currentValue}
+                    onChange={(event) => handleChange(currentStep.key, event.target.value)}
+                    onFocus={() => setInputTouched(false)}
+                    className="w-full max-w-xs rounded-2xl border border-lp-sec-4/60 bg-white px-6 py-4 text-3xl font-semibold text-lp-primary-1 focus:border-lp-primary-1 focus:outline-none focus:ring-2 focus:ring-lp-primary-1/40"
+                    placeholder={currentStep.isCurrency ? '0' : '0.0'}
+                  />
+                  <span className="text-lg font-medium text-lp-sec-3">{currentStep.unit}</span>
+                </div>
+                {!isCurrentValid && inputTouched ? (
+                  <p className="text-sm text-red-600">
+                    Ingresa un valor entre {currentStep.min}
+                    {typeof currentStep.max === 'number' ? ` y ${currentStep.max}` : ''}.
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                <SummaryItem label="Tasa efectiva" value={`${resolvedValues.annualRate.toFixed(2)}% EA`} />
+                <SummaryItem label="Aforo propuesto" value={`${resolvedValues.advancePct.toFixed(0)}%`} />
+                <SummaryItem label="Anticipo estimado" value={`$${formatCurrency(Math.round(summary.advanceAmount))}`} />
+                <SummaryItem label="Neto a desembolsar" value={`$${formatCurrency(summary.netAmount)}`} highlight />
+                <SummaryItem label="Tarifa de procesamiento" value={`$${formatCurrency(resolvedValues.processingFee)}`} />
+                <SummaryItem label="Costo de transferencia" value={`$${formatCurrency(resolvedValues.wireFee)}`} />
+                <SummaryItem label="Vigencia" value={`${resolvedValues.validForDays} día(s) · Hasta ${summary.validUntilLabel}`} />
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={handleBack}
+              disabled={busy}
+              className="rounded-full border border-lp-sec-4/80 px-4 py-2 text-sm font-medium text-lp-sec-3 transition hover:bg-lp-sec-4/40 disabled:cursor-not-allowed disabled:border-lp-sec-4/60 disabled:text-lp-sec-3/70"
+            >
+              {stepIndex === 0 ? 'Cancelar' : 'Atrás'}
+            </button>
+            <button
+              type="submit"
+              disabled={busy || (!isSummary && !isCurrentValid)}
+              className="rounded-full bg-lp-primary-1 px-6 py-2 text-sm font-semibold text-lp-primary-2 transition hover:bg-lp-primary-1/90 disabled:cursor-not-allowed disabled:bg-lp-sec-4/60 disabled:text-lp-sec-3"
+            >
+              {isSummary ? (busy && flowLoading === 'manual' ? 'Generando...' : 'Crear oferta personalizada') : 'Siguiente'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+type SummaryItemProps = {
+  label: string;
+  value: string;
+  highlight?: boolean;
+};
+
+function SummaryItem({ label, value, highlight }: SummaryItemProps) {
+  return (
+    <div
+      className={`rounded-2xl border px-4 py-4 ${
+        highlight ? 'border-lp-primary-1 bg-lp-primary-1/5 text-lp-primary-1' : 'border-lp-sec-4/60 bg-white text-lp-primary-1'
+      }`}
+    >
+      <div className="text-xs uppercase tracking-wide text-lp-sec-3">{label}</div>
+      <div className="mt-2 text-lg font-semibold">{value}</div>
+    </div>
   );
 }
 
