@@ -110,6 +110,8 @@ create table if not exists invoices (
   due_date date not null,
   currency text not null default 'COP' check (currency in ('COP')),
   status text not null default 'uploaded',
+  payer text,
+  forecast_payment_date date,
   file_path text,
   created_at timestamptz not null default now()
 );
@@ -118,6 +120,9 @@ create table if not exists invoices (
 alter table invoices drop constraint if exists invoices_status_check;
 alter table invoices add constraint invoices_status_check
   check (status in ('uploaded','validated','rejected','funded','cancelled'));
+
+alter table invoices add column if not exists payer text;
+alter table invoices add column if not exists forecast_payment_date date;
 
 -- Solicitudes de financiación (simplificado)
 create table if not exists funding_requests (
