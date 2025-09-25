@@ -542,7 +542,7 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
               <CardDescription>Completa los datos obligatorios. Guardamos tu progreso automáticamente al enviar.</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={onCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-6">
+              <form noValidate onSubmit={onCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-6">
                 <div className="sm:col-span-2 space-y-1">
                   <Label htmlFor="invoice-amount">
                     Monto (COP)
