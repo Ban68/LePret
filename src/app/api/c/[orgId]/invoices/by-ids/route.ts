@@ -19,7 +19,7 @@ export async function POST(
 
     const { data, error } = await supabase
       .from('invoices')
-      .select('id, amount, issue_date, due_date, status, file_path')
+      .select('id, amount, issue_date, due_date, status, file_path, payer, forecast_payment_date')
       .in('id', ids)
       .eq('company_id', orgId);
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });

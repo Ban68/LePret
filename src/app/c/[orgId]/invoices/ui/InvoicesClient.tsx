@@ -10,6 +10,7 @@ import { InlineBanner } from "@/components/ui/inline-banner";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -29,6 +30,8 @@ type Invoice = {
   status: string;
   file_path?: string | null;
   created_by?: string;
+  payer?: string | null;
+  forecast_payment_date?: string | null;
 };
 
 type BannerState = { tone: "success" | "info" | "warning" | "error"; title: string; description?: string };
@@ -62,11 +65,15 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
 
   const [amount, setAmount] = useState<string>("");
   const [dateRange, setDateRange] = useState<DateRangeValue>({ start: "", end: "" });
+  const [payer, setPayer] = useState<string>("");
+  const [forecastDate, setForecastDate] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const amountRef = useRef<HTMLInputElement | null>(null);
+  const payerRef = useRef<HTMLInputElement | null>(null);
+  const previousDueDateRef = useRef<string | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [minAmount, setMinAmount] = useState<string>("");
@@ -90,8 +97,25 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
     const d1 = !!dateRange.start && !Number.isNaN(Date.parse(dateRange.start));
     const d2 = !!dateRange.end && !Number.isNaN(Date.parse(dateRange.end));
     const orderOk = d1 && d2 ? new Date(dateRange.start) <= new Date(dateRange.end) : false;
-    return amtOk && d1 && d2 && orderOk && !saving;
-  }, [amount, dateRange, saving]);
+    const payerOk = payer.trim().length > 0;
+    const forecastOk = !!forecastDate && !Number.isNaN(Date.parse(forecastDate));
+    return amtOk && d1 && d2 && orderOk && payerOk && forecastOk && !saving;
+  }, [amount, dateRange, forecastDate, payer, saving]);
+
+  useEffect(() => {
+    const due = dateRange.end;
+    if (!due) {
+      setForecastDate("");
+      previousDueDateRef.current = null;
+      return;
+    }
+    setForecastDate((prev) => {
+      if (!prev) return due;
+      if (prev === previousDueDateRef.current) return due;
+      return prev;
+    });
+    previousDueDateRef.current = due;
+  }, [dateRange.end]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -252,6 +276,19 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
       toast.error("La fecha de vencimiento debe ser posterior a la de emisión");
       return;
     }
+    if (!payer.trim()) {
+      setFormError("Ingresa el pagador de la factura");
+      payerRef.current?.focus();
+      setSaving(false);
+      toast.error("Ingresa el pagador");
+      return;
+    }
+    if (!forecastDate) {
+      setFormError("Completa la fecha forecast de pago");
+      setSaving(false);
+      toast.error("Completa la fecha forecast de pago");
+      return;
+    }
 
     let uploadedPath: string | null = null;
 
@@ -294,6 +331,8 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
       amount: parseCurrency(amount),
       issue_date: dateRange.start,
       due_date: dateRange.end,
+      payer: payer.trim(),
+      forecast_payment_date: forecastDate,
       file_path: uploadedPath,
     };
     const res = await fetch(`/api/c/${orgId}/invoices`, {
@@ -309,6 +348,9 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
     } else {
       setAmount("");
       setDateRange({ start: "", end: "" });
+      setPayer("");
+      setForecastDate("");
+      previousDueDateRef.current = null;
       await load();
       await loadSummary();
       setFile(null);
@@ -347,13 +389,17 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
 
       {metrics && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard title="Facturas cargadas" value={metrics.invoices} subtitle="Total histórico en la plataforma" />
+          <MetricCard
+            title="Facturas cargadas"
+            value={metrics.invoices}
+            subtitle="Disponibles para crear solicitudes"
+          />
           <MetricCard
             title="Monto cargado"
             value={Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(
               metrics.invoicesAmountTotal,
             )}
-            subtitle="Suma de facturas registradas"
+            subtitle="Suma de facturas disponibles"
           />
           <MetricCard
             title="Solicitudes activas"
@@ -566,6 +612,36 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
                     helperText="No permitimos vencimientos anteriores a la emisión."
                   />
                 </div>
+                <div className="sm:col-span-3 space-y-1">
+                  <Label htmlFor="invoice-payer">
+                    Pagador
+                    <span className="ml-1 text-xs text-lp-primary-1" aria-hidden="true">*</span>
+                  </Label>
+                  <Input
+                    id="invoice-payer"
+                    ref={payerRef}
+                    value={payer}
+                    onChange={(e) => setPayer(e.target.value)}
+                    placeholder="Nombre del pagador"
+                    required
+                    aria-invalid={formError ? payer.trim().length === 0 : undefined}
+                  />
+                  <p className="text-xs text-lp-sec-3">Indica quién realizará el pago de la factura.</p>
+                </div>
+                <div className="sm:col-span-3 space-y-1">
+                  <Label htmlFor="invoice-forecast">
+                    Fecha forecast pago
+                    <span className="ml-1 text-xs text-lp-primary-1" aria-hidden="true">*</span>
+                  </Label>
+                  <Input
+                    id="invoice-forecast"
+                    type="date"
+                    value={forecastDate}
+                    onChange={(e) => setForecastDate(e.target.value)}
+                    required
+                  />
+                  <p className="text-xs text-lp-sec-3">Por defecto usamos la fecha de vencimiento, pero puedes ajustarla.</p>
+                </div>
                 <div className="sm:col-span-3">
                   <Label htmlFor="invoice-file">Archivo (PDF/imagen, opcional)</Label>
                   <div
@@ -680,6 +756,8 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
                       <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Factura</th>
                       <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Emisión</th>
                       <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Vencimiento</th>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Forecast pago</th>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Pagador</th>
                       <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Monto</th>
                       <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Estado</th>
                       <th className="px-4 py-2 text-left text-sm font-medium text-lp-sec-3">Archivo</th>
@@ -688,10 +766,10 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <TableSkeleton cols={8} />
+                      <TableSkeleton cols={10} />
                     ) : items.length === 0 ? (
                       <tr>
-                        <td colSpan={8}>
+                        <td colSpan={10}>
                           <EmptyState
                             title="No hay facturas"
                             description="Crea una nueva factura para empezar a operar."
@@ -721,6 +799,8 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
                           <td className="px-4 py-2 text-sm font-medium text-lp-primary-1">{it.id.slice(0, 8)}</td>
                           <td className="px-4 py-2 text-sm">{it.issue_date}</td>
                           <td className="px-4 py-2 text-sm">{it.due_date}</td>
+                          <td className="px-4 py-2 text-sm">{it.forecast_payment_date ?? "-"}</td>
+                          <td className="px-4 py-2 text-sm">{it.payer ?? "-"}</td>
                           <td className="px-4 py-2 text-sm font-medium">
                             ${Intl.NumberFormat("es-CO").format(it.amount)}
                           </td>
@@ -851,7 +931,13 @@ async function createRequestFromSelected({
       body: JSON.stringify({ invoice_ids: invoiceIds }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "No se pudo crear solicitud");
+    if (!res.ok) {
+      const errKey = data.error;
+      if (errKey === "invoice_already_used") {
+        throw new Error("Una o más facturas ya están asociadas a otra solicitud");
+      }
+      throw new Error(errKey || "No se pudo crear solicitud");
+    }
     toast.success("Solicitud creada");
     await onSuccess();
   } catch (e: unknown) {
@@ -1028,7 +1114,13 @@ function CreateRequestFromInvoices({
         body: JSON.stringify({ invoice_ids: selIds }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "No se pudo crear solicitud");
+      if (!res.ok) {
+        const errKey = data.error;
+        if (errKey === "invoice_already_used") {
+          throw new Error("Una o más facturas ya están asociadas a otra solicitud");
+        }
+        throw new Error(errKey || "No se pudo crear solicitud");
+      }
       await onCreated();
       toast.success("Solicitud creada con facturas seleccionadas");
     } catch (e: unknown) {
