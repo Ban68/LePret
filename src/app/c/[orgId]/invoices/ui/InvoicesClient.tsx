@@ -1,5 +1,7 @@
 "use client";
 
+const MOCK_INVOICES_ENABLED = (process.env.NEXT_PUBLIC_ENABLE_MOCK_INVOICES || "").toLowerCase() === "true";
+
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
@@ -21,7 +23,7 @@ import {
 } from "@/components/ui/card";
 import { Toaster, toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { MoreVertical, Plus, Wand2 } from "lucide-react";
+import { MoreVertical, Plus, Sparkles, Wand2 } from "lucide-react";
 
 type Invoice = {
   id: string;
@@ -97,6 +99,7 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [metrics, setMetrics] = useState<SummaryMetrics | null>(null);
   const [banner, setBanner] = useState<BannerState | null>(null);
+  const [mocking, setMocking] = useState(false);
 
   // Helpers de moneda (declaradas antes de usarlas)
   function parseCurrency(s: string): number {
@@ -168,6 +171,30 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
       console.error(err);
     }
   }, [orgId]);
+
+  const generateMockInvoices = useCallback(async () => {
+    setMocking(true);
+    try {
+      const res = await fetch(`/api/c/${orgId}/invoices/mock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = typeof data?.error === "string" ? data.error : "No se pudieron generar facturas";
+        throw new Error(message);
+      }
+      const createdCount = Array.isArray(data?.created) ? data.created.length : undefined;
+      toast.success(createdCount ? `Se generaron ${createdCount} facturas demo` : "Facturas demo generadas");
+      await load();
+      await loadSummary();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error generando facturas";
+      toast.error(message);
+    } finally {
+      setMocking(false);
+    }
+  }, [orgId, load, loadSummary]);
 
   useEffect(() => {
     load();
@@ -464,6 +491,17 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
           <p className="text-sm text-lp-sec-3">Carga nuevas facturas, consulta sus estados y mantenlas listas para solicitar financiación.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {MOCK_INVOICES_ENABLED ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="gap-2"
+              onClick={generateMockInvoices}
+              disabled={mocking}
+            >
+              <Sparkles className="h-4 w-4" aria-hidden="true" /> {mocking ? "Generando..." : "Facturas demo"}
+            </Button>
+          ) : null}
           <Button variant="outline" className="gap-2" asChild>
             <a href={`/api/c/${orgId}/invoices/export`} target="_blank" rel="noopener noreferrer">
               <Wand2 className="h-4 w-4" aria-hidden="true" /> Exportar CSV
