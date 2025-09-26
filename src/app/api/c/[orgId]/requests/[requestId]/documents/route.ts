@@ -41,7 +41,7 @@ export async function POST(
 
     const deduped = Array.from(
       new Map(
-        normalized.map((doc) => [doc.file_path as string, { ...doc, file_path: doc.file_path as string }])
+        normalized.map((doc) => [doc.file_path as string, { ...doc, file_path: doc.file_path as string }]),
       ).values(),
     );
 
