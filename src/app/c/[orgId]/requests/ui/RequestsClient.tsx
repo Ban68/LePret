@@ -104,10 +104,10 @@ const INITIAL_WIZARD: WizardData = {
 };
 
 const STEPS = [
-  { title: "Seleccionar facturas", description: "Elige las facturas que formarÃƒÂ¡n parte de la solicitud." },
+  { title: "Seleccionar facturas", description: "Elige las facturas que formarán parte de la solicitud." },
   { title: "Configurar condiciones", description: "Define el monto a solicitar y tu tasa objetivo." },
-  { title: "Adjuntar soporte", description: "Carga los documentos requeridos o dÃƒÂ©jalos para despuÃƒÂ©s." },
-  { title: "Revisar y confirmar", description: "Valida el resumen y acepta los tÃƒÂ©rminos." },
+  { title: "Adjuntar soporte", description: "Carga los documentos requeridos o déjalos para después." },
+  { title: "Revisar y confirmar", description: "Valida el resumen y acepta los términos." },
 ];
 
 export function RequestsClient({ orgId }: { orgId: string }) {
@@ -234,7 +234,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   const frequentFilters = [
     {
       key: "review",
-      label: "En revisiÃƒÂ³n",
+      label: "En revisión",
       onClick: () => setStatusFilter("review"),
       active: statusFilter === "review",
     },
@@ -256,9 +256,9 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     const chips: string[] = [];
     if (statusFilter !== "all") chips.push(`Estado: ${statusFilter}`);
     if (withInvoice !== "all") chips.push(withInvoice === "true" ? "Con factura" : "Sin factura");
-    if (dateRange.start || dateRange.end) chips.push(`Rango ${dateRange.start || ""} Ã¢â€ â€™ ${dateRange.end || ""}`);
-    if (minAmount) chips.push(`Ã¢â€°Â¥ ${minAmount}`);
-    if (maxAmount) chips.push(`Ã¢â€°Â¤ ${maxAmount}`);
+    if (dateRange.start || dateRange.end) chips.push(`Rango ${dateRange.start || ""} -> ${dateRange.end || ""}`);
+    if (minAmount) chips.push(`>= ${minAmount}`);
+    if (maxAmount) chips.push(`<= ${maxAmount}`);
     return chips;
   }, [statusFilter, withInvoice, dateRange, minAmount, maxAmount]);
 
@@ -366,7 +366,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     if (step === 1) {
       const amt = parseCurrency(wizardData.amount);
       if (!amt || Number.isNaN(amt)) {
-        setWizardErrors({ amount: "Ingresa un monto vÃƒÂ¡lido" });
+        setWizardErrors({ amount: "Ingresa un monto válido" });
         amountInputRef.current?.focus();
         return;
       }
@@ -390,7 +390,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     const parsedTargetRate = normalizedTargetRateRaw ? Number(normalizedTargetRateRaw) : null;
     const targetRateValue = parsedTargetRate !== null && Number.isFinite(parsedTargetRate) ? parsedTargetRate : null;
     if (!wizardData.termsAccepted) {
-      setWizardErrors({ terms: "Debes aceptar los tÃƒÂ©rminos" });
+      setWizardErrors({ terms: "Debes aceptar los términos" });
       return;
     }
     if (!wizardData.selectedInvoiceIds.length) {
@@ -415,7 +415,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
         if (!res.ok) {
           const errKey = data.error;
           if (errKey === "invoice_already_used") {
-            throw new Error("Una o mÃƒÂ¡s facturas ya estÃƒÂ¡n asociadas a otra solicitud");
+            throw new Error("Una o más facturas ya están asociadas a otra solicitud");
           }
           if (errKey === "requested_amount_invalid") {
             throw new Error("El monto solicitado debe ser mayor a cero.");
@@ -470,7 +470,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
       setBanner({
         tone: "success",
         title: "Solicitud creada",
-        description: "La encontrarÃƒÂ¡s en la tabla de solicitudes con el resumen actualizado.",
+        description: "La encontrarás en la tabla de solicitudes con el resumen actualizado.",
       });
       toast.success("Solicitud creada");
       if (typeof window !== "undefined") {
@@ -494,7 +494,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="font-colette text-3xl font-bold text-lp-primary-1">Solicitudes de financiaciÃƒÂ³n</h1>
+          <h1 className="font-colette text-3xl font-bold text-lp-primary-1">Solicitudes de financiación</h1>
           <p className="text-sm text-lp-sec-3">Crea solicitudes paso a paso y haz seguimiento a su avance.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -511,7 +511,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
 
       {metrics && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard title="Solicitudes activas" value={metrics.requestsOpen} subtitle="En revisiÃƒÂ³n u oferta" />
+          <MetricCard title="Solicitudes activas" value={metrics.requestsOpen} subtitle="En revisión u oferta" />
           <MetricCard
             title="Monto en curso"
             value={Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(
@@ -580,7 +580,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                     onChange={(e) => setStatusFilter(e.target.value)}
                   >
                     <option value="all">Todos</option>
-                    <option value="review">En revisiÃƒÂ³n</option>
+                    <option value="review">En revisión</option>
                     <option value="offered">Ofertada</option>
                     <option value="accepted">Aceptada</option>
                     <option value="funded">Desembolsada</option>
@@ -590,26 +590,26 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                   id="request-range"
                   value={dateRange}
                   onChange={setDateRange}
-                  helperText="Filtra por fecha de creaciÃƒÂ³n."
+                  helperText="Filtra por fecha de creación."
                 />
                 <div className="space-y-1">
-                  <Label htmlFor="request-min">Monto mÃƒÂ­nimo</Label>
+                  <Label htmlFor="request-min">Monto mínimo</Label>
                   <CurrencyInput
                     id="request-min"
                     value={minAmount}
                     onValueChange={(formatted) => setMinAmount(formatted)}
                     placeholder="Ej: 5.000.000"
-                    helperText="Solo nÃƒÂºmeros"
+                    helperText="Solo números"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="request-max">Monto mÃƒÂ¡ximo</Label>
+                  <Label htmlFor="request-max">Monto máximo</Label>
                   <CurrencyInput
                     id="request-max"
                     value={maxAmount}
                     onValueChange={(formatted) => setMaxAmount(formatted)}
                     placeholder="Ej: 50.000.000"
-                    helperText="Solo nÃƒÂºmeros"
+                    helperText="Solo números"
                   />
                 </div>
                 <div className="space-y-1">
@@ -684,8 +684,8 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           {pendingSteps.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">PrÃƒÂ³ximos pasos</CardTitle>
-                <CardDescription>Sugerencias segÃƒÂºn el estado actual de tus solicitudes.</CardDescription>
+                <CardTitle className="text-base">Próximos pasos</CardTitle>
+                <CardDescription>Sugerencias según el estado actual de tus solicitudes.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 {pendingSteps.map((task) => (
@@ -766,7 +766,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-lp-sec-3">PÃƒÂ¡gina {page} de {totalPages}</div>
+            <div className="text-sm text-lp-sec-3">Página {page} de {totalPages}</div>
             <div className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                 Anterior
@@ -786,11 +786,11 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                   setPageSize(Number(e.target.value));
                 }}
                 className="rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm"
-                aria-label="Registros por pÃƒÂ¡gina"
+                aria-label="Registros por página"
               >
-                <option value={10}>10 por pÃƒÂ¡gina</option>
-                <option value={20}>20 por pÃƒÂ¡gina</option>
-                <option value={50}>50 por pÃƒÂ¡gina</option>
+                <option value={10}>10 por página</option>
+                <option value={20}>20 por página</option>
+                <option value={50}>50 por página</option>
               </select>
             </div>
           </div>
@@ -823,7 +823,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       <Input
                         value={invoiceSearch}
                         onChange={(e) => setInvoiceSearch(e.target.value)}
-                        placeholder="Buscar por nÃƒÂºmero, fecha o monto"
+                        placeholder="Buscar por número, fecha o monto"
                       />
                     </div>
                     <div className="space-y-3">
@@ -834,7 +834,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                             <tr>
                               <th className="px-3 py-2 text-left">Seleccionar</th>
                               <th className="px-3 py-2 text-left">Factura</th>
-                              <th className="px-3 py-2 text-left">EmisiÃƒÂ³n</th>
+                              <th className="px-3 py-2 text-left">Emisión</th>
                               <th className="px-3 py-2 text-left">Monto</th>
                             </tr>
                           </thead>
@@ -877,7 +877,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       </div>
                       <div className="rounded-md border border-lp-primary-1/40 bg-lp-primary-1/10 p-3 text-xs text-lp-primary-1">
                         <p className="font-medium">
-                          Seleccionadas: {wizardData.selectedInvoiceIds.length} Ã¢â‚¬Â¢ Total {formatCurrency(wizardSelectedTotal)} COP
+                          Seleccionadas: {wizardData.selectedInvoiceIds.length} • Total {formatCurrency(wizardSelectedTotal)} COP
                         </p>
                       </div>
                     </div>
@@ -929,7 +929,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                         id="wizard-notes"
                         value={wizardData.notes}
                         onChange={(e) => setWizardData((prev) => ({ ...prev, notes: e.target.value }))}
-                        placeholder="Ã‚Â¿Hay condiciones especiales?"
+                        placeholder="¿Hay condiciones especiales?"
                       />
                     </div>
                   </div>
@@ -951,7 +951,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       className="rounded-md border border-dashed border-lp-sec-4/60 px-4 py-6 text-sm"
                     >
                       <p className="text-lp-primary-1">Arrastra tus documentos soporte</p>
-                      <p className="text-xs text-lp-sec-3">PDF, JPG o PNG Ã¢â‚¬Â¢ hasta 10 MB cada uno</p>
+                      <p className="text-xs text-lp-sec-3">PDF, JPG o PNG • hasta 10 MB cada uno</p>
                       <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-md bg-lp-primary-1 px-3 py-2 text-xs font-medium text-white">
                         Examinar archivos
                         <input
@@ -979,11 +979,11 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       <ul className="space-y-1">
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
-                          Certificado cÃƒÂ¡mara de comercio (reciente)
+                          Certificado cámara de comercio (reciente)
                         </li>
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
-                          Estados financieros ÃƒÂºltimo trimestre
+                          Estados financieros último trimestre
                         </li>
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
@@ -1014,7 +1014,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                         }
                       />
                       <Label htmlFor="wizard-terms" className="text-xs text-lp-sec-3">
-                        Confirmo que la informaciÃƒÂ³n es correcta y acepto los tÃƒÂ©rminos legales de LePrÃƒÂªt Capital.
+                        Confirmo que la información es correcta y acepto los términos legales de LePrêt Capital.
                       </Label>
                     </div>
                     {wizardErrors.terms && <p className="text-xs text-red-600">{wizardErrors.terms}</p>}
@@ -1029,7 +1029,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
               </Button>
               {wizardStep === STEPS.length - 1 ? (
                 <Button onClick={handleWizardSubmit} disabled={wizardBusy}>
-                  {wizardBusy ? "EnviandoÃ¢â‚¬Â¦" : "Confirmar"}
+                  {wizardBusy ? "Enviando..." : "Confirmar"}
                 </Button>
               ) : (
                 <Button onClick={handleWizardNext} disabled={wizardBusy}>
