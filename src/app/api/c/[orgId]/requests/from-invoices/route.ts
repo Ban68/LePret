@@ -17,14 +17,21 @@ export async function POST(
 
     const body = await req.json().catch(() => ({}));
     const invoiceIds: string[] = Array.isArray(body?.invoice_ids) ? body.invoice_ids : [];
-    const requestedAmount = Number(body?.requested_amount ?? 0);
+    let requestedAmount: number | undefined;
+    const requestedAmountValue = body?.requested_amount;
+    if (typeof requestedAmountValue === "number" && Number.isFinite(requestedAmountValue)) {
+      requestedAmount = requestedAmountValue;
+    } else if (typeof requestedAmountValue === "string" && requestedAmountValue.trim().length > 0) {
+      const parsed = Number(requestedAmountValue);
+      if (Number.isFinite(parsed)) requestedAmount = parsed;
+    }
 
     const result = await createRequestWithInvoices({
       supabase,
       orgId,
       userId: session.user.id,
       invoiceIds,
-      requestedAmount: Number.isFinite(requestedAmount) ? requestedAmount : undefined,
+      requestedAmount: Number.isFinite(requestedAmount ?? NaN) ? (requestedAmount as number) : undefined,
     });
 
     if (!result.ok) {

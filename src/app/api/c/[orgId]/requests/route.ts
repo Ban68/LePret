@@ -306,7 +306,14 @@ export async function POST(
     ...(Array.isArray(body?.invoice_ids) ? body.invoice_ids : []),
     ...(typeof body?.invoice_id === "string" ? [body.invoice_id] : []),
   ];
-  const requestedAmountRaw = Number(body?.requested_amount ?? 0);
+  let requestedAmountRaw: number | undefined;
+  const requestedAmountValue = body?.requested_amount;
+  if (typeof requestedAmountValue === "number" && Number.isFinite(requestedAmountValue)) {
+    requestedAmountRaw = requestedAmountValue;
+  } else if (typeof requestedAmountValue === "string" && requestedAmountValue.trim().length > 0) {
+    const parsed = Number(requestedAmountValue);
+    if (Number.isFinite(parsed)) requestedAmountRaw = parsed;
+  }
   const status = typeof body?.status === "string" && body.status.trim().length > 0 ? body.status : undefined;
   const filePath = typeof body?.file_path === "string" && body.file_path.trim().length > 0 ? body.file_path : null;
 
