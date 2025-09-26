@@ -18,6 +18,14 @@ export async function POST(
     const body = await req.json().catch(() => ({}));
     const invoiceIds: string[] = Array.isArray(body?.invoice_ids) ? body.invoice_ids : [];
     const requestedAmount = Number(body?.requested_amount ?? 0);
+    const targetRateRaw = body?.target_rate;
+    const targetRate = typeof targetRateRaw === "number" && Number.isFinite(targetRateRaw)
+      ? targetRateRaw
+      : typeof targetRateRaw === "string" && targetRateRaw.trim().length > 0 && Number.isFinite(Number(targetRateRaw))
+        ? Number(targetRateRaw)
+        : undefined;
+    const expectedDate = typeof body?.expected_disbursement_date === "string" ? body.expected_disbursement_date : undefined;
+    const notes = typeof body?.notes === "string" ? body.notes : undefined;
 
     const result = await createRequestWithInvoices({
       supabase,
@@ -25,6 +33,9 @@ export async function POST(
       userId: session.user.id,
       invoiceIds,
       requestedAmount: Number.isFinite(requestedAmount) ? requestedAmount : undefined,
+      targetRate,
+      expectedDate,
+      notes,
     });
 
     if (!result.ok) {

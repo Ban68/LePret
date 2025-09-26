@@ -10,6 +10,9 @@ type CreateRequestParams = {
   requestedAmount?: number | null;
   status?: string | null;
   filePath?: string | null;
+  targetRate?: number | null;
+  expectedDate?: string | null;
+  notes?: string | null;
 };
 
 type CreateRequestSuccess = {
@@ -29,7 +32,7 @@ type CreateRequestFailure = {
 type CreateRequestResult = CreateRequestSuccess | CreateRequestFailure;
 
 export async function createRequestWithInvoices(params: CreateRequestParams): Promise<CreateRequestResult> {
-  const { supabase, orgId, userId, invoiceIds, requestedAmount, status, filePath } = params;
+  const { supabase, orgId, userId, invoiceIds, requestedAmount, status, filePath, targetRate, expectedDate, notes } = params;
 
   const dedupedIds = Array.from(
     new Set(
@@ -85,6 +88,9 @@ export async function createRequestWithInvoices(params: CreateRequestParams): Pr
   }
 
   const normalizedRequested = requestedAmount && requestedAmount > 0 ? requestedAmount : total;
+  const normalizedTargetRate = typeof targetRate === "number" && Number.isFinite(targetRate) ? targetRate : null;
+  const normalizedExpectedDate = typeof expectedDate === "string" && expectedDate.trim().length > 0 ? expectedDate.trim() : null;
+  const normalizedNotes = typeof notes === "string" && notes.trim().length > 0 ? notes.trim() : null;
 
   const payload = {
     company_id: orgId,
@@ -92,6 +98,9 @@ export async function createRequestWithInvoices(params: CreateRequestParams): Pr
     requested_amount: normalizedRequested,
     status: status ?? "review",
     file_path: filePath ?? null,
+    target_rate: normalizedTargetRate,
+    expected_disbursement_date: normalizedExpectedDate,
+    notes: normalizedNotes,
   };
 
   const { data: requestRow, error: requestErr } = await supabase
