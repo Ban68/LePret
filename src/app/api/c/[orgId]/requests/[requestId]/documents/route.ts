@@ -39,6 +39,7 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "missing_documents" }, { status: 400 });
     }
 
+<<<<<<< HEAD
     const deduped = Array.from(new Map(normalized.map((doc) => [doc.file_path as string, doc])).values()).map((doc) => ({
       file_path: doc.file_path as string,
       name: doc.name ?? null,
@@ -46,6 +47,8 @@ export async function POST(
       content_type: doc.content_type ?? null,
     }));
 
+=======
+>>>>>>> 8e3a1a62e460c8a8606867d9cd0e304f7932997c
     const { data: requestRow, error: requestErr } = await supabase
       .from("funding_requests")
       .select("id")
