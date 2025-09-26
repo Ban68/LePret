@@ -39,12 +39,11 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "missing_documents" }, { status: 400 });
     }
 
-    const deduped = Array.from(new Map(normalized.map((doc) => [doc.file_path as string, doc])).values()).map((doc) => ({
-      file_path: doc.file_path as string,
-      name: doc.name ?? null,
-      size: doc.size ?? null,
-      content_type: doc.content_type ?? null,
-    }));
+    const deduped = Array.from(
+      new Map(
+        normalized.map((doc) => [doc.file_path as string, { ...doc, file_path: doc.file_path as string }])
+      ).values(),
+    );
 
     const { data: requestRow, error: requestErr } = await supabase
       .from("funding_requests")
