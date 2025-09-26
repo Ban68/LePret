@@ -72,6 +72,7 @@ type SavedFilter = {
     minAmount: string;
     maxAmount: string;
     withInvoice: string;
+    withSupport: string;
     sort: string;
   };
 };
@@ -121,6 +122,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [withInvoice, setWithInvoice] = useState<string>("all");
+  const [withSupport, setWithSupport] = useState<string>("all");
   const [dateRange, setDateRange] = useState<DateRangeValue>({ start: "", end: "" });
   const [minAmount, setMinAmount] = useState<string>("");
   const [maxAmount, setMaxAmount] = useState<string>("");
@@ -199,6 +201,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     if (minAmount) params.set("minAmount", String(parseCurrency(minAmount)));
     if (maxAmount) params.set("maxAmount", String(parseCurrency(maxAmount)));
     if (withInvoice && withInvoice !== "all") params.set("withInvoice", withInvoice);
+    if (withSupport && withSupport !== "all") params.set("withSupport", withSupport);
     params.set("sort", sort);
     params.set("limit", String(pageSize));
     params.set("page", String(page));
@@ -212,7 +215,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     if (!r1.ok) setError(d1.error || "Error cargando solicitudes"); else { setItems(d1.items || []); setTotal(d1.total ?? 0); }
     if (r2.ok) setInvoices(d2.items || []);
     setLoading(false);
-  }, [orgId, statusFilter, dateRange, minAmount, maxAmount, withInvoice, sort, page, pageSize, parseCurrency]);
+  }, [orgId, statusFilter, dateRange, minAmount, maxAmount, withInvoice, withSupport, sort, page, pageSize, parseCurrency]);
 
   const loadSummary = useCallback(async () => {
     try {
@@ -245,7 +248,16 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     try {
       const raw = window.localStorage.getItem(`requests-filters-${orgId}`);
       if (raw) {
-        setSavedFilters(JSON.parse(raw) as SavedFilter[]);
+        const parsed = JSON.parse(raw) as SavedFilter[];
+        setSavedFilters(
+          parsed.map((preset) => ({
+            ...preset,
+            state: {
+              ...preset.state,
+              withSupport: preset.state.withSupport ?? "all",
+            },
+          }))
+        );
       }
     } catch {}
   }, [orgId]);
@@ -259,7 +271,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           ? crypto.randomUUID()
           : Math.random().toString(36).slice(2),
       name,
-      state: { status: statusFilter, dateRange, minAmount, maxAmount, withInvoice, sort },
+      state: { status: statusFilter, dateRange, minAmount, maxAmount, withInvoice, withSupport, sort },
     };
     const next = [...savedFilters, preset];
     setSavedFilters(next);
@@ -275,6 +287,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     setMinAmount(preset.state.minAmount);
     setMaxAmount(preset.state.maxAmount);
     setWithInvoice(preset.state.withInvoice);
+    setWithSupport(preset.state.withSupport ?? "all");
     setSort(preset.state.sort);
   };
 
@@ -297,17 +310,24 @@ export function RequestsClient({ orgId }: { orgId: string }) {
       onClick: () => setWithInvoice("true"),
       active: withInvoice === "true",
     },
+    {
+      key: "withSupport",
+      label: "Con soporte",
+      onClick: () => setWithSupport("true"),
+      active: withSupport === "true",
+    },
   ];
 
   const activeChips = useMemo(() => {
     const chips: string[] = [];
     if (statusFilter !== "all") chips.push(`Estado: ${statusFilter}`);
     if (withInvoice !== "all") chips.push(withInvoice === "true" ? "Con factura" : "Sin factura");
+    if (withSupport !== "all") chips.push(withSupport === "true" ? "Con soporte" : "Sin soporte");
     if (dateRange.start || dateRange.end) chips.push(`Rango ${dateRange.start || ""} -> ${dateRange.end || ""}`);
     if (minAmount) chips.push(`>= ${minAmount}`);
     if (maxAmount) chips.push(`<= ${maxAmount}`);
     return chips;
-  }, [statusFilter, withInvoice, dateRange, minAmount, maxAmount]);
+  }, [statusFilter, withInvoice, withSupport, dateRange, minAmount, maxAmount]);
 
   const pendingSteps = useMemo(() => {
     return items
@@ -673,6 +693,19 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                   </select>
                 </div>
                 <div className="space-y-1">
+                  <Label htmlFor="request-with-support">Soporte cargado</Label>
+                  <select
+                    id="request-with-support"
+                    className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2"
+                    value={withSupport}
+                    onChange={(e) => setWithSupport(e.target.value)}
+                  >
+                    <option value="all">Todas</option>
+                    <option value="true">Con soporte</option>
+                    <option value="false">Sin soporte</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
                   <Label htmlFor="request-sort">Orden</Label>
                   <select
                     id="request-sort"
@@ -698,6 +731,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                   onClick={() => {
                     setStatusFilter("all");
                     setWithInvoice("all");
+                    setWithSupport("all");
                     setDateRange({ start: "", end: "" });
                     setMinAmount("");
                     setMaxAmount("");

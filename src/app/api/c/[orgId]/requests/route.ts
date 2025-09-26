@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
@@ -158,6 +158,7 @@ export async function GET(
   const minAmount = url.searchParams.get("minAmount");
   const maxAmount = url.searchParams.get("maxAmount");
   const withInvoice = url.searchParams.get("withInvoice");
+  const withSupport = url.searchParams.get("withSupport");
   const sort = url.searchParams.get("sort") || "created_at.desc";
   const limit = Number(url.searchParams.get("limit") ?? "10");
   const page = Number(url.searchParams.get("page") ?? "1");
@@ -175,6 +176,8 @@ export async function GET(
   if (maxAmount) query = query.lte("requested_amount", Number(maxAmount));
   if (withInvoice === "true") query = query.not("invoice_id", "is", null);
   if (withInvoice === "false") query = query.is("invoice_id", null);
+  if (withSupport === "true") query = query.not("file_path", "is", null);
+  if (withSupport === "false") query = query.is("file_path", null);
 
   const [field, direction] = (sort || "").split(".") as [string, string];
   query = query.order(field || "created_at", { ascending: (direction || "desc") !== "desc" });
@@ -347,3 +350,4 @@ export async function POST(
 
   return NextResponse.json({ ok: true, created: result.request, total: result.total, count: result.count }, { status: 201 });
 }
+
