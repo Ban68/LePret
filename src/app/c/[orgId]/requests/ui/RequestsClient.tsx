@@ -37,6 +37,9 @@ type RequestItem = {
     valid_until?: string | null;
   } | null;
   contract_status?: string | null;
+  target_rate?: number | null;
+  expected_disbursement_date?: string | null;
+  notes?: string | null;
   next_step?: {
     label: string;
     hint?: string | null;
@@ -101,10 +104,10 @@ const INITIAL_WIZARD: WizardData = {
 };
 
 const STEPS = [
-  { title: "Seleccionar facturas", description: "Elige las facturas que formarán parte de la solicitud." },
+  { title: "Seleccionar facturas", description: "Elige las facturas que formarÃ¡n parte de la solicitud." },
   { title: "Configurar condiciones", description: "Define el monto a solicitar y tu tasa objetivo." },
-  { title: "Adjuntar soporte", description: "Carga los documentos requeridos o déjalos para después." },
-  { title: "Revisar y confirmar", description: "Valida el resumen y acepta los términos." },
+  { title: "Adjuntar soporte", description: "Carga los documentos requeridos o dÃ©jalos para despuÃ©s." },
+  { title: "Revisar y confirmar", description: "Valida el resumen y acepta los tÃ©rminos." },
 ];
 
 export function RequestsClient({ orgId }: { orgId: string }) {
@@ -231,7 +234,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   const frequentFilters = [
     {
       key: "review",
-      label: "En revisión",
+      label: "En revisiÃ³n",
       onClick: () => setStatusFilter("review"),
       active: statusFilter === "review",
     },
@@ -253,9 +256,9 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     const chips: string[] = [];
     if (statusFilter !== "all") chips.push(`Estado: ${statusFilter}`);
     if (withInvoice !== "all") chips.push(withInvoice === "true" ? "Con factura" : "Sin factura");
-    if (dateRange.start || dateRange.end) chips.push(`Rango ${dateRange.start || ""} → ${dateRange.end || ""}`);
-    if (minAmount) chips.push(`≥ ${minAmount}`);
-    if (maxAmount) chips.push(`≤ ${maxAmount}`);
+    if (dateRange.start || dateRange.end) chips.push(`Rango ${dateRange.start || ""} â†’ ${dateRange.end || ""}`);
+    if (minAmount) chips.push(`â‰¥ ${minAmount}`);
+    if (maxAmount) chips.push(`â‰¤ ${maxAmount}`);
     return chips;
   }, [statusFilter, withInvoice, dateRange, minAmount, maxAmount]);
 
@@ -363,7 +366,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     if (step === 1) {
       const amt = parseCurrency(wizardData.amount);
       if (!amt || Number.isNaN(amt)) {
-        setWizardErrors({ amount: "Ingresa un monto válido" });
+        setWizardErrors({ amount: "Ingresa un monto vÃ¡lido" });
         amountInputRef.current?.focus();
         return;
       }
@@ -383,8 +386,11 @@ export function RequestsClient({ orgId }: { orgId: string }) {
 
   const handleWizardSubmit = async () => {
     const amt = parseCurrency(wizardData.amount);
+    const normalizedTargetRateRaw = wizardData.targetRate ? wizardData.targetRate.replace(",", ".") : "";
+    const parsedTargetRate = normalizedTargetRateRaw ? Number(normalizedTargetRateRaw) : null;
+    const targetRateValue = parsedTargetRate !== null && Number.isFinite(parsedTargetRate) ? parsedTargetRate : null;
     if (!wizardData.termsAccepted) {
-      setWizardErrors({ terms: "Debes aceptar los términos" });
+      setWizardErrors({ terms: "Debes aceptar los tÃ©rminos" });
       return;
     }
     if (!wizardData.selectedInvoiceIds.length) {
@@ -400,37 +406,65 @@ export function RequestsClient({ orgId }: { orgId: string }) {
         body: JSON.stringify({
           invoice_ids: wizardData.selectedInvoiceIds,
           requested_amount: amt > 0 ? amt : undefined,
+          target_rate: targetRateValue ?? undefined,
+          expected_disbursement_date: wizardData.expectedDate || undefined,
+          notes: wizardData.notes && wizardData.notes.trim().length > 0 ? wizardData.notes.trim() : undefined,
         }),
       });
       const data = await res.json();
         if (!res.ok) {
           const errKey = data.error;
           if (errKey === "invoice_already_used") {
-            throw new Error("Una o más facturas ya están asociadas a otra solicitud");
+            throw new Error("Una o mÃ¡s facturas ya estÃ¡n asociadas a otra solicitud");
           }
           throw new Error(errKey || "No se pudo crear la solicitud");
         }
       const createdId: string | undefined = data?.request?.id;
-      if (createdId && wizardData.documents[0]) {
-        const file = wizardData.documents[0];
+      if (createdId && wizardData.documents.length) {
         const supabase = createClientComponentClient();
-        const ext = file.name.split(".").pop();
-        const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2);
-        const key = `${orgId}/${id}.${ext ?? "bin"}`;
-        const { error: upErr } = await supabase.storage
-          .from("requests")
-          .upload(key, file, { upsert: false, contentType: file.type });
-        if (upErr) throw upErr;
-        await fetch(`/api/c/${orgId}/requests/${createdId}/file`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ file_path: key }),
-        });
+        const uploadedDocs: Array<{ file_path: string; name: string; size: number; content_type: string }> = [];
+        let primaryPath: string | null = null;
+
+        for (const [index, file] of wizardData.documents.entries()) {
+          const ext = file.name.split(".").pop();
+          const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+          const key = `${orgId}/${id}.${ext ?? "bin"}`;
+          const { error: upErr } = await supabase.storage
+            .from("requests")
+            .upload(key, file, { upsert: false, contentType: file.type });
+          if (upErr) throw upErr;
+          if (index === 0) primaryPath = key;
+          uploadedDocs.push({ file_path: key, name: file.name, size: file.size, content_type: file.type });
+        }
+
+        if (primaryPath) {
+          const resFile = await fetch(`/api/c/${orgId}/requests/${createdId}/file`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ file_path: primaryPath }),
+          });
+          const resData = await resFile.json().catch(() => ({}));
+          if (!resFile.ok) {
+            throw new Error(resData.error || "No se pudo actualizar archivo");
+          }
+        }
+
+        if (uploadedDocs.length) {
+          const docRes = await fetch(`/api/c/${orgId}/requests/${createdId}/documents`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ documents: uploadedDocs }),
+          });
+          const docData = await docRes.json().catch(() => ({}));
+          if (!docRes.ok) {
+            throw new Error(docData.error || "No se pudieron registrar los documentos");
+          }
+        }
       }
       setBanner({
         tone: "success",
         title: "Solicitud creada",
-        description: "La encontrarás en la tabla de solicitudes con el resumen actualizado.",
+        description: "La encontrarÃ¡s en la tabla de solicitudes con el resumen actualizado.",
       });
       toast.success("Solicitud creada");
       if (typeof window !== "undefined") {
@@ -454,7 +488,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="font-colette text-3xl font-bold text-lp-primary-1">Solicitudes de financiación</h1>
+          <h1 className="font-colette text-3xl font-bold text-lp-primary-1">Solicitudes de financiaciÃ³n</h1>
           <p className="text-sm text-lp-sec-3">Crea solicitudes paso a paso y haz seguimiento a su avance.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -471,7 +505,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
 
       {metrics && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard title="Solicitudes activas" value={metrics.requestsOpen} subtitle="En revisión u oferta" />
+          <MetricCard title="Solicitudes activas" value={metrics.requestsOpen} subtitle="En revisiÃ³n u oferta" />
           <MetricCard
             title="Monto en curso"
             value={Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(
@@ -540,7 +574,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                     onChange={(e) => setStatusFilter(e.target.value)}
                   >
                     <option value="all">Todos</option>
-                    <option value="review">En revisión</option>
+                    <option value="review">En revisiÃ³n</option>
                     <option value="offered">Ofertada</option>
                     <option value="accepted">Aceptada</option>
                     <option value="funded">Desembolsada</option>
@@ -550,26 +584,26 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                   id="request-range"
                   value={dateRange}
                   onChange={setDateRange}
-                  helperText="Filtra por fecha de creación."
+                  helperText="Filtra por fecha de creaciÃ³n."
                 />
                 <div className="space-y-1">
-                  <Label htmlFor="request-min">Monto mínimo</Label>
+                  <Label htmlFor="request-min">Monto mÃ­nimo</Label>
                   <CurrencyInput
                     id="request-min"
                     value={minAmount}
                     onValueChange={(formatted) => setMinAmount(formatted)}
                     placeholder="Ej: 5.000.000"
-                    helperText="Solo números"
+                    helperText="Solo nÃºmeros"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="request-max">Monto máximo</Label>
+                  <Label htmlFor="request-max">Monto mÃ¡ximo</Label>
                   <CurrencyInput
                     id="request-max"
                     value={maxAmount}
                     onValueChange={(formatted) => setMaxAmount(formatted)}
                     placeholder="Ej: 50.000.000"
-                    helperText="Solo números"
+                    helperText="Solo nÃºmeros"
                   />
                 </div>
                 <div className="space-y-1">
@@ -644,8 +678,8 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           {pendingSteps.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Próximos pasos</CardTitle>
-                <CardDescription>Sugerencias según el estado actual de tus solicitudes.</CardDescription>
+                <CardTitle className="text-base">PrÃ³ximos pasos</CardTitle>
+                <CardDescription>Sugerencias segÃºn el estado actual de tus solicitudes.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 {pendingSteps.map((task) => (
@@ -726,7 +760,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-lp-sec-3">Página {page} de {totalPages}</div>
+            <div className="text-sm text-lp-sec-3">PÃ¡gina {page} de {totalPages}</div>
             <div className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                 Anterior
@@ -746,11 +780,11 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                   setPageSize(Number(e.target.value));
                 }}
                 className="rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm"
-                aria-label="Registros por página"
+                aria-label="Registros por pÃ¡gina"
               >
-                <option value={10}>10 por página</option>
-                <option value={20}>20 por página</option>
-                <option value={50}>50 por página</option>
+                <option value={10}>10 por pÃ¡gina</option>
+                <option value={20}>20 por pÃ¡gina</option>
+                <option value={50}>50 por pÃ¡gina</option>
               </select>
             </div>
           </div>
@@ -783,7 +817,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       <Input
                         value={invoiceSearch}
                         onChange={(e) => setInvoiceSearch(e.target.value)}
-                        placeholder="Buscar por número, fecha o monto"
+                        placeholder="Buscar por nÃºmero, fecha o monto"
                       />
                     </div>
                     <div className="space-y-3">
@@ -794,7 +828,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                             <tr>
                               <th className="px-3 py-2 text-left">Seleccionar</th>
                               <th className="px-3 py-2 text-left">Factura</th>
-                              <th className="px-3 py-2 text-left">Emisión</th>
+                              <th className="px-3 py-2 text-left">EmisiÃ³n</th>
                               <th className="px-3 py-2 text-left">Monto</th>
                             </tr>
                           </thead>
@@ -837,7 +871,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       </div>
                       <div className="rounded-md border border-lp-primary-1/40 bg-lp-primary-1/10 p-3 text-xs text-lp-primary-1">
                         <p className="font-medium">
-                          Seleccionadas: {wizardData.selectedInvoiceIds.length} • Total {formatCurrency(wizardSelectedTotal)} COP
+                          Seleccionadas: {wizardData.selectedInvoiceIds.length} â€¢ Total {formatCurrency(wizardSelectedTotal)} COP
                         </p>
                       </div>
                     </div>
@@ -889,7 +923,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                         id="wizard-notes"
                         value={wizardData.notes}
                         onChange={(e) => setWizardData((prev) => ({ ...prev, notes: e.target.value }))}
-                        placeholder="¿Hay condiciones especiales?"
+                        placeholder="Â¿Hay condiciones especiales?"
                       />
                     </div>
                   </div>
@@ -911,7 +945,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       className="rounded-md border border-dashed border-lp-sec-4/60 px-4 py-6 text-sm"
                     >
                       <p className="text-lp-primary-1">Arrastra tus documentos soporte</p>
-                      <p className="text-xs text-lp-sec-3">PDF, JPG o PNG • hasta 10 MB cada uno</p>
+                      <p className="text-xs text-lp-sec-3">PDF, JPG o PNG â€¢ hasta 10 MB cada uno</p>
                       <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-md bg-lp-primary-1 px-3 py-2 text-xs font-medium text-white">
                         Examinar archivos
                         <input
@@ -939,11 +973,11 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       <ul className="space-y-1">
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
-                          Certificado cámara de comercio (reciente)
+                          Certificado cÃ¡mara de comercio (reciente)
                         </li>
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
-                          Estados financieros último trimestre
+                          Estados financieros Ãºltimo trimestre
                         </li>
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
@@ -974,7 +1008,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                         }
                       />
                       <Label htmlFor="wizard-terms" className="text-xs text-lp-sec-3">
-                        Confirmo que la información es correcta y acepto los términos legales de LePrêt Capital.
+                        Confirmo que la informaciÃ³n es correcta y acepto los tÃ©rminos legales de LePrÃªt Capital.
                       </Label>
                     </div>
                     {wizardErrors.terms && <p className="text-xs text-red-600">{wizardErrors.terms}</p>}
@@ -989,7 +1023,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
               </Button>
               {wizardStep === STEPS.length - 1 ? (
                 <Button onClick={handleWizardSubmit} disabled={wizardBusy}>
-                  {wizardBusy ? "Enviando…" : "Confirmar"}
+                  {wizardBusy ? "Enviandoâ€¦" : "Confirmar"}
                 </Button>
               ) : (
                 <Button onClick={handleWizardNext} disabled={wizardBusy}>
@@ -1340,4 +1374,3 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
     </tr>
   );
 }
-
