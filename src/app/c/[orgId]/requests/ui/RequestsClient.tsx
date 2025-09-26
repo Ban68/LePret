@@ -1373,14 +1373,24 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
               </button>
             )}
             {req.file_path ? (
-              <button
-                type="button"
-                className="mt-1 w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
-                onClick={onDeleteFile}
-                disabled={busy}
-              >
-                Eliminar soporte
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="mt-1 w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
+                  onClick={onDownloadSupport}
+                  disabled={busy}
+                >
+                  Descargar soporte
+                </button>
+                <button
+                  type="button"
+                  className="mt-1 w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
+                  onClick={onDeleteFile}
+                  disabled={busy}
+                >
+                  Eliminar soporte
+                </button>
+              </>
             ) : null}
             <label
               htmlFor={`support-${req.id}`}
