@@ -12,9 +12,6 @@ type FundingRequestRow = {
   created_at: string;
   file_path: string | null;
   created_by: string | null;
-  target_rate: number | null;
-  expected_disbursement_date: string | null;
-  notes: string | null;
 };
 
 type OfferRow = {
@@ -168,7 +165,7 @@ export async function GET(
 
   let query = supabase
     .from("funding_requests")
-    .select("id, invoice_id, requested_amount, status, created_at, file_path, created_by, target_rate, expected_disbursement_date, notes", { count: "exact" })
+    .select("id, invoice_id, requested_amount, status, created_at, file_path, created_by", { count: "exact" })
     .eq("company_id", orgId);
 
   if (status && status !== "all") query = query.eq("status", status);
@@ -310,14 +307,6 @@ export async function POST(
     ...(typeof body?.invoice_id === "string" ? [body.invoice_id] : []),
   ];
   const requestedAmountRaw = Number(body?.requested_amount ?? 0);
-  const targetRateRaw = body?.target_rate;
-  const targetRate = typeof targetRateRaw === "number" && Number.isFinite(targetRateRaw)
-    ? targetRateRaw
-    : typeof targetRateRaw === "string" && targetRateRaw.trim().length > 0 && Number.isFinite(Number(targetRateRaw))
-      ? Number(targetRateRaw)
-      : undefined;
-  const expectedDate = typeof body?.expected_disbursement_date === "string" ? body.expected_disbursement_date : undefined;
-  const notes = typeof body?.notes === "string" ? body.notes : undefined;
   const status = typeof body?.status === "string" && body.status.trim().length > 0 ? body.status : undefined;
   const filePath = typeof body?.file_path === "string" && body.file_path.trim().length > 0 ? body.file_path : null;
 
@@ -329,9 +318,6 @@ export async function POST(
     requestedAmount: Number.isFinite(requestedAmountRaw) ? requestedAmountRaw : undefined,
     status,
     filePath,
-    targetRate,
-    expectedDate,
-    notes,
   });
 
   if (!result.ok) {
