@@ -103,6 +103,8 @@ const INITIAL_WIZARD: WizardData = {
   documents: [],
 };
 
+const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024;
+
 const STEPS = [
   { title: "Seleccionar facturas", description: "Elige las facturas que formarán parte de la solicitud." },
   { title: "Configurar condiciones", description: "Define el monto a solicitar y tu tasa objetivo." },
@@ -138,6 +140,51 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const draftKey = `request-wizard-${orgId}`;
   const amountInputRef = useRef<HTMLInputElement | null>(null);
+
+  const appendDocuments = (files: File[]) => {
+    if (!files.length) return;
+    const accepted: File[] = [];
+    const rejected: File[] = [];
+
+    files.forEach((file) => {
+      if (file.size > MAX_DOCUMENT_SIZE) {
+        rejected.push(file);
+        return;
+      }
+      accepted.push(file);
+    });
+
+    if (rejected.length) {
+      const names = rejected.map((f) => f.name).join(", ");
+      toast.error(`Estos archivos superan los 10 MB y no se agregaron: ${names}`);
+    }
+
+    if (!accepted.length) return;
+
+    setWizardData((prev) => {
+      const deduped = [...prev.documents];
+      accepted.forEach((file) => {
+        const exists = deduped.some(
+          (doc) =>
+            doc.name === file.name &&
+            doc.size === file.size &&
+            doc.lastModified === file.lastModified
+        );
+        if (!exists) {
+          deduped.push(file);
+        }
+      });
+      return { ...prev, documents: deduped };
+    });
+  };
+
+  const removeDocument = (index: number) => {
+    setWizardData((prev) => ({
+      ...prev,
+      documents: prev.documents.filter((_, i) => i !== index),
+    }));
+  };
+
 
   const parseCurrency = useCallback((s: string) => Number((s || "").replace(/[^0-9]/g, "")), []);
   const formatCurrency = useCallback((n: number) => new Intl.NumberFormat("es-CO").format(n), []);
@@ -945,30 +992,46 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                         e.preventDefault();
                         const files = Array.from(e.dataTransfer.files || []);
                         if (files.length) {
-                          setWizardData((prev) => ({ ...prev, documents: files }));
+                          appendDocuments(files);
                         }
                       }}
                       className="rounded-md border border-dashed border-lp-sec-4/60 px-4 py-6 text-sm"
                     >
                       <p className="text-lp-primary-1">Arrastra tus documentos soporte</p>
-                      <p className="text-xs text-lp-sec-3">PDF, JPG o PNG • hasta 10 MB cada uno</p>
+                      <p className="text-xs text-lp-sec-3">PDF, JPG o PNG - hasta 10 MB cada uno</p>
                       <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-md bg-lp-primary-1 px-3 py-2 text-xs font-medium text-white">
                         Examinar archivos
                         <input
                           type="file"
+                          multiple
                           accept=".pdf,image/*"
                           className="sr-only"
-                          onChange={(e) => setWizardData((prev) => ({ ...prev, documents: Array.from(e.target.files || []) }))}
+                          onChange={(e) => {
+                            appendDocuments(Array.from(e.target.files || []));
+                            e.target.value = "";
+                          }}
                         />
                       </label>
                       {wizardData.documents.length > 0 && (
                         <ul className="mt-3 space-y-1 text-xs">
-                          {wizardData.documents.map((doc) => (
-                            <li key={doc.name} className="flex items-center justify-between rounded-md border border-lp-sec-4/40 px-2 py-1">
+                          {wizardData.documents.map((doc, index) => (
+                            <li
+                              key={`${doc.name}-${doc.lastModified}-${index}`}
+                              className="flex items-center justify-between rounded-md border border-lp-sec-4/40 px-2 py-1"
+                            >
                               <span className="truncate" title={doc.name}>
                                 {doc.name}
                               </span>
-                              <span>{(doc.size / 1024 / 1024).toFixed(2)} MB</span>
+                              <div className="flex items-center gap-2">
+                                <span>{(doc.size / 1024 / 1024).toFixed(2)} MB</span>
+                                <button
+                                  type="button"
+                                  className="text-xs text-red-600 hover:underline"
+                                  onClick={() => removeDocument(index)}
+                                >
+                                  Quitar
+                                </button>
+                              </div>
                             </li>
                           ))}
                         </ul>
@@ -993,7 +1056,6 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                     </div>
                   </div>
                 )}
-
                 {wizardStep === 3 && (
                   <div className="space-y-4 text-sm">
                     <div className="rounded-md border border-lp-sec-4/60 bg-lp-sec-4/20 p-3">
