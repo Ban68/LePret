@@ -84,7 +84,16 @@ export async function createRequestWithInvoices(params: CreateRequestParams): Pr
     return { ok: false, status: 400, error: "invalid_total" };
   }
 
-  const normalizedRequested = requestedAmount && requestedAmount > 0 ? requestedAmount : total;
+  let normalizedRequested = total;
+  if (typeof requestedAmount === "number" && Number.isFinite(requestedAmount)) {
+    if (requestedAmount <= 0) {
+      return { ok: false, status: 400, error: "requested_amount_invalid", details: { requested_amount: requestedAmount } };
+    }
+    if (requestedAmount > total) {
+      return { ok: false, status: 400, error: "requested_amount_exceeds_total", details: { requested_amount: requestedAmount, max_amount: total } };
+    }
+    normalizedRequested = requestedAmount;
+  }
 
   const payload = {
     company_id: orgId,

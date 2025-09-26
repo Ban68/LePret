@@ -417,6 +417,12 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           if (errKey === "invoice_already_used") {
             throw new Error("Una o mÃ¡s facturas ya estÃ¡n asociadas a otra solicitud");
           }
+          if (errKey === "requested_amount_invalid") {
+            throw new Error("El monto solicitado debe ser mayor a cero.");
+          }
+          if (errKey === "requested_amount_exceeds_total") {
+            throw new Error("El monto solicitado no puede exceder el total de facturas seleccionadas.");
+          }
           throw new Error(errKey || "No se pudo crear la solicitud");
         }
       const createdId: string | undefined = data?.request?.id;
