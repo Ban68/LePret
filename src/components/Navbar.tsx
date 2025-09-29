@@ -55,6 +55,7 @@ export function Navbar() {
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-lp-sec-4/50 bg-lp-primary-1 backdrop-blur-sm">
+
         <div className="container mx-auto flex h-16 max-w-7xl items-center px-4 sm:px-6 lg:px-8">
           <div className="flex flex-1 items-center">
             <Link href="/" className="flex items-center space-x-2" onClick={() => setIsMenuOpen(false)}>
@@ -65,6 +66,7 @@ export function Navbar() {
 
           {/* Desktop Navigation */}
           <nav className="hidden items-center justify-center gap-6 px-4 md:flex">
+
             {navLinks.map((link) => {
               const isActive = pathname === link.href || pathname === link.href.split('?')[0];
               return (
@@ -79,7 +81,9 @@ export function Navbar() {
             })}
           </nav>
 
+
           <div className="flex flex-1 items-center justify-end gap-4 md:pl-4">
+
             <div className="hidden md:block">
               <Button
                 asChild
