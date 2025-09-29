@@ -55,14 +55,14 @@ export function Navbar() {
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-lp-sec-4/50 bg-lp-primary-1 backdrop-blur-sm">
-        <div className="container mx-auto flex h-16 max-w-7xl items-center justify-start px-4 sm:px-6 lg:px-8">
+        <div className="container mx-auto grid h-16 max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-8 px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center space-x-2" onClick={() => setIsMenuOpen(false)}>
             <Logo />
             <Image src="/LePretSinFondo.png" alt="LePrêt Capital" width={281} height={281} className="mt-[-15px]" />
           </Link>
-          
+
           {/* Desktop Navigation */}
-          <nav className="hidden items-center space-x-4 md:flex ml-36">
+          <nav className="hidden items-center justify-center gap-4 md:flex">
             {navLinks.map((link) => {
               const isActive = pathname === link.href || pathname === link.href.split('?')[0];
               return (
@@ -77,7 +77,7 @@ export function Navbar() {
             })}
           </nav>
 
-          <div className="flex items-center space-x-4 ml-auto">
+          <div className="flex items-center justify-end gap-4">
             <div className="hidden md:block">
               <Button
                 asChild
