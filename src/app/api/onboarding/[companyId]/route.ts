@@ -111,7 +111,12 @@ export async function GET(req: Request, context: RouteContext) {
           path: `${companyId}/${doc.name}`,
           createdAt: doc.created_at,
           updatedAt: doc.updated_at,
-          size: doc.size,
+          size:
+            typeof doc.metadata?.size === "number"
+              ? (doc.metadata.size as number)
+              : typeof doc.metadata?.filesize === "number"
+                ? (doc.metadata.filesize as number)
+                : undefined,
         }))
       : [];
 
