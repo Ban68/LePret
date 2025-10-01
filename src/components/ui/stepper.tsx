@@ -9,7 +9,7 @@ export type StepperStep = {
 };
 
 type StepperProps = {
-  steps: StepperStep[];
+  steps: readonly StepperStep[];
   current: number;
   className?: string;
 };
