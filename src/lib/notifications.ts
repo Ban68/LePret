@@ -130,3 +130,20 @@ export async function notifyClientNeedsDocs(companyId: string, note?: string) {
   const html = `<p>Necesitamos documentos adicionales para continuar.</p>${note ? `<p>${note}</p>` : ''}`;
   await sendEmail(recipients, subject, html);
 }
+
+export async function notifyStaffKycSubmitted(companyId: string) {
+  const staff = staffRecipients();
+  if (!staff.length) return;
+  const subject = `Nuevo KYC en revisión (${companyId})`;
+  const html = `<p>Una empresa completó su registro y requiere revisión de KYC.</p><p>Empresa: <code>${companyId}</code></p>`;
+  await sendEmail(staff, subject, html);
+}
+
+export async function notifyClientKycApproved(companyId: string) {
+  const { admins, clients } = await getCompanyActiveMemberEmails(companyId);
+  const recipients = clients.length ? clients : admins;
+  if (!recipients.length) return;
+  const subject = `Registro aprobado`;
+  const html = `<p>¡Tu registro KYC ha sido aprobado! Ya puedes operar sin restricciones.</p>`;
+  await sendEmail(recipients, subject, html);
+}
