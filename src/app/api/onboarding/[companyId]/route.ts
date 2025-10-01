@@ -12,6 +12,8 @@ import { notifyStaffKycSubmitted, notifyClientKycApproved } from "@/lib/notifica
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type RouteContext = { params: Promise<{ companyId: string }> };
+
 async function requireSession() {
   const cookieStore = cookies();
   const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
@@ -45,17 +47,14 @@ async function ensureMembership(supabase: SupabaseClient, companyId: string, use
   return { allowed: true, role: data.role ?? null };
 }
 
-export async function GET(
-  req: Request,
-  { params }: { params: { companyId: string } },
-) {
+export async function GET(req: Request, context: RouteContext) {
   try {
     const { supabase, session } = await requireSession();
     if (!session) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const companyId = params.companyId;
+    const { companyId } = await context.params;
     if (!companyId) {
       return NextResponse.json({ ok: false, error: "Missing company" }, { status: 400 });
     }
@@ -136,17 +135,14 @@ function sanitizeString(value: unknown): string | null {
   return trimmed.length ? trimmed : null;
 }
 
-export async function PUT(
-  req: Request,
-  { params }: { params: { companyId: string } },
-) {
+export async function PUT(req: Request, context: RouteContext) {
   try {
     const { supabase, session } = await requireSession();
     if (!session) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const companyId = params.companyId;
+    const { companyId } = await context.params;
     if (!companyId) {
       return NextResponse.json({ ok: false, error: "Missing company" }, { status: 400 });
     }

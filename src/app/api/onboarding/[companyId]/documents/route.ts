@@ -53,12 +53,11 @@ function sanitizeName(input: string): string {
     .toLowerCase();
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: { companyId: string } },
-) {
+type RouteContext = { params: Promise<{ companyId: string }> };
+
+export async function POST(req: Request, context: RouteContext) {
   try {
-    const companyId = params.companyId;
+    const { companyId } = await context.params;
     if (!companyId) {
       return NextResponse.json({ ok: false, error: "Missing company" }, { status: 400 });
     }
@@ -107,12 +106,9 @@ export async function POST(
   }
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: { companyId: string } },
-) {
+export async function DELETE(req: Request, context: RouteContext) {
   try {
-    const companyId = params.companyId;
+    const { companyId } = await context.params;
     if (!companyId) {
       return NextResponse.json({ ok: false, error: "Missing company" }, { status: 400 });
     }
