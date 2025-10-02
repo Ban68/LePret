@@ -208,4 +208,5 @@ export async function notifyInvestorDistributionPublished(args: {
   }
 
   await sendEmail(all, subject, html);
+
 }
