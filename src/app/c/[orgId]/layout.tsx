@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase-server";
-import { getOrganizationDisplayName } from "@/lib/organizations";
+import { getOrganizationDisplayName, getOrganizationKycStatus, isKycCompleted } from "@/lib/organizations";
 
 export default async function ClientPortalLayout({
   children,
@@ -18,6 +19,11 @@ export default async function ClientPortalLayout({
 
   const orgName = await getOrganizationDisplayName(supabase, orgId, session?.user?.id ?? null);
   const displayOrg = orgName ?? orgId;
+
+  const kycStatus = await getOrganizationKycStatus(supabase, orgId);
+  if (!isKycCompleted(kycStatus)) {
+    redirect(`/registro/datos-empresa?orgId=${encodeURIComponent(orgId)}`);
+  }
 
   const links = [
     { href: `/c/${orgId}`, label: "Resumen" },

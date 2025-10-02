@@ -131,6 +131,7 @@ export async function notifyClientNeedsDocs(companyId: string, note?: string) {
   await sendEmail(recipients, subject, html);
 }
 
+
 function formatPreview(message: string, maxLength = 180) {
   const normalized = message.replace(/\s+/g, " ").trim();
   if (normalized.length <= maxLength) return normalized;
@@ -171,6 +172,7 @@ export async function notifyStaffKycSubmitted(companyId: string) {
     <p>El cliente completó la información de KYC.</p>
     <p><strong>Empresa:</strong> <code>${companyId}</code></p>
   `;
+
   await sendEmail(staff, subject, html);
 }
 
@@ -178,6 +180,7 @@ export async function notifyClientKycApproved(companyId: string) {
   const { admins, clients } = await getCompanyActiveMemberEmails(companyId);
   const recipients = clients.length ? clients : admins;
   if (!recipients.length) return;
+
   const subject = `Verificación KYC aprobada`;
   const html = `
     <p>Hemos aprobado la verificación KYC de tu empresa.</p>
