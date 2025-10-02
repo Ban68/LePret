@@ -2,6 +2,8 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 
+import { isInvestorAllowed } from "@/lib/hq-auth";
+
 export async function middleware(req: NextRequest) {
   let res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
@@ -66,6 +68,33 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  // Investor portal: require authenticated investor membership
+  if (req.nextUrl.pathname.startsWith("/inversionistas")) {
+    const targetPath = `${req.nextUrl.pathname}${req.nextUrl.search}`;
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/login";
+      url.search = "";
+      url.searchParams.set("redirectTo", targetPath);
+      return NextResponse.redirect(url);
+    }
+
+    const allowed = await isInvestorAllowed(session.user.id, session.user.email);
+    if (!allowed) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/login";
+      url.search = "";
+      url.searchParams.set("redirectTo", targetPath);
+      url.searchParams.set("reason", "forbidden");
+      return NextResponse.redirect(url);
+    }
+  }
+
   // Backoffice: restrict /hq to staff or allowlisted emails
   if (req.nextUrl.pathname.startsWith("/hq")) {
     const isLoginRoute = req.nextUrl.pathname.startsWith("/hq/login");
@@ -114,11 +143,32 @@ export async function middleware(req: NextRequest) {
       }
     }
   }
+  if (req.nextUrl.pathname.startsWith("/api/investors")) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      return new NextResponse(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    const allowed = await isInvestorAllowed(session.user.id, session.user.email);
+    if (!allowed) {
+      return new NextResponse(JSON.stringify({ error: "forbidden" }), {
+        status: 403,
+        headers: { "content-type": "application/json" },
+      });
+    }
+  }
+
   return res;
 }
 
 export const config = {
   // Apply middleware on portal, select-org and hq routes
-  matcher: ["/c/:path*", "/select-org", "/hq/:path*", "/api/c/:path*"],
+  matcher: ["/c/:path*", "/select-org", "/hq/:path*", "/inversionistas/:path*", "/api/c/:path*", "/api/investors/:path*"],
 };
 

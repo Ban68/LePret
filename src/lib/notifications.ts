@@ -5,6 +5,12 @@ import { canManageMembership, normalizeMemberRole } from "@/lib/rbac";
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 const EMAIL_FROM = process.env.EMAIL_FROM || "no-reply@example.com";
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", {
+  style: "currency",
+  currency: "COP",
+  maximumFractionDigits: 0,
+});
+const DATE_FORMATTER = new Intl.DateTimeFormat("es-CO", { dateStyle: "medium" });
 
 function staffRecipients(): string[] {
   const list = (process.env.BACKOFFICE_NOTIFICATIONS || process.env.BACKOFFICE_ALLOWED_EMAILS || "")
@@ -54,6 +60,34 @@ async function sendEmail(to: string[] | string, subject: string, html: string) {
   const recipients = Array.isArray(to) ? to : [to];
   await resend.emails.send({ from: EMAIL_FROM, to: recipients, subject, html });
   return { ok: true } as const;
+}
+
+async function fetchCompanyName(companyId: string | null | undefined): Promise<string | null> {
+  if (!companyId) return null;
+  const { data, error } = await supabaseAdmin
+    .from("companies")
+    .select("name")
+    .eq("id", companyId)
+    .maybeSingle();
+  if (error) return null;
+  const name = data?.name;
+  return typeof name === "string" && name.trim().length > 0 ? name.trim() : null;
+}
+
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function normalizeDate(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return DATE_FORMATTER.format(date);
 }
 
 export async function notifyStaffNewRequest(companyId: string, requestId: string) {
@@ -129,4 +163,142 @@ export async function notifyClientNeedsDocs(companyId: string, note?: string) {
   const subject = `Documentación requerida`;
   const html = `<p>Necesitamos documentos adicionales para continuar.</p>${note ? `<p>${note}</p>` : ''}`;
   await sendEmail(recipients, subject, html);
+}
+
+export async function notifyClientRequestMessage(args: {
+  companyId: string;
+  requestId: string;
+  message?: string | null;
+  body?: string | null;
+  authorName?: string | null;
+  author?: { name?: string | null } | null;
+  attachments?: Array<{ name?: string | null; url?: string | null }> | null;
+}) {
+  const { admins, clients } = await getCompanyActiveMemberEmails(args.companyId);
+  const recipients = clients.length ? clients : admins;
+  if (!recipients.length) return;
+
+  const rawBody = typeof args.message === "string" && args.message.trim().length
+    ? args.message
+    : typeof args.body === "string"
+      ? args.body
+      : "";
+  const authorName = args.authorName ?? args.author?.name ?? null;
+  const safeBody = rawBody ? escapeHtml(rawBody) : "";
+  const subject = `Nuevo mensaje en tu solicitud`;
+
+  let html = `<p>Hay un nuevo mensaje en tu solicitud <strong>${escapeHtml(args.requestId)}</strong>.</p>`;
+  if (authorName) {
+    html += `<p><strong>De:</strong> ${escapeHtml(authorName)}</p>`;
+  }
+  if (safeBody) {
+    html += `<blockquote style="border-left:4px solid #d8dde6;padding-left:12px;margin:16px 0;">${safeBody.replace(/\n/g, "<br>")}</blockquote>`;
+  }
+
+  const attachments = (args.attachments || []).filter((item) => item && (item.name || item.url));
+  if (attachments.length) {
+    html += `<p><strong>Archivos adjuntos:</strong></p><ul>`;
+    for (const attachment of attachments) {
+      const name = attachment?.name ? escapeHtml(attachment.name) : "Archivo";
+      const url = attachment?.url;
+      html += url
+        ? `<li><a href="${url}">${name}</a></li>`
+        : `<li>${name}</li>`;
+    }
+    html += `</ul>`;
+  }
+
+  await sendEmail(recipients, subject, html);
+}
+
+export async function notifyStaffCollectionPromise(args: {
+  companyId: string;
+  requestId: string;
+  amount?: number | null;
+  expectedAt?: string | Date | null;
+  note?: string | null;
+}) {
+  const staff = staffRecipients();
+  if (!staff.length) return;
+
+  const formattedAmount = typeof args.amount === "number" && Number.isFinite(args.amount)
+    ? COP_FORMATTER.format(args.amount)
+    : null;
+  const formattedDate = normalizeDate(args.expectedAt ?? null);
+
+  const subject = `Nueva promesa de recaudo (${args.companyId})`;
+  let html = `<p>Se registró una promesa de recaudo para la solicitud <strong>${escapeHtml(args.requestId)}</strong>.</p>`;
+  if (formattedAmount) {
+    html += `<p><strong>Monto:</strong> ${formattedAmount}</p>`;
+  }
+  if (formattedDate) {
+    html += `<p><strong>Fecha esperada:</strong> ${formattedDate}</p>`;
+  }
+  if (args.note) {
+    html += `<p>${escapeHtml(args.note)}</p>`;
+  }
+
+  await sendEmail(staff, subject, html);
+}
+
+export async function notifyInvestorDocumentPublished(args: {
+  investorCompanyId: string;
+  vehicleCompanyId?: string | null;
+  name: string;
+  docType: string;
+  filePath?: string | null;
+}) {
+  const { all } = await getCompanyActiveMemberEmails(args.investorCompanyId);
+  if (!all.length) return;
+
+  const vehicleName = await fetchCompanyName(args.vehicleCompanyId ?? null);
+  let downloadUrl: string | null = null;
+  if (args.filePath) {
+    const { data: signed } = await supabaseAdmin.storage
+      .from("investor-documents")
+      .createSignedUrl(args.filePath, 60 * 60, { download: true });
+    downloadUrl = signed?.signedUrl ?? null;
+  }
+
+  const subject = `Nuevo documento disponible: ${args.name}`;
+  let html = `<p>Hemos publicado un nuevo documento${vehicleName ? ` para <strong>${vehicleName}</strong>` : ''}.</p>`;
+  html += `<p><strong>Tipo:</strong> ${args.docType}</p>`;
+  if (downloadUrl) {
+    html += `<p><a href="${downloadUrl}">Descargar documento</a></p>`;
+  }
+
+  await sendEmail(all, subject, html);
+}
+
+export async function notifyInvestorDistributionPublished(args: {
+  investorCompanyId: string;
+  vehicleCompanyId?: string | null;
+  netAmount?: number | null;
+  filePath?: string | null;
+}) {
+  const { all } = await getCompanyActiveMemberEmails(args.investorCompanyId);
+  if (!all.length) return;
+
+  const vehicleName = await fetchCompanyName(args.vehicleCompanyId ?? null);
+  let downloadUrl: string | null = null;
+  if (args.filePath) {
+    const { data: signed } = await supabaseAdmin.storage
+      .from("investor-documents")
+      .createSignedUrl(args.filePath, 60 * 60, { download: true });
+    downloadUrl = signed?.signedUrl ?? null;
+  }
+
+  const amount = typeof args.netAmount === "number" && Number.isFinite(args.netAmount)
+    ? COP_FORMATTER.format(args.netAmount)
+    : null;
+  const subject = `Nueva distribución registrada${vehicleName ? ` - ${vehicleName}` : ''}`;
+  let html = `<p>Registramos una nueva distribución${vehicleName ? ` para <strong>${vehicleName}</strong>` : ''}.</p>`;
+  if (amount) {
+    html += `<p><strong>Monto neto:</strong> ${amount}</p>`;
+  }
+  if (downloadUrl) {
+    html += `<p><a href="${downloadUrl}">Descargar soporte</a></p>`;
+  }
+
+  await sendEmail(all, subject, html);
 }
