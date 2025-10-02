@@ -130,3 +130,77 @@ export async function notifyClientNeedsDocs(companyId: string, note?: string) {
   const html = `<p>Necesitamos documentos adicionales para continuar.</p>${note ? `<p>${note}</p>` : ''}`;
   await sendEmail(recipients, subject, html);
 }
+
+function formatPreview(message: string, maxLength = 180) {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength - 3)}...`;
+}
+
+export async function notifyStaffRequestMessage(companyId: string, requestId: string, body: string) {
+  const staff = staffRecipients();
+  if (!staff.length) return;
+  const preview = formatPreview(body);
+  const subject = `Nuevo mensaje en solicitud ${requestId.slice(0, 8)}`;
+  const html = `
+    <p>Un cliente respondió en la solicitud <code>${requestId}</code>.</p>
+    <p><strong>Empresa:</strong> <code>${companyId}</code></p>
+    <blockquote>${preview}</blockquote>
+  `;
+  await sendEmail(staff, subject, html);
+}
+
+export async function notifyClientRequestMessage(companyId: string, requestId: string, body: string) {
+  const { admins, clients } = await getCompanyActiveMemberEmails(companyId);
+  const recipients = clients.length ? clients : admins;
+  if (!recipients.length) return;
+  const preview = formatPreview(body);
+  const subject = `Nuevo mensaje de nuestro equipo`;
+  const html = `
+    <p>Te compartimos una actualización sobre la solicitud <code>${requestId}</code>.</p>
+    <blockquote>${preview}</blockquote>
+  `;
+  await sendEmail(recipients, subject, html);
+}
+
+export async function notifyStaffKycSubmitted(companyId: string) {
+  const staff = staffRecipients();
+  if (!staff.length) return;
+  const subject = `KYC enviado (${companyId})`;
+  const html = `
+    <p>El cliente completó la información de KYC.</p>
+    <p><strong>Empresa:</strong> <code>${companyId}</code></p>
+  `;
+  await sendEmail(staff, subject, html);
+}
+
+export async function notifyClientKycApproved(companyId: string) {
+  const { admins, clients } = await getCompanyActiveMemberEmails(companyId);
+  const recipients = clients.length ? clients : admins;
+  if (!recipients.length) return;
+  const subject = `Verificación KYC aprobada`;
+  const html = `
+    <p>Hemos aprobado la verificación KYC de tu empresa.</p>
+    <p>¡Gracias por completar el proceso!</p>
+  `;
+  await sendEmail(recipients, subject, html);
+}
+
+export async function notifyStaffCollectionPromise(
+  companyId: string,
+  requestId: string,
+  promiseDate?: string | null,
+  promiseAmount?: number | string | null,
+) {
+  const staff = staffRecipients();
+  if (!staff.length) return;
+  const amountPart = promiseAmount ? ` por ${promiseAmount}` : "";
+  const subject = `Promesa de pago registrada (${requestId.slice(0, 8)})`;
+  const dateText = promiseDate ? new Date(promiseDate).toLocaleDateString("es-CO") : "sin fecha";
+  const html = `
+    <p>Se actualizó la promesa de pago para la solicitud <code>${requestId}</code>.</p>
+    <p><strong>Empresa:</strong> <code>${companyId}</code></p>
+    <p>Compromiso${amountPart} con fecha ${dateText}.</p>
+  `;
+  await sendEmail(staff, subject, html);
+}
