@@ -165,6 +165,7 @@ export async function notifyClientNeedsDocs(companyId: string, note?: string) {
   await sendEmail(recipients, subject, html);
 }
 
+
 export async function notifyClientRequestMessage(args: {
   companyId: string;
   requestId: string;
@@ -238,6 +239,7 @@ export async function notifyStaffCollectionPromise(args: {
     html += `<p>${escapeHtml(args.note)}</p>`;
   }
 
+
   await sendEmail(staff, subject, html);
 }
 
@@ -301,4 +303,5 @@ export async function notifyInvestorDistributionPublished(args: {
   }
 
   await sendEmail(all, subject, html);
+
 }

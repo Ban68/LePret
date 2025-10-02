@@ -15,10 +15,10 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("memberships")
-    .select("role, status, company_id, companies ( id, name, type )")
+    .select("role, status, company_id, companies ( id, name, type, kyc_status )")
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  type Company = { id: string; name: string; type: string };
+  type Company = { id: string; name: string; type: string; kyc_status?: string | null };
   type Row = { role: string; status: string; companies: Company | Company[] | null };
   const orgs = (data ?? []).map((m: Row) => {
     const c = Array.isArray(m.companies) ? m.companies[0] : m.companies;
@@ -28,6 +28,7 @@ export async function GET() {
       type: c?.type,
       role: m.role,
       status: m.status,
+      kycStatus: c?.kyc_status ?? null,
     };
   });
   return NextResponse.json({ ok: true, orgs });
