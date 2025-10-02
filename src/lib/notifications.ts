@@ -131,6 +131,7 @@ export async function notifyClientNeedsDocs(companyId: string, note?: string) {
   await sendEmail(recipients, subject, html);
 }
 
+
 function formatPreview(message: string, maxLength = 180) {
   const normalized = message.replace(/\s+/g, " ").trim();
   if (normalized.length <= maxLength) return normalized;
@@ -181,3 +182,4 @@ export async function notifyStaffCollectionPromise(
   `;
   await sendEmail(staff, subject, html);
 }
+
