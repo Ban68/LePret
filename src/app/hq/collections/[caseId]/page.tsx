@@ -7,8 +7,8 @@ import { TimelineNextSteps } from "@/components/app/timeline/TimelineNextSteps";
 import { supabaseServer } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { isBackofficeAllowed } from "@/lib/hq-auth";
-import { getCollectionCaseSummary, listCollectionActions } from "@/lib/collections";
-import { computeClientNextSteps, getRequestTimeline } from "@/lib/request-timeline";
+import { listCollectionActions } from "@/lib/collections";
+import { computeClientNextSteps, getCollectionCaseSummary, getRequestTimeline } from "@/lib/request-timeline";
 
 import { CaseUpdateForm } from "./ui/CaseUpdateForm";
 import { CaseActionForm } from "./ui/CaseActionForm";

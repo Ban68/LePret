@@ -3,12 +3,9 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { isBackofficeAllowed } from "@/lib/hq-auth";
-import {
-  CollectionCaseSummary,
-  createCollectionAction,
-  getCollectionCaseSummary,
-  updateCollectionCase,
-} from "@/lib/collections";
+import { createCollectionAction, updateCollectionCase } from "@/lib/collections";
+import { getCollectionCaseSummary } from "@/lib/request-timeline";
+import type { CollectionCaseSummary } from "@/lib/request-timeline";
 import {
   computeClientNextSteps,
   createRequestEvent,
