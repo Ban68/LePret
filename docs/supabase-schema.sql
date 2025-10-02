@@ -44,7 +44,7 @@ create index if not exists idx_preapprovals_created_at on preapprovals (created_
 alter table contacts enable row level security;
 alter table preapprovals enable row level security;
 
--- === PORTAL CLIENTES (mínimo) ===
+-- === PORTAL CLIENTES (mÃ­nimo) ===
 -- Perfiles de usuario (1-1 con auth.users)
 create table if not exists profiles (
   user_id uuid primary key,
@@ -83,7 +83,7 @@ alter table companies add column if not exists notification_sms boolean default 
 alter table companies add column if not exists notification_whatsapp boolean default false;
 alter table companies add column if not exists updated_at timestamptz default now();
 
--- Membresías usuario-empresa con rol
+-- MembresÃ­as usuario-empresa con rol
 create table if not exists memberships (
   user_id uuid not null,
   company_id uuid not null,
@@ -100,7 +100,7 @@ alter table memberships drop constraint if exists memberships_role_check;
 alter table memberships add constraint memberships_role_check
   check (role in ('client','admin','investor','OWNER','ADMIN','OPERATOR','VIEWER'));
 
--- Pagadores (cat�logo de pagadores por organizaci�n)
+-- Pagadores (catálogo de pagadores por organización)
 create table if not exists payers (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references companies(id) on delete cascade,
@@ -146,7 +146,7 @@ alter table invoices drop constraint if exists invoices_status_check;
 alter table invoices add constraint invoices_status_check
   check (status in ('uploaded','validated','rejected','funded','cancelled'));
 
--- Solicitudes de financiación (simplificado)
+-- Solicitudes de financiaciÃ³n (simplificado)
 create table if not exists funding_requests (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references companies(id) on delete cascade,
@@ -176,7 +176,7 @@ alter table payers enable row level security;
 alter table invoices enable row level security;
 alter table funding_requests enable row level security;
 
--- Políticas básicas
+-- PolÃ­ticas bÃ¡sicas
 -- profiles: cada usuario ve/edita su propio perfil
 drop policy if exists "profiles_self_select" on profiles;
 create policy "profiles_self_select" on profiles for select using (auth.uid() = user_id);
@@ -199,7 +199,7 @@ create policy "companies_member_select" on companies for select using (
   )
 );
 
--- payers: miembros activos pueden leer; administraci�n restringida a owners/admins o staff
+-- payers: miembros activos pueden leer; administración restringida a owners/admins o staff
 drop policy if exists "payers_member_select" on payers;
 create policy "payers_member_select" on payers for select using (
   exists (
@@ -378,7 +378,7 @@ create policy "offers_member_update" on offers for update using (
   )
 );
 
--- === RELACIÓN SOLICITUD-FACTURAS (muchas a muchas) ===
+-- === RELACIÃN SOLICITUD-FACTURAS (muchas a muchas) ===
 create table if not exists funding_request_invoices (
   request_id uuid not null references funding_requests(id) on delete cascade,
   invoice_id uuid not null references invoices(id) on delete cascade,
@@ -391,7 +391,7 @@ create unique index if not exists funding_request_invoices_invoice_unique
 
 alter table funding_request_invoices enable row level security;
 
--- Políticas: miembros de la empresa o staff pueden ver/insertar
+-- PolÃ­ticas: miembros de la empresa o staff pueden ver/insertar
 drop policy if exists "fri_member_select" on funding_request_invoices;
 create policy "fri_member_select" on funding_request_invoices for select using (
   exists (
@@ -429,11 +429,11 @@ do $$ begin
     insert into storage.buckets (id, name, public) values ('invoices', 'invoices', false);
   end if;
 end $$;
--- asegurar límite de tamaño (idempotente)
+-- asegurar lÃ­mite de tamaÃ±o (idempotente)
 update storage.buckets set file_size_limit = 10485760 where id = 'invoices';
 
--- Políticas de acceso: miembros de la organización pueden leer/subir/borrar
--- Convención: el path del archivo inicia con "<company_id>/<nombre-archivo>"
+-- PolÃ­ticas de acceso: miembros de la organizaciÃ³n pueden leer/subir/borrar
+-- ConvenciÃ³n: el path del archivo inicia con "<company_id>/<nombre-archivo>"
 drop policy if exists "invoices_read" on storage.objects;
 create policy "invoices_read" on storage.objects for select using (
   bucket_id = 'invoices' and exists (
@@ -684,7 +684,7 @@ end $$;
 update storage.buckets set file_size_limit = 10485760 where id = 'kyc';
 update storage.buckets set file_size_limit = 20971520 where id = 'contracts';
 
--- Convención de path: <company_id>/...
+-- ConvenciÃ³n de path: <company_id>/...
 drop policy if exists "kyc_read" on storage.objects;
 create policy "kyc_read" on storage.objects for select using (
   bucket_id = 'kyc' and (
@@ -775,7 +775,235 @@ create policy "contracts_delete" on storage.objects for delete using (
   )
 );
 
--- === AUDITORÍA ===
+
+
+-- === PORTAL DE INVERSIONISTAS ===
+create table if not exists investor_positions (
+  id uuid primary key default gen_random_uuid(),
+  investor_company_id uuid not null references companies(id) on delete cascade,
+  vehicle_company_id uuid not null references companies(id) on delete cascade,
+  commitment_amount numeric(14,2) not null default 0,
+  capital_called numeric(14,2) not null default 0,
+  capital_returned numeric(14,2) not null default 0,
+  net_asset_value numeric(14,2) not null default 0,
+  ownership_percentage numeric(8,4) not null default 0,
+  irr numeric(8,4),
+  notes text,
+  last_valuation_date date,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists investor_positions_investor_vehicle_idx on investor_positions (investor_company_id, vehicle_company_id);
+create index if not exists investor_positions_vehicle_idx on investor_positions (vehicle_company_id);
+
+alter table investor_positions enable row level security;
+drop policy if exists "investor_positions_select" on investor_positions;
+create policy "investor_positions_select" on investor_positions for select using (
+  exists (
+    select 1 from memberships m
+    join companies c on c.id = m.company_id
+    where m.user_id = auth.uid()
+      and m.status = 'ACTIVE'
+      and c.type = 'INVESTOR'
+      and m.company_id = investor_positions.investor_company_id
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+drop policy if exists "investor_positions_staff_insert" on investor_positions;
+create policy "investor_positions_staff_insert" on investor_positions for insert with check (
+  exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+drop policy if exists "investor_positions_staff_update" on investor_positions;
+create policy "investor_positions_staff_update" on investor_positions for update using (
+  exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+) with check (
+  exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+drop policy if exists "investor_positions_staff_delete" on investor_positions;
+create policy "investor_positions_staff_delete" on investor_positions for delete using (
+  exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+
+create table if not exists investor_distributions (
+  id uuid primary key default gen_random_uuid(),
+  investor_company_id uuid not null references companies(id) on delete cascade,
+  vehicle_company_id uuid not null references companies(id) on delete cascade,
+  period_start date,
+  period_end date,
+  gross_amount numeric(14,2) not null default 0,
+  net_amount numeric(14,2) not null default 0,
+  reinvested_amount numeric(14,2) not null default 0,
+  notes text,
+  file_path text,
+  created_at timestamptz not null default now(),
+  created_by uuid references profiles(user_id) on delete set null
+);
+create index if not exists investor_distributions_investor_idx on investor_distributions (investor_company_id, vehicle_company_id);
+create index if not exists investor_distributions_period_idx on investor_distributions (period_end desc nulls last);
+
+alter table investor_distributions enable row level security;
+drop policy if exists "investor_distributions_select" on investor_distributions;
+create policy "investor_distributions_select" on investor_distributions for select using (
+  exists (
+    select 1 from memberships m
+    join companies c on c.id = m.company_id
+    where m.user_id = auth.uid()
+      and m.status = 'ACTIVE'
+      and c.type = 'INVESTOR'
+      and m.company_id = investor_distributions.investor_company_id
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+drop policy if exists "investor_distributions_staff_insert" on investor_distributions;
+create policy "investor_distributions_staff_insert" on investor_distributions for insert with check (
+  exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+drop policy if exists "investor_distributions_staff_update" on investor_distributions;
+create policy "investor_distributions_staff_update" on investor_distributions for update using (
+  exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+) with check (
+  exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+drop policy if exists "investor_distributions_staff_delete" on investor_distributions;
+create policy "investor_distributions_staff_delete" on investor_distributions for delete using (
+  exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+
+create table if not exists investor_documents (
+  id uuid primary key default gen_random_uuid(),
+  investor_company_id uuid not null references companies(id) on delete cascade,
+  vehicle_company_id uuid references companies(id) on delete set null,
+  name text not null,
+  doc_type text not null,
+  file_path text not null,
+  description text,
+  uploaded_at timestamptz not null default now(),
+  uploaded_by uuid references profiles(user_id) on delete set null
+);
+create index if not exists investor_documents_investor_idx on investor_documents (investor_company_id, uploaded_at desc);
+create index if not exists investor_documents_vehicle_idx on investor_documents (vehicle_company_id);
+
+alter table investor_documents enable row level security;
+alter table investor_documents drop constraint if exists investor_documents_doc_type_check;
+alter table investor_documents add constraint investor_documents_doc_type_check
+  check (doc_type in ('FINANCIAL_STATEMENT','REPORT','NOTICE','OTHER'));
+
+drop policy if exists "investor_documents_select" on investor_documents;
+create policy "investor_documents_select" on investor_documents for select using (
+  exists (
+    select 1 from memberships m
+    join companies c on c.id = m.company_id
+    where m.user_id = auth.uid()
+      and m.status = 'ACTIVE'
+      and c.type = 'INVESTOR'
+      and m.company_id = investor_documents.investor_company_id
+  ) or exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+drop policy if exists "investor_documents_staff_insert" on investor_documents;
+create policy "investor_documents_staff_insert" on investor_documents for insert with check (
+  exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+drop policy if exists "investor_documents_staff_update" on investor_documents;
+create policy "investor_documents_staff_update" on investor_documents for update using (
+  exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+) with check (
+  exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+drop policy if exists "investor_documents_staff_delete" on investor_documents;
+create policy "investor_documents_staff_delete" on investor_documents for delete using (
+  exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+
+create or replace view investor_vehicle_cashflows as
+  select
+    p.investor_company_id,
+    p.vehicle_company_id,
+    coalesce(sum(d.net_amount), 0) as net_distributions,
+    coalesce(sum(d.gross_amount), 0) as gross_distributions,
+    coalesce(sum(d.reinvested_amount), 0) as reinvested_amount,
+    count(d.id) as distributions_count
+  from investor_positions p
+  left join investor_distributions d
+    on d.investor_company_id = p.investor_company_id
+    and d.vehicle_company_id = p.vehicle_company_id
+  group by p.investor_company_id, p.vehicle_company_id;
+
+-- Storage bucket for investor documents
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM storage.buckets WHERE id = 'investor-documents') THEN
+    INSERT INTO storage.buckets (id, name, public) VALUES ('investor-documents', 'investor-documents', false);
+  END IF;
+END $$;
+update storage.buckets set file_size_limit = 20971520 where id = 'investor-documents';
+
+drop policy if exists "investor_documents_read" on storage.objects;
+create policy "investor_documents_read" on storage.objects for select using (
+  bucket_id = 'investor-documents' and (
+    exists (
+      select 1 from memberships m
+      join companies c on c.id = m.company_id
+      where m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+        and c.type = 'INVESTOR'
+        and (storage.foldername(name))[1] = m.company_id::text
+    ) or exists (
+      select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+    )
+  )
+);
+drop policy if exists "investor_documents_write" on storage.objects;
+create policy "investor_documents_write" on storage.objects for insert with check (
+  bucket_id = 'investor-documents' and exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+drop policy if exists "investor_documents_update" on storage.objects;
+create policy "investor_documents_update" on storage.objects for update using (
+  bucket_id = 'investor-documents' and exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+) with check (
+  bucket_id = 'investor-documents' and exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+drop policy if exists "investor_documents_delete" on storage.objects;
+create policy "investor_documents_delete" on storage.objects for delete using (
+  bucket_id = 'investor-documents' and exists (
+    select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
+  )
+);
+
+-- === AUDITORÃA ===
 create table if not exists audit_logs (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references companies(id) on delete cascade,
