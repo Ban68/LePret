@@ -5,6 +5,11 @@ import { canManageMembership, normalizeMemberRole } from "@/lib/rbac";
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 const EMAIL_FROM = process.env.EMAIL_FROM || "no-reply@example.com";
+const COP_FORMATTER = new Intl.NumberFormat("es-CO", {
+  style: "currency",
+  currency: "COP",
+  maximumFractionDigits: 0,
+});
 
 function staffRecipients(): string[] {
   const list = (process.env.BACKOFFICE_NOTIFICATIONS || process.env.BACKOFFICE_ALLOWED_EMAILS || "")
@@ -54,6 +59,18 @@ async function sendEmail(to: string[] | string, subject: string, html: string) {
   const recipients = Array.isArray(to) ? to : [to];
   await resend.emails.send({ from: EMAIL_FROM, to: recipients, subject, html });
   return { ok: true } as const;
+}
+
+async function fetchCompanyName(companyId: string | null | undefined): Promise<string | null> {
+  if (!companyId) return null;
+  const { data, error } = await supabaseAdmin
+    .from("companies")
+    .select("name")
+    .eq("id", companyId)
+    .maybeSingle();
+  if (error) return null;
+  const name = data?.name;
+  return typeof name === "string" && name.trim().length > 0 ? name.trim() : null;
 }
 
 export async function notifyStaffNewRequest(companyId: string, requestId: string) {
@@ -129,4 +146,66 @@ export async function notifyClientNeedsDocs(companyId: string, note?: string) {
   const subject = `Documentación requerida`;
   const html = `<p>Necesitamos documentos adicionales para continuar.</p>${note ? `<p>${note}</p>` : ''}`;
   await sendEmail(recipients, subject, html);
+}
+
+export async function notifyInvestorDocumentPublished(args: {
+  investorCompanyId: string;
+  vehicleCompanyId?: string | null;
+  name: string;
+  docType: string;
+  filePath?: string | null;
+}) {
+  const { all } = await getCompanyActiveMemberEmails(args.investorCompanyId);
+  if (!all.length) return;
+
+  const vehicleName = await fetchCompanyName(args.vehicleCompanyId ?? null);
+  let downloadUrl: string | null = null;
+  if (args.filePath) {
+    const { data: signed } = await supabaseAdmin.storage
+      .from("investor-documents")
+      .createSignedUrl(args.filePath, 60 * 60, { download: true });
+    downloadUrl = signed?.signedUrl ?? null;
+  }
+
+  const subject = `Nuevo documento disponible: ${args.name}`;
+  let html = `<p>Hemos publicado un nuevo documento${vehicleName ? ` para <strong>${vehicleName}</strong>` : ''}.</p>`;
+  html += `<p><strong>Tipo:</strong> ${args.docType}</p>`;
+  if (downloadUrl) {
+    html += `<p><a href="${downloadUrl}">Descargar documento</a></p>`;
+  }
+
+  await sendEmail(all, subject, html);
+}
+
+export async function notifyInvestorDistributionPublished(args: {
+  investorCompanyId: string;
+  vehicleCompanyId?: string | null;
+  netAmount?: number | null;
+  filePath?: string | null;
+}) {
+  const { all } = await getCompanyActiveMemberEmails(args.investorCompanyId);
+  if (!all.length) return;
+
+  const vehicleName = await fetchCompanyName(args.vehicleCompanyId ?? null);
+  let downloadUrl: string | null = null;
+  if (args.filePath) {
+    const { data: signed } = await supabaseAdmin.storage
+      .from("investor-documents")
+      .createSignedUrl(args.filePath, 60 * 60, { download: true });
+    downloadUrl = signed?.signedUrl ?? null;
+  }
+
+  const amount = typeof args.netAmount === "number" && Number.isFinite(args.netAmount)
+    ? COP_FORMATTER.format(args.netAmount)
+    : null;
+  const subject = `Nueva distribución registrada${vehicleName ? ` - ${vehicleName}` : ''}`;
+  let html = `<p>Registramos una nueva distribución${vehicleName ? ` para <strong>${vehicleName}</strong>` : ''}.</p>`;
+  if (amount) {
+    html += `<p><strong>Monto neto:</strong> ${amount}</p>`;
+  }
+  if (downloadUrl) {
+    html += `<p><a href="${downloadUrl}">Descargar soporte</a></p>`;
+  }
+
+  await sendEmail(all, subject, html);
 }
