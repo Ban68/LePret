@@ -1,4 +1,4 @@
-"use client";
+Ôªø"use client";
 
 import Link from "next/link";
 
@@ -109,10 +109,10 @@ const INITIAL_WIZARD: WizardData = {
 const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024;
 
 const STEPS = [
-  { title: "Seleccionar facturas", description: "Elige las facturas que formar·n parte de la solicitud." },
+  { title: "Seleccionar facturas", description: "Elige las facturas que formar√°n parte de la solicitud." },
   { title: "Configurar condiciones", description: "Define el monto a solicitar y tu tasa objetivo." },
-  { title: "Adjuntar soporte", description: "Carga los documentos requeridos o dÈjalos para despuÈs." },
-  { title: "Revisar y confirmar", description: "Valida el resumen y acepta los tÈrminos." },
+  { title: "Adjuntar soporte", description: "Carga los documentos requeridos o d√©jalos para despu√©s." },
+  { title: "Revisar y confirmar", description: "Valida el resumen y acepta los t√©rminos." },
 ];
 
 export function RequestsClient({ orgId }: { orgId: string }) {
@@ -296,7 +296,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   const frequentFilters = [
     {
       key: "review",
-      label: "En revisiÛn",
+      label: "En revisi√≥n",
       onClick: () => setStatusFilter("review"),
       active: statusFilter === "review",
     },
@@ -435,7 +435,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     if (step === 1) {
       const amt = parseCurrency(wizardData.amount);
       if (!amt || Number.isNaN(amt)) {
-        setWizardErrors({ amount: "Ingresa un monto v·lido" });
+        setWizardErrors({ amount: "Ingresa un monto v√°lido" });
         amountInputRef.current?.focus();
         return;
       }
@@ -459,7 +459,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     const parsedTargetRate = normalizedTargetRateRaw ? Number(normalizedTargetRateRaw) : null;
     const targetRateValue = parsedTargetRate !== null && Number.isFinite(parsedTargetRate) ? parsedTargetRate : null;
     if (!wizardData.termsAccepted) {
-      setWizardErrors({ terms: "Debes aceptar los tÈrminos" });
+      setWizardErrors({ terms: "Debes aceptar los t√©rminos" });
       return;
     }
     if (!wizardData.selectedInvoiceIds.length) {
@@ -484,7 +484,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
         if (!res.ok) {
           const errKey = data.error;
           if (errKey === "invoice_already_used") {
-            throw new Error("Una o m·s facturas ya est·n asociadas a otra solicitud");
+            throw new Error("Una o m√°s facturas ya est√°n asociadas a otra solicitud");
           }
           if (errKey === "requested_amount_invalid") {
             throw new Error("El monto solicitado debe ser mayor a cero.");
@@ -539,7 +539,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
       setBanner({
         tone: "success",
         title: "Solicitud creada",
-        description: "La encontrar·s en la tabla de solicitudes con el resumen actualizado.",
+        description: "La encontrar√°s en la tabla de solicitudes con el resumen actualizado.",
       });
       toast.success("Solicitud creada");
       if (typeof window !== "undefined") {
@@ -563,7 +563,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="font-colette text-3xl font-bold text-lp-primary-1">Solicitudes de financiaciÛn</h1>
+          <h1 className="font-colette text-3xl font-bold text-lp-primary-1">Solicitudes de financiaci√≥n</h1>
           <p className="text-sm text-lp-sec-3">Crea solicitudes paso a paso y haz seguimiento a su avance.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -580,7 +580,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
 
       {metrics && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard title="Solicitudes activas" value={metrics.requestsOpen} subtitle="En revisiÛn u oferta" />
+          <MetricCard title="Solicitudes activas" value={metrics.requestsOpen} subtitle="En revisi√≥n u oferta" />
           <MetricCard
             title="Monto en curso"
             value={Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(
@@ -649,7 +649,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                     onChange={(e) => setStatusFilter(e.target.value)}
                   >
                     <option value="all">Todos</option>
-                    <option value="review">En revisiÛn</option>
+                    <option value="review">En revisi√≥n</option>
                     <option value="offered">Ofertada</option>
                     <option value="accepted">Aceptada</option>
                     <option value="funded">Desembolsada</option>
@@ -659,26 +659,26 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                   id="request-range"
                   value={dateRange}
                   onChange={setDateRange}
-                  helperText="Filtra por fecha de creaciÛn."
+                  helperText="Filtra por fecha de creaci√≥n."
                 />
                 <div className="space-y-1">
-                  <Label htmlFor="request-min">Monto mÌnimo</Label>
+                  <Label htmlFor="request-min">Monto m√≠nimo</Label>
                   <CurrencyInput
                     id="request-min"
                     value={minAmount}
                     onValueChange={(formatted) => setMinAmount(formatted)}
                     placeholder="Ej: 5.000.000"
-                    helperText="Solo n˙meros"
+                    helperText="Solo n√∫meros"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="request-max">Monto m·ximo</Label>
+                  <Label htmlFor="request-max">Monto m√°ximo</Label>
                   <CurrencyInput
                     id="request-max"
                     value={maxAmount}
                     onValueChange={(formatted) => setMaxAmount(formatted)}
                     placeholder="Ej: 50.000.000"
-                    helperText="Solo n˙meros"
+                    helperText="Solo n√∫meros"
                   />
                 </div>
                 <div className="space-y-1">
@@ -767,8 +767,8 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           {pendingSteps.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">PrÛximos pasos</CardTitle>
-                <CardDescription>Sugerencias seg˙n el estado actual de tus solicitudes.</CardDescription>
+                <CardTitle className="text-base">Pr√≥ximos pasos</CardTitle>
+                <CardDescription>Sugerencias seg√∫n el estado actual de tus solicitudes.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 {pendingSteps.map((task) => (
@@ -849,7 +849,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-lp-sec-3">P·gina {page} de {totalPages}</div>
+            <div className="text-sm text-lp-sec-3">P√°gina {page} de {totalPages}</div>
             <div className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                 Anterior
@@ -869,11 +869,11 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                   setPageSize(Number(e.target.value));
                 }}
                 className="rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm"
-                aria-label="Registros por p·gina"
+                aria-label="Registros por p√°gina"
               >
-                <option value={10}>10 por p·gina</option>
-                <option value={20}>20 por p·gina</option>
-                <option value={50}>50 por p·gina</option>
+                <option value={10}>10 por p√°gina</option>
+                <option value={20}>20 por p√°gina</option>
+                <option value={50}>50 por p√°gina</option>
               </select>
             </div>
           </div>
@@ -906,7 +906,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       <Input
                         value={invoiceSearch}
                         onChange={(e) => setInvoiceSearch(e.target.value)}
-                        placeholder="Buscar por n˙mero, fecha o monto"
+                        placeholder="Buscar por n√∫mero, fecha o monto"
                       />
                     </div>
                     <div className="space-y-3">
@@ -917,7 +917,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                             <tr>
                               <th className="px-3 py-2 text-left">Seleccionar</th>
                               <th className="px-3 py-2 text-left">Factura</th>
-                              <th className="px-3 py-2 text-left">EmisiÛn</th>
+                              <th className="px-3 py-2 text-left">Emisi√≥n</th>
                               <th className="px-3 py-2 text-left">Monto</th>
                             </tr>
                           </thead>
@@ -960,7 +960,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       </div>
                       <div className="rounded-md border border-lp-primary-1/40 bg-lp-primary-1/10 p-3 text-xs text-lp-primary-1">
                         <p className="font-medium">
-                          Seleccionadas: {wizardData.selectedInvoiceIds.length} ï Total {formatCurrency(wizardSelectedTotal)} COP
+                          Seleccionadas: {wizardData.selectedInvoiceIds.length} ‚Ä¢ Total {formatCurrency(wizardSelectedTotal)} COP
                         </p>
                       </div>
                     </div>
@@ -1012,7 +1012,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                         id="wizard-notes"
                         value={wizardData.notes}
                         onChange={(e) => setWizardData((prev) => ({ ...prev, notes: e.target.value }))}
-                        placeholder="øHay condiciones especiales?"
+                        placeholder="¬øHay condiciones especiales?"
                       />
                     </div>
                   </div>
@@ -1078,11 +1078,11 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       <ul className="space-y-1">
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
-                          Certificado c·mara de comercio (reciente)
+                          Certificado c√°mara de comercio (reciente)
                         </li>
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
-                          Estados financieros ˙ltimo trimestre
+                          Estados financieros √∫ltimo trimestre
                         </li>
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
@@ -1112,7 +1112,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                         }
                       />
                       <Label htmlFor="wizard-terms" className="text-xs text-lp-sec-3">
-                        Confirmo que la informaciÛn es correcta y acepto los tÈrminos legales de LePrÍt Capital.
+                        Confirmo que la informaci√≥n es correcta y acepto los t√©rminos legales de LePr√™t Capital.
                       </Label>
                     </div>
                     {wizardErrors.terms && <p className="text-xs text-red-600">{wizardErrors.terms}</p>}
@@ -1292,7 +1292,7 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
       if (!res.ok || !data?.ok || typeof data.url !== "string") {
         const friendly = data?.error === 'file_not_found'
-          ? "A˙n no has cargado un soporte para esta solicitud."
+          ? "A√∫n no has cargado un soporte para esta solicitud."
           : data?.error || "No se pudo descargar el soporte";
         throw new Error(friendly);
       }
