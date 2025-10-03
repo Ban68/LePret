@@ -27,6 +27,7 @@ type TimelinePayload = {
 };
 
 type RequestTimelinePanelProps = {
+  orgId: string;
   requestId: string | null;
   onClose: () => void;
   onRefreshList?: () => void | Promise<void>;
@@ -194,9 +195,3 @@ export function RequestTimelinePanel({ orgId, requestId, onClose, onRefreshList 
     </div>
   );
 }
-
-
-
-
-
-
