@@ -7,20 +7,24 @@ import { subscribeToRequestTimeline } from "@/lib/request-timeline";
 
 type Props = {
   requestId: string;
+  onChange?: () => void;
 };
 
-export function TimelineRealtimeBridge({ requestId }: Props) {
+export function TimelineRealtimeBridge({ requestId, onChange }: Props) {
   const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = subscribeToRequestTimeline(requestId, () => {
-      router.refresh();
+      if (onChange) {
+        onChange();
+      } else {
+        router.refresh();
+      }
     });
     return () => {
       unsubscribe?.();
     };
-  }, [requestId, router]);
+  }, [onChange, requestId, router]);
 
   return null;
 }
-
