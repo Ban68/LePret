@@ -106,14 +106,17 @@ export function RequestTimelinePanel({ orgId, requestId, onClose, onRefreshList 
     window.setTimeout(onClose, PANEL_TRANSITION_MS);
   }, [onClose]);
 
-  const handleComposerSent = useCallback(async () => {
+  const handleComposerSent = useCallback(() => {
     if (!requestId) {
       return false;
     }
-    await fetchTimeline(requestId);
+
+    void fetchTimeline(requestId);
+
     if (onRefreshList) {
-      await onRefreshList();
+      void Promise.resolve(onRefreshList());
     }
+
     return false;
   }, [fetchTimeline, onRefreshList, requestId]);
 
@@ -197,7 +200,3 @@ export function RequestTimelinePanel({ orgId, requestId, onClose, onRefreshList 
     </div>
   );
 }
-
-
-
-
