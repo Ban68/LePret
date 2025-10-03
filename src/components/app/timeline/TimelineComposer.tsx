@@ -1,4 +1,4 @@
-"use client";
+Ôªø"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -54,9 +54,9 @@ export function TimelineComposer({ requestId, disabled, onSent }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-      <h3 className="text-sm font-semibold text-neutral-900">Comparte una actualizaciÛn</h3>
+      <h3 className="text-sm font-semibold text-neutral-900">Comparte una actualizaci√≥n</h3>
       <p className="mt-1 text-xs text-neutral-500">
-        Este mensaje ser· enviado al equipo de soporte y quedar· registrado en el historial.
+        Este mensaje ser√° enviado al equipo de soporte y quedar√° registrado en el historial.
       </p>
       <Textarea
         value={message}
