@@ -1,4 +1,4 @@
-Ôªø"use client";
+"use client";
 
 import Link from "next/link";
 
@@ -37,6 +37,7 @@ type RequestItem = {
     advance_pct?: number | null;
     net_amount?: number | null;
     valid_until?: string | null;
+    fees?: Record<string, number> | null;
   } | null;
   contract_status?: string | null;
   target_rate?: number | null;
@@ -109,10 +110,10 @@ const INITIAL_WIZARD: WizardData = {
 const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024;
 
 const STEPS = [
-  { title: "Seleccionar facturas", description: "Elige las facturas que formar√°n parte de la solicitud." },
+  { title: "Seleccionar facturas", description: "Elige las facturas que formar·n parte de la solicitud." },
   { title: "Configurar condiciones", description: "Define el monto a solicitar y tu tasa objetivo." },
-  { title: "Adjuntar soporte", description: "Carga los documentos requeridos o d√©jalos para despu√©s." },
-  { title: "Revisar y confirmar", description: "Valida el resumen y acepta los t√©rminos." },
+  { title: "Adjuntar soporte", description: "Carga los documentos requeridos o dÈjalos para despuÈs." },
+  { title: "Revisar y confirmar", description: "Valida el resumen y acepta los tÈrminos." },
 ];
 
 export function RequestsClient({ orgId }: { orgId: string }) {
@@ -296,7 +297,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   const frequentFilters = [
     {
       key: "review",
-      label: "En revisi√≥n",
+      label: "En revisiÛn",
       onClick: () => setStatusFilter("review"),
       active: statusFilter === "review",
     },
@@ -435,7 +436,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     if (step === 1) {
       const amt = parseCurrency(wizardData.amount);
       if (!amt || Number.isNaN(amt)) {
-        setWizardErrors({ amount: "Ingresa un monto v√°lido" });
+        setWizardErrors({ amount: "Ingresa un monto v·lido" });
         amountInputRef.current?.focus();
         return;
       }
@@ -459,7 +460,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     const parsedTargetRate = normalizedTargetRateRaw ? Number(normalizedTargetRateRaw) : null;
     const targetRateValue = parsedTargetRate !== null && Number.isFinite(parsedTargetRate) ? parsedTargetRate : null;
     if (!wizardData.termsAccepted) {
-      setWizardErrors({ terms: "Debes aceptar los t√©rminos" });
+      setWizardErrors({ terms: "Debes aceptar los tÈrminos" });
       return;
     }
     if (!wizardData.selectedInvoiceIds.length) {
@@ -484,7 +485,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
         if (!res.ok) {
           const errKey = data.error;
           if (errKey === "invoice_already_used") {
-            throw new Error("Una o m√°s facturas ya est√°n asociadas a otra solicitud");
+            throw new Error("Una o m·s facturas ya est·n asociadas a otra solicitud");
           }
           if (errKey === "requested_amount_invalid") {
             throw new Error("El monto solicitado debe ser mayor a cero.");
@@ -539,7 +540,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
       setBanner({
         tone: "success",
         title: "Solicitud creada",
-        description: "La encontrar√°s en la tabla de solicitudes con el resumen actualizado.",
+        description: "La encontrar·s en la tabla de solicitudes con el resumen actualizado.",
       });
       toast.success("Solicitud creada");
       if (typeof window !== "undefined") {
@@ -563,7 +564,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="font-colette text-3xl font-bold text-lp-primary-1">Solicitudes de financiaci√≥n</h1>
+          <h1 className="font-colette text-3xl font-bold text-lp-primary-1">Solicitudes de financiaciÛn</h1>
           <p className="text-sm text-lp-sec-3">Crea solicitudes paso a paso y haz seguimiento a su avance.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -580,7 +581,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
 
       {metrics && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard title="Solicitudes activas" value={metrics.requestsOpen} subtitle="En revisi√≥n u oferta" />
+          <MetricCard title="Solicitudes activas" value={metrics.requestsOpen} subtitle="En revisiÛn u oferta" />
           <MetricCard
             title="Monto en curso"
             value={Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(
@@ -649,7 +650,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                     onChange={(e) => setStatusFilter(e.target.value)}
                   >
                     <option value="all">Todos</option>
-                    <option value="review">En revisi√≥n</option>
+                    <option value="review">En revisiÛn</option>
                     <option value="offered">Ofertada</option>
                     <option value="accepted">Aceptada</option>
                     <option value="funded">Desembolsada</option>
@@ -659,26 +660,26 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                   id="request-range"
                   value={dateRange}
                   onChange={setDateRange}
-                  helperText="Filtra por fecha de creaci√≥n."
+                  helperText="Filtra por fecha de creaciÛn."
                 />
                 <div className="space-y-1">
-                  <Label htmlFor="request-min">Monto m√≠nimo</Label>
+                  <Label htmlFor="request-min">Monto mÌnimo</Label>
                   <CurrencyInput
                     id="request-min"
                     value={minAmount}
                     onValueChange={(formatted) => setMinAmount(formatted)}
                     placeholder="Ej: 5.000.000"
-                    helperText="Solo n√∫meros"
+                    helperText="Solo n˙meros"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="request-max">Monto m√°ximo</Label>
+                  <Label htmlFor="request-max">Monto m·ximo</Label>
                   <CurrencyInput
                     id="request-max"
                     value={maxAmount}
                     onValueChange={(formatted) => setMaxAmount(formatted)}
                     placeholder="Ej: 50.000.000"
-                    helperText="Solo n√∫meros"
+                    helperText="Solo n˙meros"
                   />
                 </div>
                 <div className="space-y-1">
@@ -767,8 +768,8 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           {pendingSteps.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Pr√≥ximos pasos</CardTitle>
-                <CardDescription>Sugerencias seg√∫n el estado actual de tus solicitudes.</CardDescription>
+                <CardTitle className="text-base">PrÛximos pasos</CardTitle>
+                <CardDescription>Sugerencias seg˙n el estado actual de tus solicitudes.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 {pendingSteps.map((task) => (
@@ -849,7 +850,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-lp-sec-3">P√°gina {page} de {totalPages}</div>
+            <div className="text-sm text-lp-sec-3">P·gina {page} de {totalPages}</div>
             <div className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                 Anterior
@@ -869,11 +870,11 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                   setPageSize(Number(e.target.value));
                 }}
                 className="rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm"
-                aria-label="Registros por p√°gina"
+                aria-label="Registros por p·gina"
               >
-                <option value={10}>10 por p√°gina</option>
-                <option value={20}>20 por p√°gina</option>
-                <option value={50}>50 por p√°gina</option>
+                <option value={10}>10 por p·gina</option>
+                <option value={20}>20 por p·gina</option>
+                <option value={50}>50 por p·gina</option>
               </select>
             </div>
           </div>
@@ -906,7 +907,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       <Input
                         value={invoiceSearch}
                         onChange={(e) => setInvoiceSearch(e.target.value)}
-                        placeholder="Buscar por n√∫mero, fecha o monto"
+                        placeholder="Buscar por n˙mero, fecha o monto"
                       />
                     </div>
                     <div className="space-y-3">
@@ -917,7 +918,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                             <tr>
                               <th className="px-3 py-2 text-left">Seleccionar</th>
                               <th className="px-3 py-2 text-left">Factura</th>
-                              <th className="px-3 py-2 text-left">Emisi√≥n</th>
+                              <th className="px-3 py-2 text-left">EmisiÛn</th>
                               <th className="px-3 py-2 text-left">Monto</th>
                             </tr>
                           </thead>
@@ -960,7 +961,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       </div>
                       <div className="rounded-md border border-lp-primary-1/40 bg-lp-primary-1/10 p-3 text-xs text-lp-primary-1">
                         <p className="font-medium">
-                          Seleccionadas: {wizardData.selectedInvoiceIds.length} ‚Ä¢ Total {formatCurrency(wizardSelectedTotal)} COP
+                          Seleccionadas: {wizardData.selectedInvoiceIds.length} ï Total {formatCurrency(wizardSelectedTotal)} COP
                         </p>
                       </div>
                     </div>
@@ -1012,7 +1013,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                         id="wizard-notes"
                         value={wizardData.notes}
                         onChange={(e) => setWizardData((prev) => ({ ...prev, notes: e.target.value }))}
-                        placeholder="¬øHay condiciones especiales?"
+                        placeholder="øHay condiciones especiales?"
                       />
                     </div>
                   </div>
@@ -1078,11 +1079,11 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       <ul className="space-y-1">
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
-                          Certificado c√°mara de comercio (reciente)
+                          Certificado c·mara de comercio (reciente)
                         </li>
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
-                          Estados financieros √∫ltimo trimestre
+                          Estados financieros ˙ltimo trimestre
                         </li>
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
@@ -1112,7 +1113,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                         }
                       />
                       <Label htmlFor="wizard-terms" className="text-xs text-lp-sec-3">
-                        Confirmo que la informaci√≥n es correcta y acepto los t√©rminos legales de LePr√™t Capital.
+                        Confirmo que la informaciÛn es correcta y acepto los tÈrminos legales de LePrÍt Capital.
                       </Label>
                     </div>
                     {wizardErrors.terms && <p className="text-xs text-red-600">{wizardErrors.terms}</p>}
@@ -1165,6 +1166,7 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showInvoices, setShowInvoices] = useState(false);
+  const [offerDetailsOpen, setOfferDetailsOpen] = useState(false);
   const supabase = createClientComponentClient();
 
   const parseCurrency = (s: string) => Number((s || "").replace(/[^0-9]/g, ""));
@@ -1292,7 +1294,7 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
       if (!res.ok || !data?.ok || typeof data.url !== "string") {
         const friendly = data?.error === 'file_not_found'
-          ? "A√∫n no has cargado un soporte para esta solicitud."
+          ? "A˙n no has cargado un soporte para esta solicitud."
           : data?.error || "No se pudo descargar el soporte";
         throw new Error(friendly);
       }
@@ -1339,6 +1341,64 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
     }
   };
 
+  const formatCurrencyCOP = (value: number | null | undefined) => {
+    if (typeof value !== "number" || Number.isNaN(value)) return "-";
+    return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
+  };
+
+  const formatPercentValue = (value: number | null | undefined, fractionDigits = 2) => {
+    if (typeof value !== "number" || Number.isNaN(value)) return "-";
+    return `${value.toFixed(fractionDigits)}%`;
+  };
+
+  const offerMetrics = useMemo(() => {
+    if (!currentOffer || currentOffer.status !== "offered") {
+      return null;
+    }
+
+    const requested = req.requested_amount;
+    const advancePct = typeof currentOffer.advance_pct === "number" ? currentOffer.advance_pct : null;
+    const advanceAmount = advancePct !== null ? Math.round(requested * (advancePct / 100)) : null;
+    const netAmount = typeof currentOffer.net_amount === "number" ? currentOffer.net_amount : null;
+    const annualRate = typeof currentOffer.annual_rate === "number" ? currentOffer.annual_rate : null;
+    const monthlyRate = annualRate !== null ? Math.pow(1 + annualRate, 1 / 12) - 1 : null;
+    const feesRecord = currentOffer.fees && typeof currentOffer.fees === "object" ? currentOffer.fees : {};
+    const labelMap: Record<string, string> = { processing: "Comision de procesamiento", wire: "Transferencia" };
+    const feesList = Object.entries(feesRecord)
+      .filter(([, value]) => typeof value === "number" && !Number.isNaN(value))
+      .map(([key, value]) => ({
+        key,
+        label: labelMap[key] ?? key.replace(/_/g, " "),
+        value: Math.round(value as number),
+      }));
+    const totalFees = feesList.reduce((acc, fee) => acc + fee.value, 0);
+    const holdback = advanceAmount !== null && netAmount !== null ? Math.max(0, advanceAmount - netAmount) : null;
+    const validUntilDate = currentOffer.valid_until ? new Date(currentOffer.valid_until) : null;
+    const daysRemaining = validUntilDate ? Math.ceil((validUntilDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+    const effectiveCostPct = holdback !== null && requested > 0 ? (holdback / requested) * 100 : null;
+
+    return {
+      requested,
+      advancePct,
+      advanceAmount,
+      netAmount,
+      totalFees,
+      holdback,
+      annualRatePct: annualRate !== null ? annualRate * 100 : null,
+      monthlyRatePct: monthlyRate !== null ? monthlyRate * 100 : null,
+      effectiveCostPct,
+      feesList,
+      validUntilDate,
+      daysRemaining,
+    };
+  }, [currentOffer, req.requested_amount]);
+
+  useEffect(() => {
+    if (!currentOffer) {
+      setOfferDetailsOpen(false);
+    }
+  }, [currentOffer]);
+
   const formatCurrencyValue = (value: number | null | undefined) => {
     if (typeof value !== "number" || Number.isNaN(value)) return null;
     return new Intl.NumberFormat("es-CO").format(value);
@@ -1362,6 +1422,72 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
           >
             Ver historial
           </Link>
+          {currentOffer && currentOffer.status === "offered" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="mt-1"
+              onClick={() => setOfferDetailsOpen((prev) => !prev)}
+            >
+              {offerDetailsOpen ? "Ocultar simulador" : "Ver simulador"}
+            </Button>
+          ) : null}
+          {offerDetailsOpen && offerMetrics ? (
+            <div className="mt-2 space-y-3 rounded-md border border-lp-sec-4/60 bg-white/80 p-3 text-xs">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-lp-sec-3">Monto solicitado</p>
+                  <p className="mt-1 text-sm font-semibold text-lp-primary-1">{formatCurrencyCOP(offerMetrics.requested)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-lp-sec-3">Anticipo</p>
+                  <p className="mt-1 text-sm font-semibold text-lp-primary-1">
+                    {formatCurrencyCOP(offerMetrics.advanceAmount)}
+                    {offerMetrics.advancePct !== null ? ` (${formatPercentValue(offerMetrics.advancePct, 0)})` : ""}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-lp-sec-3">Desembolso neto</p>
+                  <p className="mt-1 text-sm font-semibold text-lp-primary-1">{formatCurrencyCOP(offerMetrics.netAmount)}</p>
+                  <p className="text-[11px] text-lp-sec-3">Monto estimado que recibirias.</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-lp-sec-3">Costos y retenciones</p>
+                  <p className="mt-1 text-sm font-semibold text-lp-primary-1">{formatCurrencyCOP(offerMetrics.holdback)}</p>
+                  <p className="text-[11px] text-lp-sec-3">{offerMetrics.effectiveCostPct !== null ? formatPercentValue(offerMetrics.effectiveCostPct, 1) : "-"} del valor solicitado.</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-lp-sec-3">Tasa EA</p>
+                  <p className="mt-1 text-sm font-semibold text-lp-primary-1">{formatPercentValue(offerMetrics.annualRatePct, 2)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-lp-sec-3">Tasa mensual aprox.</p>
+                  <p className="mt-1 text-sm font-semibold text-lp-primary-1">{formatPercentValue(offerMetrics.monthlyRatePct, 2)}</p>
+                </div>
+              </div>
+              {offerMetrics.feesList.length > 0 ? (
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-lp-sec-3">Detalle de comisiones</p>
+                  <ul className="mt-1 space-y-1">
+                    {offerMetrics.feesList.map((fee) => (
+                      <li key={fee.key} className="flex justify-between">
+                        <span className="capitalize">{fee.label}</span>
+                        <span className="font-medium text-lp-primary-1">{formatCurrencyCOP(fee.value)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <p
+                className={`text-[11px] ${offerMetrics.daysRemaining !== null && offerMetrics.daysRemaining <= 2 ? "text-red-600" : "text-lp-sec-3"}`}
+              >
+                {offerMetrics.validUntilDate
+                  ? `Oferta valida hasta ${offerMetrics.validUntilDate.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" })}${offerMetrics.daysRemaining !== null ? ` (${offerMetrics.daysRemaining} ${offerMetrics.daysRemaining === 1 ? "dia" : "dias"})` : ""}.` 
+                  : "Oferta sin fecha de expiracion registrada."}
+              </p>
+            </div>
+          ) : null}
           {showInvoices && (
             <ul className="space-y-1 text-xs text-lp-sec-3">
               {(req.invoice_ids || (req.invoice_id ? [req.invoice_id] : [])).map((id) => (
@@ -1531,6 +1657,21 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
     </tr>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
