@@ -22,9 +22,9 @@ type OfferRow = {
   advance_pct: number | null;
   net_amount: number | null;
   valid_until: string | null;
+  fees: Record<string, number> | null;
   created_at: string;
 };
-
 type DocumentRow = {
   id: string;
   request_id: string | null;
@@ -284,7 +284,7 @@ export async function GET(
             advance_pct: typeof offer.advance_pct === "number" ? offer.advance_pct : null,
             net_amount: typeof offer.net_amount === "number" ? offer.net_amount : null,
             valid_until: offer.valid_until,
-            fees: offer.fees && typeof offer.fees === "object" ? offer.fees : null,
+            fees: offer.fees && typeof offer.fees === "object" ? (offer.fees as Record<string, number>) : null,
           }
         : null,
       contract_status: contract?.status ?? null,
@@ -351,6 +351,9 @@ export async function POST(
 
   return NextResponse.json({ ok: true, created: result.request, total: result.total, count: result.count }, { status: 201 });
 }
+
+
+
 
 
 
