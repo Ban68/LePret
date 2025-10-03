@@ -107,7 +107,9 @@ export function RequestTimelinePanel({ orgId, requestId, onClose, onRefreshList 
   }, [onClose]);
 
   const handleComposerSent = useCallback(async () => {
-    if (!requestId) return false;
+    if (!requestId) {
+      return false;
+    }
     await fetchTimeline(requestId);
     if (onRefreshList) {
       await onRefreshList();
@@ -195,5 +197,3 @@ export function RequestTimelinePanel({ orgId, requestId, onClose, onRefreshList 
     </div>
   );
 }
-
-
