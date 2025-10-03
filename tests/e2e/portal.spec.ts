@@ -1,4 +1,4 @@
-ï»¿import { expect, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 const orgId = process.env.E2E_ORG_ID;
 const requestId = process.env.E2E_REQUEST_ID;
@@ -22,10 +22,10 @@ test.describe("portal cliente", () => {
 
     await page.goto(`/c/${orgId}/requests/${requestId}`);
     await expect(page.getByRole("heading", { name: /Historial de la solicitud/i })).toBeVisible();
-    await expect(page.getByText(/PrÃ³ximos pasos/i)).toBeVisible();
+    await expect(page.getByText(/Próximos pasos/i)).toBeVisible();
   });
 
-  test("simulador de oferta muestra mÃ©tricas", async ({ page }) => {
+  test("simulador de oferta muestra métricas", async ({ page }) => {
     test.skip(!simulatorRequestId, "Define E2E_SIMULATOR_REQUEST_ID o E2E_REQUEST_ID para validar el simulador de ofertas.");
 
     const shortIdPattern = escapeForRegExp(simulatorRequestId!.slice(0, 8));
@@ -41,3 +41,6 @@ test.describe("portal cliente", () => {
     await expect(requestRow.getByText(/Desembolso neto/i)).toBeVisible();
   });
 });
+
+
+

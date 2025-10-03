@@ -1,4 +1,4 @@
-Ôªø"use client";
+"use client";
 
 import Link from "next/link";
 
@@ -110,10 +110,10 @@ const INITIAL_WIZARD: WizardData = {
 const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024;
 
 const STEPS = [
-  { title: "Seleccionar facturas", description: "Elige las facturas que formar√°n parte de la solicitud." },
+  { title: "Seleccionar facturas", description: "Elige las facturas que formar·n parte de la solicitud." },
   { title: "Configurar condiciones", description: "Define el monto a solicitar y tu tasa objetivo." },
-  { title: "Adjuntar soporte", description: "Carga los documentos requeridos o d√©jalos para despu√©s." },
-  { title: "Revisar y confirmar", description: "Valida el resumen y acepta los t√©rminos." },
+  { title: "Adjuntar soporte", description: "Carga los documentos requeridos o dÈjalos para despuÈs." },
+  { title: "Revisar y confirmar", description: "Valida el resumen y acepta los tÈrminos." },
 ];
 
 export function RequestsClient({ orgId }: { orgId: string }) {
@@ -297,7 +297,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   const frequentFilters = [
     {
       key: "review",
-      label: "En revisi√≥n",
+      label: "En revisiÛn",
       onClick: () => setStatusFilter("review"),
       active: statusFilter === "review",
     },
@@ -436,7 +436,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     if (step === 1) {
       const amt = parseCurrency(wizardData.amount);
       if (!amt || Number.isNaN(amt)) {
-        setWizardErrors({ amount: "Ingresa un monto v√°lido" });
+        setWizardErrors({ amount: "Ingresa un monto v·lido" });
         amountInputRef.current?.focus();
         return;
       }
@@ -455,46 +455,80 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   };
 
   const handleWizardSubmit = async () => {
-    const amt = parseCurrency(wizardData.amount);
-    const normalizedTargetRateRaw = wizardData.targetRate ? wizardData.targetRate.replace(",", ".") : "";
-    const parsedTargetRate = normalizedTargetRateRaw ? Number(normalizedTargetRateRaw) : null;
-    const targetRateValue = parsedTargetRate !== null && Number.isFinite(parsedTargetRate) ? parsedTargetRate : null;
-    if (!wizardData.termsAccepted) {
-      setWizardErrors({ terms: "Debes aceptar los t√©rminos" });
-      return;
-    }
+    const errors: Record<string, string> = {};
+    const amountValue = parseCurrency(wizardData.amount);
+
     if (!wizardData.selectedInvoiceIds.length) {
-      setWizardStep(0);
-      setWizardErrors({ step0: "Selecciona al menos una factura" });
+      errors.step0 = "Selecciona al menos una factura";
+    }
+
+    if (!amountValue || Number.isNaN(amountValue) || amountValue <= 0) {
+      errors.amount = "El monto debe ser mayor a cero";
+    } else if (wizardSelectedTotal > 0 && amountValue > wizardSelectedTotal) {
+      errors.amount = "El monto no puede superar el total de facturas seleccionadas";
+    }
+
+    let targetRateValue: number | null = null;
+    if (wizardData.targetRate && wizardData.targetRate.trim().length > 0) {
+      const normalizedRate = Number(wizardData.targetRate.replace(',', '.'));
+      if (!Number.isFinite(normalizedRate)) {
+        errors.targetRate = "Ingresa una tasa v·lida";
+      } else if (normalizedRate < 0 || normalizedRate > 100) {
+        errors.targetRate = "La tasa debe estar entre 0% y 100%";
+      } else {
+        targetRateValue = normalizedRate;
+      }
+    }
+
+    if (!wizardData.termsAccepted) {
+      errors.terms = "Debes aceptar los tÈrminos";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setWizardErrors(errors);
+      if (errors.step0) {
+        setWizardStep(0);
+      } else if (errors.amount || errors.targetRate) {
+        setWizardStep(1);
+        if (errors.amount) {
+          amountInputRef.current?.focus();
+        }
+      }
       return;
     }
+
+    setWizardErrors({});
     setWizardBusy(true);
+    setBanner(null);
+
     try {
-      const res = await fetch(`/api/c/${orgId}/requests/from-invoices`, {
+      const response = await fetch(`/api/c/${orgId}/requests/from-invoices`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           invoice_ids: wizardData.selectedInvoiceIds,
-          requested_amount: amt > 0 ? amt : undefined,
+          requested_amount: amountValue,
           target_rate: targetRateValue ?? undefined,
           expected_disbursement_date: wizardData.expectedDate || undefined,
           notes: wizardData.notes && wizardData.notes.trim().length > 0 ? wizardData.notes.trim() : undefined,
         }),
       });
-      const data = await res.json();
-        if (!res.ok) {
-          const errKey = data.error;
-          if (errKey === "invoice_already_used") {
-            throw new Error("Una o m√°s facturas ya est√°n asociadas a otra solicitud");
-          }
-          if (errKey === "requested_amount_invalid") {
-            throw new Error("El monto solicitado debe ser mayor a cero.");
-          }
-          if (errKey === "requested_amount_exceeds_total") {
-            throw new Error("El monto solicitado no puede exceder el total de facturas seleccionadas.");
-          }
-          throw new Error(errKey || "No se pudo crear la solicitud");
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const errKey = data.error;
+        if (errKey === "invoice_already_used") {
+          throw new Error("Una o m·s facturas ya est·n asociadas a otra solicitud");
         }
+        if (errKey === "requested_amount_invalid") {
+          throw new Error("El monto solicitado debe ser mayor a cero.");
+        }
+        if (errKey === "requested_amount_exceeds_total") {
+          throw new Error("El monto solicitado no puede exceder el total de facturas seleccionadas.");
+        }
+        throw new Error(errKey || "No se pudo crear la solicitud");
+      }
+
       const createdId: string | undefined = data?.request?.id;
       if (createdId && wizardData.documents.length) {
         const supabase = createClientComponentClient();
@@ -502,30 +536,30 @@ export function RequestsClient({ orgId }: { orgId: string }) {
         let primaryPath: string | null = null;
 
         for (const [index, file] of wizardData.documents.entries()) {
-          const ext = file.name.split(".").pop();
-          const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2);
-          const key = `${orgId}/${id}.${ext ?? "bin"}`;
-          const { error: upErr } = await supabase.storage
+          const ext = file.name.split('.').pop();
+          const uploadId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+          const key = `${orgId}/${uploadId}.${ext ?? "bin"}`;
+          const { error: uploadError } = await supabase.storage
             .from("requests")
             .upload(key, file, { upsert: false, contentType: file.type });
-          if (upErr) throw upErr;
+          if (uploadError) {
+            throw new Error(`No se pudo cargar el archivo ${file.name}. ${uploadError.message ?? ""}`.trim());
+          }
           if (index === 0) primaryPath = key;
           uploadedDocs.push({ file_path: key, name: file.name, size: file.size, content_type: file.type });
         }
 
         if (primaryPath) {
-          const resFile = await fetch(`/api/c/${orgId}/requests/${createdId}/file`, {
+          const fileRes = await fetch(`/api/c/${orgId}/requests/${createdId}/file`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ file_path: primaryPath }),
           });
-          const resData = await resFile.json().catch(() => ({}));
-          if (!resFile.ok) {
-            throw new Error(resData.error || "No se pudo actualizar archivo");
+          const fileData = await fileRes.json().catch(() => ({}));
+          if (!fileRes.ok) {
+            throw new Error(fileData.error || "No se pudo asociar el documento principal");
           }
-        }
 
-        if (uploadedDocs.length) {
           const docRes = await fetch(`/api/c/${orgId}/requests/${createdId}/documents`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -537,10 +571,11 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           }
         }
       }
+
       setBanner({
         tone: "success",
         title: "Solicitud creada",
-        description: "La encontrar√°s en la tabla de solicitudes con el resumen actualizado.",
+        description: "La encontrar·s en la tabla de solicitudes con el resumen actualizado.",
       });
       toast.success("Solicitud creada");
       if (typeof window !== "undefined") {
@@ -551,10 +586,10 @@ export function RequestsClient({ orgId }: { orgId: string }) {
       setWizardOpen(false);
       await load();
       await loadSummary();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error creando solicitud";
-      setWizardErrors({ submit: msg });
-      toast.error(msg);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error creando solicitud";
+      setWizardErrors((prev) => ({ ...prev, submit: message }));
+      toast.error(message);
     } finally {
       setWizardBusy(false);
     }
@@ -564,7 +599,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="font-colette text-3xl font-bold text-lp-primary-1">Solicitudes de financiaci√≥n</h1>
+          <h1 className="font-colette text-3xl font-bold text-lp-primary-1">Solicitudes de financiaciÛn</h1>
           <p className="text-sm text-lp-sec-3">Crea solicitudes paso a paso y haz seguimiento a su avance.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -581,7 +616,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
 
       {metrics && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard title="Solicitudes activas" value={metrics.requestsOpen} subtitle="En revisi√≥n u oferta" />
+          <MetricCard title="Solicitudes activas" value={metrics.requestsOpen} subtitle="En revisiÛn u oferta" />
           <MetricCard
             title="Monto en curso"
             value={Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(
@@ -650,7 +685,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                     onChange={(e) => setStatusFilter(e.target.value)}
                   >
                     <option value="all">Todos</option>
-                    <option value="review">En revisi√≥n</option>
+                    <option value="review">En revisiÛn</option>
                     <option value="offered">Ofertada</option>
                     <option value="accepted">Aceptada</option>
                     <option value="funded">Desembolsada</option>
@@ -660,26 +695,26 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                   id="request-range"
                   value={dateRange}
                   onChange={setDateRange}
-                  helperText="Filtra por fecha de creaci√≥n."
+                  helperText="Filtra por fecha de creaciÛn."
                 />
                 <div className="space-y-1">
-                  <Label htmlFor="request-min">Monto m√≠nimo</Label>
+                  <Label htmlFor="request-min">Monto mÌnimo</Label>
                   <CurrencyInput
                     id="request-min"
                     value={minAmount}
                     onValueChange={(formatted) => setMinAmount(formatted)}
                     placeholder="Ej: 5.000.000"
-                    helperText="Solo n√∫meros"
+                    helperText="Solo n˙meros"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="request-max">Monto m√°ximo</Label>
+                  <Label htmlFor="request-max">Monto m·ximo</Label>
                   <CurrencyInput
                     id="request-max"
                     value={maxAmount}
                     onValueChange={(formatted) => setMaxAmount(formatted)}
                     placeholder="Ej: 50.000.000"
-                    helperText="Solo n√∫meros"
+                    helperText="Solo n˙meros"
                   />
                 </div>
                 <div className="space-y-1">
@@ -768,8 +803,8 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           {pendingSteps.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Pr√≥ximos pasos</CardTitle>
-                <CardDescription>Sugerencias seg√∫n el estado actual de tus solicitudes.</CardDescription>
+                <CardTitle className="text-base">PrÛximos pasos</CardTitle>
+                <CardDescription>Sugerencias seg˙n el estado actual de tus solicitudes.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 {pendingSteps.map((task) => (
@@ -850,7 +885,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-lp-sec-3">P√°gina {page} de {totalPages}</div>
+            <div className="text-sm text-lp-sec-3">P·gina {page} de {totalPages}</div>
             <div className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                 Anterior
@@ -870,11 +905,11 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                   setPageSize(Number(e.target.value));
                 }}
                 className="rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm"
-                aria-label="Registros por p√°gina"
+                aria-label="Registros por p·gina"
               >
-                <option value={10}>10 por p√°gina</option>
-                <option value={20}>20 por p√°gina</option>
-                <option value={50}>50 por p√°gina</option>
+                <option value={10}>10 por p·gina</option>
+                <option value={20}>20 por p·gina</option>
+                <option value={50}>50 por p·gina</option>
               </select>
             </div>
           </div>
@@ -897,6 +932,11 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                 Cerrar
               </Button>
             </div>
+            {wizardErrors.submit ? (
+              <div className="px-6 pt-4">
+                <InlineBanner tone="error" title="No pudimos crear la solicitud" description={wizardErrors.submit} />
+              </div>
+            ) : null}
             <div className="grid flex-1 grid-cols-1 gap-4 px-6 py-4 lg:grid-cols-[180px_1fr]">
               <Stepper steps={STEPS} current={wizardStep} className="hidden lg:flex" />
               <div className="space-y-4">
@@ -907,7 +947,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       <Input
                         value={invoiceSearch}
                         onChange={(e) => setInvoiceSearch(e.target.value)}
-                        placeholder="Buscar por n√∫mero, fecha o monto"
+                        placeholder="Buscar por n˙mero, fecha o monto"
                       />
                     </div>
                     <div className="space-y-3">
@@ -918,7 +958,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                             <tr>
                               <th className="px-3 py-2 text-left">Seleccionar</th>
                               <th className="px-3 py-2 text-left">Factura</th>
-                              <th className="px-3 py-2 text-left">Emisi√≥n</th>
+                              <th className="px-3 py-2 text-left">EmisiÛn</th>
                               <th className="px-3 py-2 text-left">Monto</th>
                             </tr>
                           </thead>
@@ -961,7 +1001,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       </div>
                       <div className="rounded-md border border-lp-primary-1/40 bg-lp-primary-1/10 p-3 text-xs text-lp-primary-1">
                         <p className="font-medium">
-                          Seleccionadas: {wizardData.selectedInvoiceIds.length} ‚Ä¢ Total {formatCurrency(wizardSelectedTotal)} COP
+                          Seleccionadas: {wizardData.selectedInvoiceIds.length} ï Total {formatCurrency(wizardSelectedTotal)} COP
                         </p>
                       </div>
                     </div>
@@ -1013,7 +1053,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                         id="wizard-notes"
                         value={wizardData.notes}
                         onChange={(e) => setWizardData((prev) => ({ ...prev, notes: e.target.value }))}
-                        placeholder="¬øHay condiciones especiales?"
+                        placeholder="øHay condiciones especiales?"
                       />
                     </div>
                   </div>
@@ -1079,11 +1119,11 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       <ul className="space-y-1">
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
-                          Certificado c√°mara de comercio (reciente)
+                          Certificado c·mara de comercio (reciente)
                         </li>
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
-                          Estados financieros √∫ltimo trimestre
+                          Estados financieros ˙ltimo trimestre
                         </li>
                         <li className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-lp-sec-3" aria-hidden="true" />
@@ -1113,7 +1153,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                         }
                       />
                       <Label htmlFor="wizard-terms" className="text-xs text-lp-sec-3">
-                        Confirmo que la informaci√≥n es correcta y acepto los t√©rminos legales de LePr√™t Capital.
+                        Confirmo que la informaciÛn es correcta y acepto los tÈrminos legales de LePrÍt Capital.
                       </Label>
                     </div>
                     {wizardErrors.terms && <p className="text-xs text-red-600">{wizardErrors.terms}</p>}
@@ -1160,7 +1200,7 @@ function MetricCard({ title, value, subtitle }: MetricCardProps) {
   );
 }
 
-function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem; onChanged: () => Promise<void> | void }) {
+function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; req: RequestItem; onChanged: () => Promise<void> | void; onOpenTimeline: (requestId: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [amt, setAmt] = useState(new Intl.NumberFormat("es-CO").format(req.requested_amount));
   const [busy, setBusy] = useState(false);
@@ -1294,7 +1334,7 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
       if (!res.ok || !data?.ok || typeof data.url !== "string") {
         const friendly = data?.error === 'file_not_found'
-          ? "A√∫n no has cargado un soporte para esta solicitud."
+          ? "A˙n no has cargado un soporte para esta solicitud."
           : data?.error || "No se pudo descargar el soporte";
         throw new Error(friendly);
       }
@@ -1416,12 +1456,6 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
           >
             {showInvoices ? "Ocultar facturas" : "Ver facturas"}
           </button>
-          <Link
-            href={`/c/${orgId}/requests/${req.id}`}
-            className="block text-xs text-lp-primary-1 underline"
-          >
-            Ver historial
-          </Link>
           {currentOffer && currentOffer.status === "offered" ? (
             <Button
               type="button"
@@ -1563,11 +1597,19 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
             <MoreVertical className="h-4 w-4" aria-hidden="true" />
           </summary>
           <div className="absolute right-0 z-10 mt-2 w-52 rounded-md border border-lp-sec-4/60 bg-white p-2 text-sm shadow-lg">
-            <Link
-              href={`/c/${orgId}/requests/${req.id}`}
-              className="block w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
+            <button
+              type="button"
+              className="w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
+              onClick={() => onOpenTimeline(req.id)}
+              disabled={busy}
             >
               Ver historial
+            </button>
+            <Link
+              href={`/c/${orgId}/requests/${req.id}`}
+              className="mt-1 block w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
+            >
+              Abrir detalle
             </Link>
             {nextStep?.cta?.kind === "accept_offer" && nextStep.cta.offer_id ? (
               <button
@@ -1657,6 +1699,32 @@ function RequestRow({ orgId, req, onChanged }: { orgId: string; req: RequestItem
     </tr>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

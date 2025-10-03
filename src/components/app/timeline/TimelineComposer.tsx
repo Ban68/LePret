@@ -10,9 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 type Props = {
   requestId: string;
   disabled?: boolean;
+  onSent?: () => void | false | Promise<void | false>;
 };
 
-export function TimelineComposer({ requestId, disabled }: Props) {
+export function TimelineComposer({ requestId, disabled, onSent }: Props) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -39,10 +40,13 @@ export function TimelineComposer({ requestId, disabled }: Props) {
 
       setMessage("");
       toast.success("Mensaje enviado");
-      router.refresh();
+      const refreshResult = onSent ? await onSent() : undefined;
+      if (refreshResult !== false) {
+        router.refresh();
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudo enviar";
-      toast.error(message);
+      const messageText = error instanceof Error ? error.message : "No se pudo enviar";
+      toast.error(messageText);
     } finally {
       setSubmitting(false);
     }
@@ -50,9 +54,9 @@ export function TimelineComposer({ requestId, disabled }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-      <h3 className="text-sm font-semibold text-neutral-900">Comparte una actualizaci√≥n</h3>
+      <h3 className="text-sm font-semibold text-neutral-900">Comparte una actualizaciÛn</h3>
       <p className="mt-1 text-xs text-neutral-500">
-        Este mensaje ser√° enviado al equipo de soporte y quedar√° registrado en el historial.
+        Este mensaje ser· enviado al equipo de soporte y quedar· registrado en el historial.
       </p>
       <Textarea
         value={message}
@@ -70,4 +74,3 @@ export function TimelineComposer({ requestId, disabled }: Props) {
     </form>
   );
 }
-
