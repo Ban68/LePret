@@ -1,17 +1,94 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
+
 import { isBackofficeAllowed } from "@/lib/hq-auth";
 import { supabaseAdmin } from "@/lib/supabase";
 import { supabaseServer } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
-// Helper to get user session
 async function getUserSession() {
   const supabase = await supabaseServer();
   const {
     data: { session },
   } = await supabase.auth.getSession();
   return session;
+}
+
+type StageDurations = Record<string, { averageHours: number; samples: number }>;
+
+type FeedbackMetrics = {
+  nps: { average: number | null; responses: number };
+  csat: { average: number | null; responses: number };
+};
+
+function computeStageDurations(logs: Array<{ entity_id: string; data: Record<string, unknown> | null; inserted_at: string }>): StageDurations {
+  const stageOrder = ["review", "offered", "accepted", "signed", "funded"];
+  const byRequest = new Map<string, Array<{ to: string; at: number }>>();
+
+  for (const log of logs) {
+    if (!log.entity_id || !log.inserted_at) continue;
+    const to = typeof log.data?.to_status === "string" ? log.data.to_status.toLowerCase() : null;
+    if (!to) continue;
+    const collection = byRequest.get(log.entity_id) ?? [];
+    collection.push({ to, at: new Date(log.inserted_at).getTime() });
+    byRequest.set(log.entity_id, collection);
+  }
+
+  const accumulator: Record<string, { totalMs: number; samples: number }> = {};
+
+  for (const [, events] of byRequest) {
+    const ordered = events.sort((a, b) => a.at - b.at);
+    for (let i = 1; i < ordered.length; i++) {
+      const fromStage = ordered[i - 1].to;
+      const toStage = ordered[i].to;
+      const fromIndex = stageOrder.indexOf(fromStage);
+      const toIndex = stageOrder.indexOf(toStage);
+      if (fromIndex === -1 || toIndex === -1 || toIndex <= fromIndex) continue;
+      const key = `${fromStage}->${toStage}`;
+      const bucket = accumulator[key] ?? { totalMs: 0, samples: 0 };
+      bucket.totalMs += ordered[i].at - ordered[i - 1].at;
+      bucket.samples += 1;
+      accumulator[key] = bucket;
+    }
+  }
+
+  const result: StageDurations = {};
+  for (const [key, value] of Object.entries(accumulator)) {
+    const averageHours = value.samples > 0 ? value.totalMs / value.samples / (1000 * 60 * 60) : 0;
+    result[key] = { averageHours: Number(averageHours.toFixed(2)), samples: value.samples };
+  }
+  return result;
+}
+
+function computeFeedbackMetrics(rows: Array<{ data: Record<string, unknown> | null }>): FeedbackMetrics {
+  const base = {
+    nps: { total: 0, count: 0 },
+    csat: { total: 0, count: 0 },
+  };
+
+  for (const row of rows) {
+    const kind = typeof row.data?.kind === "string" ? row.data.kind.toUpperCase() : null;
+    const score = Number(row.data?.score);
+    if (!kind || !Number.isFinite(score)) continue;
+    if (kind === "NPS") {
+      base.nps.total += score;
+      base.nps.count += 1;
+    } else if (kind === "CSAT") {
+      base.csat.total += score;
+      base.csat.count += 1;
+    }
+  }
+
+  return {
+    nps: {
+      average: base.nps.count > 0 ? Number((base.nps.total / base.nps.count).toFixed(2)) : null,
+      responses: base.nps.count,
+    },
+    csat: {
+      average: base.csat.count > 0 ? Number((base.csat.total / base.csat.count).toFixed(2)) : null,
+      responses: base.csat.count,
+    },
+  };
 }
 
 export async function GET() {
@@ -23,65 +100,83 @@ export async function GET() {
   }
 
   try {
-    // 1. Total requests and total amount
-    const { count: totalRequests, error: totalError } = await supabaseAdmin
-      .from("funding_requests")
-      .select("id", { count: "exact", head: true });
-
-    if (totalError) throw new Error(`Error fetching total requests: ${totalError.message}`);
-
-    // NOTE: This is not the most performant way to get a sum.
-    // An RPC function in Supabase would be better.
-    const { data: amounts, error: amountError } = await supabaseAdmin
-      .from("funding_requests")
-      .select("requested_amount");
-
-    if (amountError) throw new Error(`Error fetching amounts: ${amountError.message}`);
-    const totalAmount = amounts.reduce((sum, { requested_amount }) => sum + requested_amount, 0);
-
-
-    // 2. Requests by status
-    const { data: statusCounts, error: statusError } = await supabaseAdmin
-      .from("funding_requests")
-      .select("status");
-
-    if (statusError) throw new Error(`Error fetching status counts: ${statusError.message}`);
-
-    const requestsByStatus = statusCounts.reduce((acc, { status }) => {
-      if (status) {
-        acc[status] = (acc[status] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-
-
-    // 3. Requests over time (last 6 months)
-    const sixMonthsAgo = new Date();
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getTime());
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const thirtyDaysAgo = new Date(now.getTime());
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const { data: monthlyData, error: monthlyError } = await supabaseAdmin
-      .from("funding_requests")
-      .select("created_at")
-      .gte("created_at", sixMonthsAgo.toISOString());
+    const [totalRes, amountsRes, statusRes, monthlyRes, statusLogsRes, validationRes, feedbackRes] = await Promise.all([
+      supabaseAdmin.from('funding_requests').select('id', { count: 'exact', head: true }),
+      supabaseAdmin.from('funding_requests').select('requested_amount'),
+      supabaseAdmin.from('funding_requests').select('status'),
+      supabaseAdmin
+        .from('funding_requests')
+        .select('created_at, status')
+        .gte('created_at', sixMonthsAgo.toISOString()),
+      supabaseAdmin
+        .from('audit_logs')
+        .select('entity_id, data, inserted_at')
+        .eq('entity', 'request')
+        .eq('action', 'status_changed')
+        .gte('inserted_at', sixMonthsAgo.toISOString()),
+      supabaseAdmin
+        .from('audit_logs')
+        .select('id', { count: 'exact', head: true })
+        .eq('action', 'validation_failed')
+        .gte('inserted_at', thirtyDaysAgo.toISOString()),
+      supabaseAdmin
+        .from('audit_logs')
+        .select('data')
+        .eq('action', 'feedback_submitted')
+        .gte('inserted_at', sixMonthsAgo.toISOString()),
+    ]);
 
-    if (monthlyError) throw new Error(`Error fetching monthly data: ${monthlyError.message}`);
+    if (totalRes.error) throw new Error(`Error fetching total requests: ${totalRes.error.message}`);
+    if (amountsRes.error) throw new Error(`Error fetching amounts: ${amountsRes.error.message}`);
+    if (statusRes.error) throw new Error(`Error fetching status counts: ${statusRes.error.message}`);
+    if (monthlyRes.error) throw new Error(`Error fetching monthly data: ${monthlyRes.error.message}`);
+    if (statusLogsRes.error) throw new Error(`Error fetching status logs: ${statusLogsRes.error.message}`);
+    if (validationRes.error) throw new Error(`Error fetching validation counts: ${validationRes.error.message}`);
+    if (feedbackRes.error) throw new Error(`Error fetching feedback: ${feedbackRes.error.message}`);
 
-    const requestsByMonth = monthlyData.reduce((acc, { created_at }) => {
-      if(!created_at) return acc;
-      const month = created_at.slice(0, 7); // YYYY-MM
+    const totalRequests = totalRes.count ?? 0;
+    const totalAmount = (amountsRes.data || []).reduce((sum, { requested_amount }) => sum + requested_amount, 0);
+
+    const requestsByStatus = (statusRes.data || []).reduce<Record<string, number>>((acc, { status }) => {
+      if (status) acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const requestsByMonth = (monthlyRes.data || []).reduce<Record<string, number>>((acc, { created_at }) => {
+      if (!created_at) return acc;
+      const month = created_at.slice(0, 7);
       acc[month] = (acc[month] || 0) + 1;
       return acc;
-    }, {} as Record<string, number>);
+    }, {});
 
+    const approvalsNumerator = (statusRes.data || []).filter(({ status }) => status === 'accepted' || status === 'funded').length;
+    const approvalsDenominator = (statusRes.data || []).filter(({ status }) => status === 'review' || status === 'offered' || status === 'accepted' || status === 'funded').length || 1;
+    const approvalRate = Number(((approvalsNumerator / approvalsDenominator) * 100).toFixed(2));
 
-    const metrics = {
-      totalRequests: totalRequests ?? 0,
-      totalAmount: totalAmount,
+    const stageDurations = computeStageDurations(statusLogsRes.data || []);
+    const validationErrors30d = validationRes.count ?? 0;
+    const feedback = computeFeedbackMetrics(feedbackRes.data || []);
+
+    return NextResponse.json({
+      totalRequests,
+      totalAmount,
       requestsByStatus,
       requestsByMonth,
-    };
-
-    return NextResponse.json(metrics);
+      approvalRate,
+      stageDurations,
+      validationErrors30d,
+      feedback,
+      webVitals: {
+        provider: "vercel",
+        analyticsEnabled: Boolean(process.env.NEXT_PUBLIC_VERCEL_ANALYTICS_ID || process.env.VERCEL_URL),
+      },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error inesperado";
     console.error(`[API METRICS ERROR] ${message}`);

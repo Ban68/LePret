@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { logStatusChange } from "@/lib/audit";
 
 function computeOffer(input: { requested: number }): {
   annual_rate: number;
@@ -150,13 +151,21 @@ export async function POST(
       .eq("id", requestId)
       .eq("company_id", orgId);
 
+    await logStatusChange({
+      company_id: orgId,
+      actor_id: session.user.id,
+      entity_id: requestId,
+      from_status: reqRow.status ?? null,
+      to_status: "offered",
+    });
+
     // Notificar al cliente: oferta generada
     try {
       const { notifyClientOfferGenerated } = await import("@/lib/notifications");
       await notifyClientOfferGenerated(orgId, offer.id);
     } catch {}
 
-    // Auditoría
+    // AuditorÃ­a
     try {
       const { logAudit } = await import("@/lib/audit");
       await logAudit({ company_id: orgId, actor_id: session.user.id, entity: 'offer', entity_id: offer.id, action: 'created', data: { request_id: requestId } });
@@ -169,3 +178,11 @@ export async function POST(
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
+
+
+
+
+
+
+
+

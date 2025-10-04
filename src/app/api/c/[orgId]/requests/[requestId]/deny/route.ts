@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
 import { isStaffUser } from "@/lib/staff";
+import { logStatusChange } from "@/lib/audit";
 
 export async function POST(
   _req: Request,
@@ -24,6 +25,13 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
+    const { data: reqRow } = await supabase
+      .from('funding_requests')
+      .select('status')
+      .eq('id', requestId)
+      .eq('company_id', orgId)
+      .maybeSingle();
+
     const { error: updateError } = await supabase
       .from('funding_requests')
       .update({ status: 'cancelled', archived_at: null, archived_by: null })
@@ -33,16 +41,13 @@ export async function POST(
       return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 });
     }
 
-    try {
-      const { logAudit } = await import("@/lib/audit");
-      await logAudit({
-        company_id: orgId,
-        actor_id: session.user.id,
-        entity: 'request',
-        entity_id: requestId,
-        action: 'denied',
-      });
-    } catch {}
+    await logStatusChange({
+      company_id: orgId,
+      actor_id: session.user.id,
+      entity_id: requestId,
+      from_status: reqRow?.status ?? null,
+      to_status: 'cancelled',
+    });
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {

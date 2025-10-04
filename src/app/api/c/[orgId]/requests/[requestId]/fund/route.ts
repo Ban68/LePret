@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
 import { isStaffUser } from "@/lib/staff";
+import { logStatusChange } from "@/lib/audit";
 
 export async function POST(
   _req: Request,
@@ -21,7 +22,7 @@ export async function POST(
 
     const allowed = await isStaffUser(supabase, session.user.id);
     if (!allowed) {
-      return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
+      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
     const { data: reqRow, error: rErr } = await supabase
@@ -43,14 +44,17 @@ export async function POST(
       return NextResponse.json({ ok: false, error: upErr.message }, { status: 500 });
     }
 
+    await logStatusChange({
+      company_id: orgId,
+      actor_id: session.user.id,
+      entity_id: requestId,
+      from_status: reqRow.status,
+      to_status: 'funded',
+    });
+
     try {
       const { notifyClientFunded } = await import("@/lib/notifications");
       await notifyClientFunded(orgId, requestId);
-    } catch {}
-
-    try {
-      const { logAudit } = await import("@/lib/audit");
-      await logAudit({ company_id: orgId, actor_id: session.user.id, entity: 'request', entity_id: requestId, action: 'funded' });
     } catch {}
 
     return NextResponse.json({ ok: true });

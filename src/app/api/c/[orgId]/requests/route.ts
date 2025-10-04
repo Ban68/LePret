@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
 import { createRequestWithInvoices } from "./helpers";
+import { logAudit, logStatusChange, logValidationFailure } from "@/lib/audit";
 
 type FundingRequestRow = {
   id: string;
@@ -334,6 +335,7 @@ export async function POST(
   if (!result.ok) {
     const payload: Record<string, unknown> = { ok: false, error: result.error };
     if (result.details) payload.details = result.details;
+    await logValidationFailure({ company_id: orgId, actor_id: session.user.id, error: result.error, details: result.details ?? null });
     return NextResponse.json(payload, { status: result.status });
   }
 
@@ -344,13 +346,36 @@ export async function POST(
     await notifyStaffNewRequest(orgId, requestId);
   } catch {}
 
-  try {
-    const { logAudit } = await import("@/lib/audit");
-    await logAudit({ company_id: orgId, actor_id: session.user.id, entity: "request", entity_id: requestId, action: "created", data: { requested_amount: result.request.requested_amount } });
-  } catch {}
+  await logAudit({
+    company_id: orgId,
+    actor_id: session.user.id,
+    entity: "request",
+    entity_id: requestId,
+    action: "created",
+    data: { requested_amount: result.request.requested_amount },
+  });
+  await logStatusChange({
+    company_id: orgId,
+    actor_id: session.user.id,
+    entity_id: requestId,
+    from_status: null,
+    to_status: (result.request as { status?: string }).status ?? "review",
+  });
 
   return NextResponse.json({ ok: true, created: result.request, total: result.total, count: result.count }, { status: 201 });
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
