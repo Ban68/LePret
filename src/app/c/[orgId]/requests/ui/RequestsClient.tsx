@@ -18,6 +18,7 @@ import { Toaster, toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { FileText, Filter, FolderOpen, MoreVertical, Plus } from "lucide-react";
 import { DateRangePicker, type DateRangeValue } from "@/components/ui/date-range-picker";
+import { RequestTimelinePanel } from "./RequestTimelinePanel";
 
 type RequestItem = {
   id: string;
@@ -122,6 +123,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [banner, setBanner] = useState<BannerState | null>(null);
+  const [timelineRequestId, setTimelineRequestId] = useState<string | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [withInvoice, setWithInvoice] = useState<string>("all");
@@ -237,6 +239,18 @@ export function RequestsClient({ orgId }: { orgId: string }) {
       console.error(err);
     }
   }, [orgId]);
+  const handleOpenTimeline = useCallback((requestId: string) => {
+    setTimelineRequestId(requestId);
+  }, []);
+
+  const handleCloseTimeline = useCallback(() => {
+    setTimelineRequestId(null);
+  }, []);
+
+  const handleRefreshAfterTimeline = useCallback(async () => {
+    await load();
+    await loadSummary();
+  }, [load, loadSummary]);
 
   useEffect(() => {
     load();
@@ -873,6 +887,7 @@ export function RequestsClient({ orgId }: { orgId: string }) {
                       key={it.id}
                       orgId={orgId}
                       req={it}
+                      onOpenTimeline={handleOpenTimeline}
                       onChanged={async () => {
                         await load();
                         await loadSummary();
@@ -1180,6 +1195,12 @@ export function RequestsClient({ orgId }: { orgId: string }) {
         </div>
       )}
 
+      <RequestTimelinePanel
+        orgId={orgId}
+        requestId={timelineRequestId}
+        onClose={handleCloseTimeline}
+        onRefreshList={handleRefreshAfterTimeline}
+      />
       <Toaster richColors />
     </div>
   );
