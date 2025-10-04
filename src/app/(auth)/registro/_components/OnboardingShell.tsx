@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { createContext, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
@@ -12,9 +12,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useOnboarding } from "./useOnboarding";
 
 const STEPS = [
-  { title: "Datos de la empresa", description: "Informaci??n legal y de contacto" },
-  { title: "Beneficiarios", description: "Personas con participaci??n significativa" },
-  { title: "Documentos", description: "Adjunta la documentaci??n requerida" },
+  { title: "Datos de la empresa", description: "Informaci\u00f3n legal y de contacto" },
+  { title: "Beneficiarios", description: "Personas con participaci\u00f3n significativa" },
+  { title: "Documentos", description: "Adjunta la documentaci\u00f3n requerida" },
 ] as const;
 
 const OnboardingContext = createContext<ReturnType<typeof useOnboarding> | null>(null);
@@ -59,7 +59,7 @@ export function OnboardingShell({ companyId, currentStep, title, description, ch
         <header className="space-y-2">
           <p className="text-sm uppercase tracking-wider text-lp-sec-3">Registro</p>
           <h1 className="font-colette text-3xl font-bold text-lp-primary-1">{title}</h1>
-          <p className="text-lp-sec-3">{description ?? `Organizaci??n: ${companyName}`}</p>
+          <p className="text-lp-sec-3">{description ?? `Organizaci\u00f3n: ${companyName}`}</p>
         </header>
 
         <div className="grid gap-8 lg:grid-cols-[280px_1fr]">
@@ -69,9 +69,9 @@ export function OnboardingShell({ companyId, currentStep, title, description, ch
               <div className="mt-4 space-y-3 text-sm text-lp-sec-3">{stepper}</div>
             </div>
             <div className="rounded-xl border border-lp-sec-4/40 bg-lp-primary-1/5 p-4 text-sm text-lp-sec-2">
-              <p className="font-medium text-lp-primary-1">??Necesitas ayuda?</p>
-              <p className="mt-2">Escr??benos a <a href="mailto:soporte@lepret.com" className="underline">soporte@lepret.com</a>.</p>
-              <p className="mt-2">Tambi??ne puedes regresar al selector de organizaciones si lo necesitas.</p>
+              <p className="font-medium text-lp-primary-1">\u00bfNecesitas ayuda?</p>
+              <p className="mt-2">Escr\u00edbenos a <a href="mailto:soporte@lepret.com" className="underline">soporte@lepret.com</a>.</p>
+              <p className="mt-2">Tambi\u00e9n puedes regresar al selector de organizaciones si lo necesitas.</p>
               <Button asChild variant="outline" className="mt-4 w-full">
                 <Link href="/select-org">Volver a organizaciones</Link>
               </Button>
@@ -81,11 +81,11 @@ export function OnboardingShell({ companyId, currentStep, title, description, ch
           <section className="space-y-6">
             {error && !loading ? (
               <Alert variant="destructive">
-                <AlertTitle>Error cargando informaci??n</AlertTitle>
+                <AlertTitle>Error cargando informaci\u00f3n</AlertTitle>
                 <AlertDescription>
                   {error === "Forbidden"
                     ? "No tienes permisos para editar esta empresa."
-                    : "No pudimos cargar la informaci??n. Intenta nuevamente."}
+                    : "No pudimos cargar la informaci\u00f3n. intenta nuevamente."}
                 </AlertDescription>
               </Alert>
             ) : null}
@@ -99,3 +99,4 @@ export function OnboardingShell({ companyId, currentStep, title, description, ch
 }
 
 export { STEPS as ONBOARDING_STEPS };
+

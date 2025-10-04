@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -24,9 +24,9 @@ type RequiredDoc = {
 };
 
 const REQUIRED_DOCS: RequiredDoc[] = [
-  { key: "rut", label: "RUT actualizado", description: "Formato PDF o imagen del Registro ??nico Tributario." },
-  { key: "representante", label: "Documento del representante legal", description: "C??dula o pasaporte vigente del representante." },
-  { key: "estatutos", label: "Documentos societarios", description: "Acta o certificaci??n de existencia y representaci??n legal." },
+  { key: "rut", label: "RUT actualizado", description: "Formato PDF o imagen del Registro \u00danico Tributario." },
+  { key: "representante", label: "Documento del representante legal", description: "C\u00e9dula o pasaporte vigente del representante." },
+  { key: "estatutos", label: "Documentos societarios", description: "Acta o certificaci\u00f3n de existencia y representaci\u00f3n legal." },
 ];
 
 function formatBytes(bytes?: number): string {
@@ -116,13 +116,13 @@ export function DocumentsStep({ companyId }: DocumentsStepProps) {
         const message = typeof payload?.error === "string" ? payload.error : "Error enviando KYC";
         throw new Error(message);
       }
-      toast.success("Enviamos tu informaci??n para revisi??n");
+      toast.success("Enviamos tu informaci\u00f3n para revisi\u00f3n");
       await onboarding.refresh();
       router.push(`/select-org?orgId=${encodeURIComponent(companyId)}&status=submitted`);
     } catch (err) {
       console.error("kyc submit error", err);
       setError(err instanceof Error ? err.message : "Error inesperado");
-      toast.error("No pudimos enviar la informaci??n");
+      toast.error("No pudimos enviar la informaci\u00f3n");
     } finally {
       setSubmitting(false);
     }
@@ -147,9 +147,9 @@ export function DocumentsStep({ companyId }: DocumentsStepProps) {
     <div className="space-y-6">
       {normalizedStatus === "SUBMITTED" ? (
         <Alert>
-          <AlertTitle>En revisi??n</AlertTitle>
+          <AlertTitle>En revisi\u00f3n</AlertTitle>
           <AlertDescription>
-            Ya recibimos tu informaci??n. Te notificaremos cuando el proceso haya finalizado.
+            Ya recibimos tu informaci\u00f3n. Te notificaremos cuando el proceso haya finalizado.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -162,7 +162,7 @@ export function DocumentsStep({ companyId }: DocumentsStepProps) {
             KYC aprobado
           </AlertTitle>
           <AlertDescription>
-            ??Felicitaciones! Tu registro fue aprobado. Puedes volver al portal para operar normalmente.
+            \u00a1Felicitaciones! Tu registro fue aprobado. Puedes volver al portal para operar normalmente.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -178,11 +178,11 @@ export function DocumentsStep({ companyId }: DocumentsStepProps) {
                 <p className="text-sm text-lp-sec-3">{doc.description}</p>
                 {uploaded ? (
                   <p className="mt-2 text-sm text-lp-sec-2">
-                    ??ltima carga: {uploaded.updatedAt ? new Date(uploaded.updatedAt).toLocaleString() : ""}
-                    {uploaded.size ? ` ?? ${formatBytes(uploaded.size)}` : ""}
+                    \u00daltima carga: {uploaded.updatedAt ? new Date(uploaded.updatedAt).toLocaleString() : ""}
+                    {uploaded.size ? ` \u2022 ${formatBytes(uploaded.size)}` : ""}
                   </p>
                 ) : (
-                  <p className="mt-2 text-sm text-lp-sec-2">A??n no se ha cargado este documento.</p>
+                  <p className="mt-2 text-sm text-lp-sec-2">A\u00fan no se ha cargado este documento.</p>
                 )}
               </div>
               <div className="flex flex-col gap-2 md:items-end">
@@ -221,9 +221,13 @@ export function DocumentsStep({ companyId }: DocumentsStepProps) {
           Volver
         </Button>
         <Button type="button" onClick={handleSubmit} disabled={submitting || !canSubmit} className="w-full sm:w-auto">
-          {submitting ? "Enviando..." : "Enviar a revisi??n"}
+          {submitting ? "Enviando..." : "Enviar a revisi\u00f3n"}
         </Button>
       </div>
     </div>
   );
 }
+
+
+
+

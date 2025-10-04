@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -90,7 +90,7 @@ export function BeneficiariesForm({ companyId }: BeneficiariesFormProps) {
     } catch (err) {
       console.error("beneficiaries form error", err);
       setError(err instanceof Error ? err.message : "Error inesperado");
-      toast.error("No pudimos guardar la informaci??n");
+      toast.error("No pudimos guardar la informaci\u00f3n");
     } finally {
       setSaving(false);
     }
@@ -111,7 +111,7 @@ export function BeneficiariesForm({ companyId }: BeneficiariesFormProps) {
                 <Input id={`owners-${index}-documentType`} {...form.register(`owners.${index}.documentType` as const)} />
               </div>
               <div>
-                <Label htmlFor={`owners-${index}-documentNumber`}>N??mero de documento</Label>
+                <Label htmlFor={`owners-${index}-documentNumber`}>N\u00famero de documento</Label>
                 <Input id={`owners-${index}-documentNumber`} {...form.register(`owners.${index}.documentNumber` as const)} />
               </div>
               <div>
@@ -119,7 +119,7 @@ export function BeneficiariesForm({ companyId }: BeneficiariesFormProps) {
                 <Input id={`owners-${index}-email`} type="email" {...form.register(`owners.${index}.email` as const)} />
               </div>
               <div>
-                <Label htmlFor={`owners-${index}-ownershipPercentage`}>Porcentaje de participaci??n</Label>
+                <Label htmlFor={`owners-${index}-ownershipPercentage`}>Porcentaje de participaci\u00f3n</Label>
                 <Input
                   id={`owners-${index}-ownershipPercentage`}
                   type="number"
@@ -142,7 +142,7 @@ export function BeneficiariesForm({ companyId }: BeneficiariesFormProps) {
       </div>
 
       <Button type="button" variant="outline" onClick={handleAddOwner}>
-        A??adir beneficiario
+        A\u00f1adir beneficiario
       </Button>
 
       {error ? (
@@ -163,3 +163,4 @@ export function BeneficiariesForm({ companyId }: BeneficiariesFormProps) {
     </form>
   );
 }
+
