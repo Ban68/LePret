@@ -19,7 +19,8 @@ export default async function BeneficiariosPage({ searchParams }: BeneficiariosP
 
   return (
     <OnboardingShell companyId={orgId} currentStep={1} title="Beneficiarios finales">
-      {(onboarding) => <BeneficiariesForm companyId={orgId} onboarding={onboarding} />}
+      <BeneficiariesForm companyId={orgId} />
     </OnboardingShell>
   );
 }
+

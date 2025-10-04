@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
-import type { OnboardingOwner, UseOnboardingReturn } from "../_components/useOnboarding";
+import { useOnboardingContext } from "../_components/OnboardingShell";
+import type { OnboardingOwner } from "../_components/useOnboarding";
 
 type OwnerFormValues = {
   fullName: string;
@@ -26,7 +26,6 @@ type BeneficiariesFormValues = {
 
 type BeneficiariesFormProps = {
   companyId: string;
-  onboarding: UseOnboardingReturn;
 };
 
 function getDefaultOwners(owners: OnboardingOwner[]): OwnerFormValues[] {
@@ -44,8 +43,9 @@ function getDefaultOwners(owners: OnboardingOwner[]): OwnerFormValues[] {
   }));
 }
 
-export function BeneficiariesForm({ companyId, onboarding }: BeneficiariesFormProps) {
+export function BeneficiariesForm({ companyId }: BeneficiariesFormProps) {
   const router = useRouter();
+  const onboarding = useOnboardingContext();
   const defaults = useMemo(() => getDefaultOwners(onboarding.data.owners), [onboarding.data.owners]);
   const form = useForm<BeneficiariesFormValues>({ defaultValues: { owners: defaults } });
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "owners" });
@@ -90,7 +90,7 @@ export function BeneficiariesForm({ companyId, onboarding }: BeneficiariesFormPr
     } catch (err) {
       console.error("beneficiaries form error", err);
       setError(err instanceof Error ? err.message : "Error inesperado");
-      toast.error("No pudimos guardar la información");
+      toast.error("No pudimos guardar la informaci??n");
     } finally {
       setSaving(false);
     }
@@ -111,7 +111,7 @@ export function BeneficiariesForm({ companyId, onboarding }: BeneficiariesFormPr
                 <Input id={`owners-${index}-documentType`} {...form.register(`owners.${index}.documentType` as const)} />
               </div>
               <div>
-                <Label htmlFor={`owners-${index}-documentNumber`}>Número de documento</Label>
+                <Label htmlFor={`owners-${index}-documentNumber`}>N??mero de documento</Label>
                 <Input id={`owners-${index}-documentNumber`} {...form.register(`owners.${index}.documentNumber` as const)} />
               </div>
               <div>
@@ -119,7 +119,7 @@ export function BeneficiariesForm({ companyId, onboarding }: BeneficiariesFormPr
                 <Input id={`owners-${index}-email`} type="email" {...form.register(`owners.${index}.email` as const)} />
               </div>
               <div>
-                <Label htmlFor={`owners-${index}-ownershipPercentage`}>Porcentaje de participación</Label>
+                <Label htmlFor={`owners-${index}-ownershipPercentage`}>Porcentaje de participaci??n</Label>
                 <Input
                   id={`owners-${index}-ownershipPercentage`}
                   type="number"
@@ -142,7 +142,7 @@ export function BeneficiariesForm({ companyId, onboarding }: BeneficiariesFormPr
       </div>
 
       <Button type="button" variant="outline" onClick={handleAddOwner}>
-        Añadir beneficiario
+        A??adir beneficiario
       </Button>
 
       {error ? (

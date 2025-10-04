@@ -8,7 +8,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { OnboardingState, UseOnboardingReturn } from "../_components/useOnboarding";
+import type { OnboardingState } from "../_components/useOnboarding";
+import { useOnboardingContext } from "../_components/OnboardingShell";
 
 type CompanyFormValues = {
   legalName: string;
@@ -27,7 +28,6 @@ type CompanyFormValues = {
 
 type CompanyFormProps = {
   companyId: string;
-  onboarding: UseOnboardingReturn;
 };
 
 function getDefaults(state: OnboardingState): CompanyFormValues {
@@ -47,8 +47,9 @@ function getDefaults(state: OnboardingState): CompanyFormValues {
   };
 }
 
-export function CompanyForm({ companyId, onboarding }: CompanyFormProps) {
+export function CompanyForm({ companyId }: CompanyFormProps) {
   const router = useRouter();
+  const onboarding = useOnboardingContext();
   const { data, refresh } = onboarding;
   const defaults = useMemo(() => getDefaults(data), [data]);
   const form = useForm<CompanyFormValues>({ defaultValues: defaults });
@@ -178,3 +179,9 @@ export function CompanyForm({ companyId, onboarding }: CompanyFormProps) {
     </form>
   );
 }
+
+
+
+
+
+

@@ -19,7 +19,8 @@ export default async function DatosEmpresaPage({ searchParams }: DatosEmpresaPag
 
   return (
     <OnboardingShell companyId={orgId} currentStep={0} title="Datos de la empresa">
-      {(onboarding) => <CompanyForm companyId={orgId} onboarding={onboarding} />}
+      <CompanyForm companyId={orgId} />
     </OnboardingShell>
   );
 }
+

@@ -24,7 +24,8 @@ export default async function DocumentosPage({ searchParams }: DocumentosPagePro
       title="Documentación"
       description="Adjunta los documentos y envíalos para revisión"
     >
-      {(onboarding) => <DocumentsStep companyId={orgId} onboarding={onboarding} />}
+      <DocumentsStep companyId={orgId} />
     </OnboardingShell>
   );
 }
+

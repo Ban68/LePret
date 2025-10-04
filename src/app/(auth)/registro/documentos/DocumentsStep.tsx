@@ -8,12 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import type { UseOnboardingReturn } from "../_components/useOnboarding";
+import { useOnboardingContext } from "../_components/OnboardingShell";
 import { normalizeKycStatus } from "@/lib/organizations";
 
 type DocumentsStepProps = {
   companyId: string;
-  onboarding: UseOnboardingReturn;
 };
 
 type UploadState = Record<string, boolean>;
@@ -25,9 +24,9 @@ type RequiredDoc = {
 };
 
 const REQUIRED_DOCS: RequiredDoc[] = [
-  { key: "rut", label: "RUT actualizado", description: "Formato PDF o imagen del Registro Único Tributario." },
-  { key: "representante", label: "Documento del representante legal", description: "Cédula o pasaporte vigente del representante." },
-  { key: "estatutos", label: "Documentos societarios", description: "Acta o certificación de existencia y representación legal." },
+  { key: "rut", label: "RUT actualizado", description: "Formato PDF o imagen del Registro ??nico Tributario." },
+  { key: "representante", label: "Documento del representante legal", description: "C??dula o pasaporte vigente del representante." },
+  { key: "estatutos", label: "Documentos societarios", description: "Acta o certificaci??n de existencia y representaci??n legal." },
 ];
 
 function formatBytes(bytes?: number): string {
@@ -42,8 +41,9 @@ function formatBytes(bytes?: number): string {
   return `${value.toFixed(1)} ${units[unitIndex]}`;
 }
 
-export function DocumentsStep({ companyId, onboarding }: DocumentsStepProps) {
+export function DocumentsStep({ companyId }: DocumentsStepProps) {
   const router = useRouter();
+  const onboarding = useOnboardingContext();
   const [uploading, setUploading] = useState<UploadState>({});
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -116,13 +116,13 @@ export function DocumentsStep({ companyId, onboarding }: DocumentsStepProps) {
         const message = typeof payload?.error === "string" ? payload.error : "Error enviando KYC";
         throw new Error(message);
       }
-      toast.success("Enviamos tu información para revisión");
+      toast.success("Enviamos tu informaci??n para revisi??n");
       await onboarding.refresh();
       router.push(`/select-org?orgId=${encodeURIComponent(companyId)}&status=submitted`);
     } catch (err) {
       console.error("kyc submit error", err);
       setError(err instanceof Error ? err.message : "Error inesperado");
-      toast.error("No pudimos enviar la información");
+      toast.error("No pudimos enviar la informaci??n");
     } finally {
       setSubmitting(false);
     }
@@ -147,9 +147,9 @@ export function DocumentsStep({ companyId, onboarding }: DocumentsStepProps) {
     <div className="space-y-6">
       {normalizedStatus === "SUBMITTED" ? (
         <Alert>
-          <AlertTitle>En revisión</AlertTitle>
+          <AlertTitle>En revisi??n</AlertTitle>
           <AlertDescription>
-            Ya recibimos tu información. Te notificaremos cuando el proceso haya finalizado.
+            Ya recibimos tu informaci??n. Te notificaremos cuando el proceso haya finalizado.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -162,7 +162,7 @@ export function DocumentsStep({ companyId, onboarding }: DocumentsStepProps) {
             KYC aprobado
           </AlertTitle>
           <AlertDescription>
-            ¡Felicitaciones! Tu registro fue aprobado. Puedes volver al portal para operar normalmente.
+            ??Felicitaciones! Tu registro fue aprobado. Puedes volver al portal para operar normalmente.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -178,11 +178,11 @@ export function DocumentsStep({ companyId, onboarding }: DocumentsStepProps) {
                 <p className="text-sm text-lp-sec-3">{doc.description}</p>
                 {uploaded ? (
                   <p className="mt-2 text-sm text-lp-sec-2">
-                    Última carga: {uploaded.updatedAt ? new Date(uploaded.updatedAt).toLocaleString() : ""}
-                    {uploaded.size ? ` · ${formatBytes(uploaded.size)}` : ""}
+                    ??ltima carga: {uploaded.updatedAt ? new Date(uploaded.updatedAt).toLocaleString() : ""}
+                    {uploaded.size ? ` ?? ${formatBytes(uploaded.size)}` : ""}
                   </p>
                 ) : (
-                  <p className="mt-2 text-sm text-lp-sec-2">Aún no se ha cargado este documento.</p>
+                  <p className="mt-2 text-sm text-lp-sec-2">A??n no se ha cargado este documento.</p>
                 )}
               </div>
               <div className="flex flex-col gap-2 md:items-end">
@@ -221,7 +221,7 @@ export function DocumentsStep({ companyId, onboarding }: DocumentsStepProps) {
           Volver
         </Button>
         <Button type="button" onClick={handleSubmit} disabled={submitting || !canSubmit} className="w-full sm:w-auto">
-          {submitting ? "Enviando..." : "Enviar a revisión"}
+          {submitting ? "Enviando..." : "Enviar a revisi??n"}
         </Button>
       </div>
     </div>
