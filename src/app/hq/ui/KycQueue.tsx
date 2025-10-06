@@ -9,7 +9,7 @@ import type { KycStatus } from "@/lib/organizations";
 const STATUS_LABEL: Record<KycStatus | "UNKNOWN" | "NONE", string> = {
   NOT_STARTED: "Sin iniciar",
   IN_PROGRESS: "En progreso",
-  SUBMITTED: "En revisi\u00f3n",
+  SUBMITTED: "En revisi√≥n",
   APPROVED: "Aprobado",
   REJECTED: "Rechazado",
   UNKNOWN: "Desconocido",
@@ -142,7 +142,7 @@ export function KycQueue() {
       if (!selectedId) return;
       let note: string | undefined;
       if (next !== "APPROVED") {
-        const input = window.prompt("Describe brevemente lo que falta (se enviar· al cliente):", "");
+        const input = window.prompt("Describe brevemente lo que falta (se enviar√° al cliente):", "");
         if (input === null) {
           return;
         }
@@ -193,7 +193,7 @@ export function KycQueue() {
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-lp-primary-1">Verificaciones KYC</h2>
-          <p className="text-sm text-lp-sec-3">Casos presentados por los clientes para revisiÛn.</p>
+          <p className="text-sm text-lp-sec-3">Casos presentados por los clientes para revisi√≥n.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm text-lp-sec-3">
@@ -323,31 +323,31 @@ function DetailPanel({ detail, updating, onApprove, onNeedDocs, onReject }: Deta
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <InfoCard title="Datos legales">
-          <InfoRow label="RazÛn social" value={company.legalName} />
+          <InfoRow label="Raz√≥n social" value={company.legalName} />
           <InfoRow label="NIT" value={company.taxId} />
           <InfoRow label="Tipo" value={company.type} />
         </InfoCard>
         <InfoCard title="Contacto">
           <InfoRow label="Email" value={company.contactEmail} />
-          <InfoRow label="TelÈfono" value={company.contactPhone} />
-          <InfoRow label="Email de facturaciÛn" value={company.billingEmail} />
+          <InfoRow label="Tel√©fono" value={company.contactPhone} />
+          <InfoRow label="Email de facturaci√≥n" value={company.billingEmail} />
           <InfoRow label="Cuenta bancaria" value={company.bankAccount} />
         </InfoCard>
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <InfoCard title="DirecciÛn registrada">
+        <InfoCard title="Direcci√≥n registrada">
           {address ? (
             <>
-              <InfoRow label="LÌnea 1" value={address.line1} />
-              <InfoRow label="LÌnea 2" value={address.line2} />
+              <InfoRow label="L√≠nea 1" value={address.line1} />
+              <InfoRow label="L√≠nea 2" value={address.line2} />
               <InfoRow label="Ciudad" value={address.city} />
               <InfoRow label="Departamento" value={address.state} />
-              <InfoRow label="CÛdigo postal" value={address.postalCode} />
-              <InfoRow label="PaÌs" value={address.country} />
+              <InfoRow label="C√≥digo postal" value={address.postalCode} />
+              <InfoRow label="Pa√≠s" value={address.country} />
             </>
           ) : (
-            <p className="text-sm text-lp-sec-3">Sin direcciÛn registrada.</p>
+            <p className="text-sm text-lp-sec-3">Sin direcci√≥n registrada.</p>
           )}
         </InfoCard>
         <InfoCard title="Beneficiarios finales">
@@ -361,7 +361,7 @@ function DetailPanel({ detail, updating, onApprove, onNeedDocs, onReject }: Deta
                   <p className="text-xs text-lp-sec-3">Documento: {owner.documentType ?? "?"} {owner.documentNumber ?? ""}</p>
                   {owner.email ? <p className="text-xs text-lp-sec-3">Email: {owner.email}</p> : null}
                   {typeof owner.ownershipPercentage === "number" ? (
-                    <p className="text-xs text-lp-sec-3">ParticipaciÛn: {owner.ownershipPercentage.toFixed(1)}%</p>
+                    <p className="text-xs text-lp-sec-3">Participaci√≥n: {owner.ownershipPercentage.toFixed(1)}%</p>
                   ) : null}
                 </li>
               ))}
