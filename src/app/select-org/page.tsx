@@ -15,7 +15,7 @@ function formatKycStatus(status: string | null | undefined): string {
     case "APPROVED":
       return "Aprobado";
     case "SUBMITTED":
-      return "En revisión";
+      return "En revisi\u00f3n";
     case "IN_PROGRESS":
     case "PENDING":
       return "En progreso";

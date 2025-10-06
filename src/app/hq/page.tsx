@@ -4,6 +4,7 @@ import { isBackofficeAllowed } from "@/lib/hq-auth";
 import { RequestsBoard } from "./ui/RequestsBoard";
 import { UsersManager } from "./ui/UsersManager";
 import { DashboardMetrics } from "./ui/DashboardMetrics";
+import { KycQueue } from "./ui/KycQueue";
 import { Toaster } from "@/components/ui/sonner";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,7 @@ export default async function HqPage() {
 
         <div className="space-y-8">
           <DashboardMetrics />
+          <KycQueue />
           <RequestsBoard />
           <UsersManager companies={companies ?? []} />
         </div>
