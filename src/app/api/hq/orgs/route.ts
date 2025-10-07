@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 import { isBackofficeAllowed } from "@/lib/hq-auth";
 
 export async function GET() {
@@ -18,6 +18,8 @@ export async function GET() {
   if (!isAllowed) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabaseAdmin = getSupabaseAdminClient();
 
   const { data: companies, error } = await supabaseAdmin
     .from('companies')

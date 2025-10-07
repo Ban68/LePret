@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
@@ -34,7 +34,8 @@ export async function GET(_req: Request, { params }: RouteContext) {
       return NextResponse.json({ ok: false, error: "file_not_found" }, { status: 404 });
     }
 
-    const { supabaseAdmin } = await import("@/lib/supabase");
+    const { getSupabaseAdminClient } = await import("@/lib/supabase");
+    const supabaseAdmin = getSupabaseAdminClient();
     const { data: signed, error: signedErr } = await supabaseAdmin.storage
       .from("requests")
       .createSignedUrl(fr.file_path, 60, { download: true });
@@ -75,7 +76,8 @@ export async function DELETE(_req: Request, { params }: RouteContext) {
       return NextResponse.json({ ok: false, error: message }, { status: 404 });
     }
 
-    const { supabaseAdmin } = await import("@/lib/supabase");
+    const { getSupabaseAdminClient } = await import("@/lib/supabase");
+    const supabaseAdmin = getSupabaseAdminClient();
 
     if (fr.file_path) {
       await supabaseAdmin.storage.from("requests").remove([fr.file_path]);
@@ -130,7 +132,8 @@ export async function PUT(req: Request, { params }: RouteContext) {
       return NextResponse.json({ ok: false, error: message }, { status: 404 });
     }
 
-    const { supabaseAdmin } = await import("@/lib/supabase");
+    const { getSupabaseAdminClient } = await import("@/lib/supabase");
+    const supabaseAdmin = getSupabaseAdminClient();
 
     const { error: upErr } = await supabaseAdmin
       .from("funding_requests")

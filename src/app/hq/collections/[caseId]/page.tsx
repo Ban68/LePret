@@ -5,7 +5,7 @@ import { TimelineFeed } from "@/components/app/timeline/TimelineFeed";
 import { TimelineRealtimeBridge } from "@/components/app/timeline/TimelineRealtimeBridge";
 import { TimelineNextSteps } from "@/components/app/timeline/TimelineNextSteps";
 import { supabaseServer } from "@/lib/supabase-server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 import { isBackofficeAllowed } from "@/lib/hq-auth";
 import { listCollectionActions } from "@/lib/collections";
 import { computeClientNextSteps, getCollectionCaseSummary, getRequestTimeline } from "@/lib/request-timeline";
@@ -46,6 +46,8 @@ export default async function CollectionCasePage({
       </div>
     );
   }
+
+  const supabaseAdmin = getSupabaseAdminClient();
 
   const summary = await getCollectionCaseSummary(supabaseAdmin, caseId);
   if (!summary) {

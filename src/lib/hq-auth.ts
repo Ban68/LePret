@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 
 export async function isBackofficeAllowed(userId?: string | null, email?: string | null) {
   const allowedList = (process.env.BACKOFFICE_ALLOWED_EMAILS || "")
@@ -27,6 +27,7 @@ export async function isBackofficeAllowed(userId?: string | null, email?: string
 }
 
 async function fetchStaffFlag(userId: string): Promise<boolean> {
+  const supabaseAdmin = getSupabaseAdminClient();
   const { data, error } = await supabaseAdmin
     .from("profiles")
     .select("is_staff")

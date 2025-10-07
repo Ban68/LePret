@@ -1,4 +1,4 @@
-﻿import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 
 type AuditEntity = 'invoice' | 'request' | 'offer' | 'document' | 'contract' | 'membership' | 'integration' | 'feedback';
 type AuditAction =
@@ -25,6 +25,7 @@ type AuditPayload = {
 
 export async function logAudit(input: AuditPayload) {
   try {
+    const supabaseAdmin = getSupabaseAdminClient();
     await supabaseAdmin.from('audit_logs').insert({
       company_id: input.company_id,
       actor_id: input.actor_id ?? null,

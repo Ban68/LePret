@@ -1,5 +1,5 @@
 import { supabaseServer } from "@/lib/supabase-server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 import { isBackofficeAllowed } from "@/lib/hq-auth";
 import { RequestsBoard } from "./ui/RequestsBoard";
 import { UsersManager } from "./ui/UsersManager";
@@ -30,6 +30,7 @@ export default async function HqPage() {
   }
 
   // Companies are still needed for the UsersManager dropdown
+  const supabaseAdmin = getSupabaseAdminClient();
   const { data: companies } = await supabaseAdmin
     .from("companies")
     .select("id, name, type")

@@ -30,7 +30,8 @@ export async function DELETE(
       .single();
     if (rErr || !inv) return NextResponse.json({ ok: false, error: rErr?.message ?? "Not found" }, { status: 404 });
 
-    const { supabaseAdmin } = await import("@/lib/supabase");
+    const { getSupabaseAdminClient } = await import("@/lib/supabase");
+    const supabaseAdmin = getSupabaseAdminClient();
     if (inv.file_path) {
       await supabaseAdmin.storage.from("invoices").remove([inv.file_path]);
     }
