@@ -5,13 +5,11 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { normalizeMemberRole } from "@/lib/rbac";
 
-type RouteContext = {
-  params?: Promise<Record<string, string | string[] | undefined>>;
-};
-
-export async function DELETE(_req: Request, context: RouteContext) {
+export async function DELETE(
+  _req: Request,
+  { params }: { params: { orgId: string | string[] | undefined } },
+) {
   try {
-    const params = context.params ? await context.params : undefined;
     const rawOrgId = Array.isArray(params?.orgId) ? params?.orgId[0] : params?.orgId;
 
     if (!rawOrgId?.trim()) {
