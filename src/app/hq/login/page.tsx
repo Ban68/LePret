@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 type SearchParams = Record<string, string | string[] | undefined>;
 
 type PageProps = {
-  searchParams?: SearchParams | Promise<SearchParams>;
+  searchParams?: Promise<SearchParams>;
 };
 
 export default async function HqLoginRedirectPage({
@@ -11,7 +11,7 @@ export default async function HqLoginRedirectPage({
 }: PageProps) {
   const query = new URLSearchParams();
 
-  const resolved = await searchParams;
+  const resolved = searchParams ? await searchParams : undefined;
 
   if (resolved) {
     for (const [key, value] of Object.entries(resolved)) {
