@@ -5,17 +5,20 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { normalizeMemberRole } from "@/lib/rbac";
 
-export async function DELETE(
-  _req: Request,
-  { params }: { params: { orgId: string } },
-) {
+type RouteContext = {
+  params?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export async function DELETE(_req: Request, context: RouteContext) {
   try {
-    const { orgId } = params;
-    if (!orgId?.trim()) {
+    const params = context.params ? await context.params : undefined;
+    const rawOrgId = Array.isArray(params?.orgId) ? params?.orgId[0] : params?.orgId;
+
+    if (!rawOrgId?.trim()) {
       return NextResponse.json({ ok: false, error: "Missing organization" }, { status: 400 });
     }
 
-    const companyId = orgId.trim();
+    const companyId = rawOrgId.trim();
 
     const cookieStore = cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
