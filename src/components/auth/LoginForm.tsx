@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
@@ -15,7 +15,7 @@ const HQ_ACCESS_ERROR_MESSAGE =
   "Tu cuenta no tiene permisos para acceder a Headquarters. Comunícate con tu administrador.";
 
 type SignInMode = "password" | "magic" | "reset";
-type Audience = "customer" | "hq";
+type Audience = "auto" | "customer" | "hq";
 
 type AudienceConfig = {
   title: string;
@@ -25,6 +25,12 @@ type AudienceConfig = {
 };
 
 const AUDIENCE_CONFIG: Record<Audience, AudienceConfig> = {
+  auto: {
+    title: "Iniciar sesión",
+    description: "Accede con tu cuenta y te llevaremos al portal correcto.",
+    defaultRedirect: "/select-org",
+    allowMagicLink: true,
+  },
   customer: {
     title: "Iniciar sesión",
     description: "Accede al portal de clientes para gestionar tu empresa.",
@@ -73,15 +79,19 @@ const getErrorMessage = (err: unknown) => {
 };
 
 type LoginFormProps = {
-  audience: Audience;
+  audience?: Audience;
 };
 
-export function LoginForm({ audience }: LoginFormProps) {
+export function LoginForm({ audience = "auto" }: LoginFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const config = AUDIENCE_CONFIG[audience];
   const redirectParam = searchParams.get("redirectTo");
   const reason = searchParams.get("reason");
+  const hasExplicitRedirect = useMemo(
+    () => Boolean(redirectParam && redirectParam.startsWith("/") && !redirectParam.startsWith("//")),
+    [redirectParam]
+  );
   const redirectTo = useMemo(
     () => sanitizeRedirect(redirectParam, config.defaultRedirect),
     [redirectParam, config.defaultRedirect]
@@ -96,24 +106,130 @@ export function LoginForm({ audience }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const validEmail = useMemo(() => /.+@.+\..+/.test(email), [email]);
+  const backofficeAccessRef = useRef<boolean | null>(null);
+  const defaultPortalRef = useRef<string | null>(null);
 
   const verifyBackofficeAccess = useCallback(async () => {
-    if (audience !== "hq") {
-      return true;
+    if (audience === "customer") {
+      return false;
+    }
+
+    if (backofficeAccessRef.current !== null) {
+      return backofficeAccessRef.current;
     }
 
     try {
       const response = await fetch("/api/hq/access", { cache: "no-store" });
       if (!response.ok) {
+        backofficeAccessRef.current = false;
         return false;
       }
       const payload = await response.json().catch(() => null);
-      return Boolean(payload?.allowed);
+      const allowed = Boolean(payload?.allowed);
+      backofficeAccessRef.current = allowed;
+      return allowed;
     } catch (err) {
       console.error("Failed to verify HQ access", err);
+      backofficeAccessRef.current = false;
       return false;
     }
   }, [audience]);
+
+  const resolveDefaultPortal = useCallback(async () => {
+    if (audience === "hq") {
+      return config.defaultRedirect;
+    }
+
+    if (audience === "customer") {
+      return config.defaultRedirect;
+    }
+
+    if (defaultPortalRef.current) {
+      return defaultPortalRef.current;
+    }
+
+    try {
+      const response = await fetch("/api/orgs", { cache: "no-store" });
+      if (!response.ok) {
+        return config.defaultRedirect;
+      }
+      const payload = await response.json().catch(() => null);
+      const orgs: Array<{ id?: string; type?: string | null; status?: string | null }> =
+        Array.isArray(payload?.orgs) ? payload.orgs : [];
+      for (const org of orgs) {
+        const isActive = !org.status || String(org.status).toUpperCase() === "ACTIVE";
+        if (!isActive) {
+          continue;
+        }
+        const orgId = typeof org.id === "string" && org.id.length > 0 ? org.id : null;
+        if (!orgId) {
+          continue;
+        }
+        const type = String(org.type ?? "").toUpperCase();
+        if (type === "INVESTOR") {
+          const investorPath = `/i/${orgId}`;
+          defaultPortalRef.current = investorPath;
+          return investorPath;
+        }
+      }
+    } catch (err) {
+      console.error("Failed to resolve default portal", err);
+    }
+
+    defaultPortalRef.current = config.defaultRedirect;
+    return config.defaultRedirect;
+  }, [audience, config.defaultRedirect]);
+
+  const determineRedirect = useCallback(async () => {
+    const wantsHeadquarters = redirectTo.startsWith("/hq");
+    const isDefaultRedirect = redirectTo === config.defaultRedirect;
+
+    if (audience === "hq") {
+      const allowed = await verifyBackofficeAccess();
+      if (!allowed) {
+        return { error: HQ_ACCESS_ERROR_MESSAGE, shouldSignOut: true } as const;
+      }
+      return { destination: redirectTo } as const;
+    }
+
+    if (audience === "customer") {
+      if (wantsHeadquarters) {
+        return { error: HQ_ACCESS_ERROR_MESSAGE, shouldSignOut: true } as const;
+      }
+      return { destination: redirectTo } as const;
+    }
+
+    const hasBackofficeAccess = await verifyBackofficeAccess();
+
+    if (wantsHeadquarters) {
+      if (hasBackofficeAccess) {
+        return { destination: redirectTo } as const;
+      }
+      return { error: HQ_ACCESS_ERROR_MESSAGE, shouldSignOut: true } as const;
+    }
+
+    if (hasBackofficeAccess) {
+      if (!isDefaultRedirect || hasExplicitRedirect) {
+        return { destination: redirectTo } as const;
+      }
+      return { destination: "/hq" } as const;
+    }
+
+    if (!isDefaultRedirect || hasExplicitRedirect) {
+      return { destination: redirectTo } as const;
+    }
+
+    const fallbackPortal = await resolveDefaultPortal();
+    return { destination: fallbackPortal } as const;
+  }, [audience, config.defaultRedirect, hasExplicitRedirect, redirectTo, resolveDefaultPortal, verifyBackofficeAccess]);
+
+  useEffect(() => {
+    backofficeAccessRef.current = null;
+  }, [audience]);
+
+  useEffect(() => {
+    defaultPortalRef.current = null;
+  }, [config.defaultRedirect, audience]);
 
   useEffect(() => {
     const supabase = createClientComponentClient();
@@ -129,16 +245,18 @@ export function LoginForm({ audience }: LoginFormProps) {
       }
 
       if (session) {
-        const hasAccess = await verifyBackofficeAccess();
-        if (hasAccess) {
-          router.replace(redirectTo);
+        const resolution = await determineRedirect();
+        if (resolution.destination) {
+          router.replace(resolution.destination);
           return;
         }
 
-        if (audience === "hq") {
-          await supabase.auth.signOut();
+        if (resolution.error) {
+          if (resolution.shouldSignOut) {
+            await supabase.auth.signOut();
+          }
           if (isMounted) {
-            setError(HQ_ACCESS_ERROR_MESSAGE);
+            setError(resolution.error);
           }
         }
       }
@@ -158,7 +276,7 @@ export function LoginForm({ audience }: LoginFormProps) {
     return () => {
       isMounted = false;
     };
-  }, [router, redirectTo, audience, verifyBackofficeAccess]);
+  }, [router, determineRedirect]);
 
   useEffect(() => {
     if (!config.allowMagicLink && mode === "magic") {
@@ -167,10 +285,10 @@ export function LoginForm({ audience }: LoginFormProps) {
   }, [config.allowMagicLink, mode]);
 
   useEffect(() => {
-    if (audience === "hq" && reason === "forbidden") {
+    if (reason === "forbidden") {
       setError(HQ_ACCESS_ERROR_MESSAGE);
     }
-  }, [audience, reason]);
+  }, [reason]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -191,13 +309,19 @@ export function LoginForm({ audience }: LoginFormProps) {
           throw signInError;
         }
 
-        const hasAccess = await verifyBackofficeAccess();
-        if (!hasAccess) {
-          await supabase.auth.signOut();
-          throw new Error(HQ_ACCESS_ERROR_MESSAGE);
+        const resolution = await determineRedirect();
+        if (resolution.error) {
+          if (resolution.shouldSignOut) {
+            await supabase.auth.signOut();
+          }
+          throw new Error(resolution.error);
         }
 
-        router.replace(redirectTo);
+        if (!resolution.destination) {
+          throw new Error(GENERIC_ERROR_MESSAGE);
+        }
+
+        router.replace(resolution.destination);
         return;
       }
 
@@ -209,7 +333,7 @@ export function LoginForm({ audience }: LoginFormProps) {
         const { error: magicError } = await supabase.auth.signInWithOtp({
           email,
           options: {
-            emailRedirectTo: `${window.location.origin}${config.defaultRedirect}`,
+            emailRedirectTo: `${window.location.origin}${redirectTo}`,
           },
         });
 

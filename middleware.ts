@@ -68,7 +68,7 @@ export async function middleware(req: NextRequest) {
 
   // Backoffice: restrict /hq to staff or allowlisted emails
   if (req.nextUrl.pathname.startsWith("/hq")) {
-    const isLoginRoute = req.nextUrl.pathname.startsWith("/hq/login");
+    const isLegacyLoginRoute = req.nextUrl.pathname.startsWith("/hq/login");
     const targetPath = `${req.nextUrl.pathname}${req.nextUrl.search}`;
 
     const {
@@ -76,9 +76,9 @@ export async function middleware(req: NextRequest) {
     } = await supabase.auth.getSession();
 
     if (!session) {
-      if (!isLoginRoute) {
+      if (!isLegacyLoginRoute) {
         const url = req.nextUrl.clone();
-        url.pathname = "/hq/login";
+        url.pathname = "/login";
         url.search = "";
         url.searchParams.set("redirectTo", targetPath);
         return NextResponse.redirect(url);
@@ -104,9 +104,9 @@ export async function middleware(req: NextRequest) {
 
     const emailAllowed = !allowed.length || (email ? allowed.includes(email) : false);
     if (!isStaff && !emailAllowed) {
-      if (!isLoginRoute) {
+      if (!isLegacyLoginRoute) {
         const url = req.nextUrl.clone();
-        url.pathname = "/hq/login";
+        url.pathname = "/login";
         url.search = "";
         url.searchParams.set("redirectTo", targetPath);
         url.searchParams.set("reason", "forbidden");

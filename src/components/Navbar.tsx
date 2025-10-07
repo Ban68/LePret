@@ -42,8 +42,7 @@ export function Navbar() {
     { href: "/costos", label: "Costos" },
     { href: "/empresa", label: "Empresa" },
     { href: "/contacto", label: "Contacto" },
-    { href: "/login?redirectTo=/select-org", label: "Portal clientes" },
-    { href: "/hq/login", label: "Headquarters" },
+    { href: "/login", label: "Portal" },
   ];
 
   const currentPath = pathname ?? '';

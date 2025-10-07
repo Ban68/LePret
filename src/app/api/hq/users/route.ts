@@ -17,7 +17,7 @@ import {
 
 const DEFAULT_LIMIT = 200;
 const DEFAULT_CUSTOMER_LOGIN_PATH = "/login";
-const DEFAULT_HQ_LOGIN_PATH = "/hq/login";
+const DEFAULT_HQ_LOGIN_PATH = "/login";
 
 function getRequestOrigin(req: Request): string {
   const forwardedHost = req.headers.get("x-forwarded-host");

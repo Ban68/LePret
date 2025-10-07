@@ -1,19 +1,29 @@
-import { Suspense } from "react";
+import { redirect } from "next/navigation";
 
-import { LoginForm } from "@/components/auth/LoginForm";
+type PageProps = {
+  searchParams?: Record<string, string | string[] | undefined>;
+};
 
-const LoadingFallback = () => (
-  <div className="py-20 sm:py-24">
-    <div className="container mx-auto max-w-md px-4 sm:px-6 lg:px-8">
-      <p className="text-lp-sec-3">Cargando...</p>
-    </div>
-  </div>
-);
+export default function HqLoginRedirectPage({ searchParams }: PageProps) {
+  const query = new URLSearchParams();
 
-export default function HqLoginPage() {
-  return (
-    <Suspense fallback={<LoadingFallback />}>
-      <LoginForm audience="hq" />
-    </Suspense>
-  );
+  if (searchParams) {
+    for (const [key, value] of Object.entries(searchParams)) {
+      if (typeof value === "string") {
+        query.set(key, value);
+        continue;
+      }
+
+      if (Array.isArray(value)) {
+        for (const entry of value) {
+          if (typeof entry === "string") {
+            query.append(key, entry);
+          }
+        }
+      }
+    }
+  }
+
+  const search = query.toString();
+  redirect(`/login${search ? `?${search}` : ""}`);
 }
