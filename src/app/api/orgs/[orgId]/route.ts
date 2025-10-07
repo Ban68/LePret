@@ -5,13 +5,16 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { normalizeMemberRole } from "@/lib/rbac";
 
-export async function DELETE(
-  _req: Request,
-  { params }: { params: { orgId: string } },
-) {
+type RouteContext = {
+  params?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export async function DELETE(_req: Request, context: RouteContext) {
   try {
-    const rawOrgId = params.orgId;
-    const companyId = rawOrgId.trim();
+    const routeParams = (await context.params) ?? {};
+    const rawOrgId = routeParams.orgId;
+    const normalizedOrgId = Array.isArray(rawOrgId) ? rawOrgId[0] ?? "" : rawOrgId ?? "";
+    const companyId = normalizedOrgId.trim();
 
     if (!companyId) {
       return NextResponse.json({ ok: false, error: "Missing organization" }, { status: 400 });
@@ -61,7 +64,10 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: membersError.message }, { status: 500 });
     }
 
-    const { error: deleteError } = await supabaseAdmin.from("companies").delete().eq("id", companyId);
+    const { error: deleteError } = await supabaseAdmin
+      .from("companies")
+      .delete()
+      .eq("id", companyId);
 
     if (deleteError) {
       if (deleteError.code === "23503") {
