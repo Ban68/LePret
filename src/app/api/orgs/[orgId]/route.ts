@@ -5,9 +5,10 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { normalizeMemberRole } from "@/lib/rbac";
 
-type RouteContext = { params: { orgId: string } };
-
-export async function DELETE(_req: Request, { params }: RouteContext) {
+export async function DELETE(
+  _req: Request,
+  { params }: { params: { orgId: string } },
+) {
   try {
     const { orgId } = params;
     if (!orgId?.trim()) {
