@@ -1,14 +1,20 @@
 import { redirect } from "next/navigation";
 
+type SearchParams = Record<string, string | string[] | undefined>;
+
 type PageProps = {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: SearchParams | Promise<SearchParams>;
 };
 
-export default function HqLoginRedirectPage({ searchParams }: PageProps) {
+export default async function HqLoginRedirectPage({
+  searchParams,
+}: PageProps) {
   const query = new URLSearchParams();
 
-  if (searchParams) {
-    for (const [key, value] of Object.entries(searchParams)) {
+  const resolved = await searchParams;
+
+  if (resolved) {
+    for (const [key, value] of Object.entries(resolved)) {
       if (typeof value === "string") {
         query.set(key, value);
         continue;
