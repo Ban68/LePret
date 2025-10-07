@@ -70,7 +70,7 @@ export async function GET(req: Request) {
   let query = supabaseAdmin
     .from("companies")
     .select("id, name, type, kyc_status, kyc_submitted_at, kyc_approved_at, created_at, updated_at")
-    .order("kyc_submitted_at", { ascending: false, nullsLast: false })
+    .order("kyc_submitted_at", { ascending: false, nullsFirst: false })
     .limit(limit);
 
   if (statuses && statuses.length > 0) {
