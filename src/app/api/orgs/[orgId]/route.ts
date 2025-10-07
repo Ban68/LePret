@@ -7,16 +7,15 @@ import { normalizeMemberRole } from "@/lib/rbac";
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: { orgId: string | string[] | undefined } },
+  { params }: { params: { orgId: string } },
 ) {
   try {
-    const rawOrgId = Array.isArray(params?.orgId) ? params?.orgId[0] : params?.orgId;
+    const rawOrgId = params.orgId;
+    const companyId = rawOrgId.trim();
 
-    if (!rawOrgId?.trim()) {
+    if (!companyId) {
       return NextResponse.json({ ok: false, error: "Missing organization" }, { status: 400 });
     }
-
-    const companyId = rawOrgId.trim();
 
     const cookieStore = cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
