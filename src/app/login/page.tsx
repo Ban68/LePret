@@ -13,7 +13,7 @@ const LoadingFallback = () => (
 export default function LoginPage() {
   return (
     <Suspense fallback={<LoadingFallback />}>
-      <LoginForm audience="customer" />
+      <LoginForm />
     </Suspense>
   );
 }
