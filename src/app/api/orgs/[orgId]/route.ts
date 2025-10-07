@@ -6,7 +6,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase";
 import { normalizeMemberRole } from "@/lib/rbac";
 
 type RouteContext = {
-  params?: Promise<Record<string, string | string[] | undefined>>;
+  params: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export async function DELETE(_req: Request, context: RouteContext) {
