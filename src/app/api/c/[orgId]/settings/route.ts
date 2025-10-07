@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 
 const COMPANY_COLUMNS = "id, name, legal_name, tax_id, contact_email, contact_phone, billing_email, bank_account, notification_email, notification_sms, notification_whatsapp, type, created_at, updated_at";
 const EDITABLE_ROLES = new Set(["OWNER", "ADMIN"]);
@@ -187,6 +187,7 @@ export async function PUT(
 
     update.updated_at = new Date().toISOString();
 
+    const supabaseAdmin = getSupabaseAdminClient();
     const { data: updated, error } = await supabaseAdmin
       .from("companies")
       .update(update)

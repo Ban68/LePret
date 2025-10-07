@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 import { canManageMembership, normalizeMemberRole } from "@/lib/rbac";
 
 const resendApiKey = process.env.RESEND_API_KEY;
@@ -15,6 +15,7 @@ function staffRecipients(): string[] {
 }
 
 export async function getCompanyActiveMemberEmails(companyId: string): Promise<{ owners: string[]; admins: string[]; clients: string[]; all: string[]; }> {
+  const supabaseAdmin = getSupabaseAdminClient();
   const { data: members, error } = await supabaseAdmin
     .from("memberships")
     .select("user_id, role, status")

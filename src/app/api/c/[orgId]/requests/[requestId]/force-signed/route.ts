@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 import { logAudit } from "@/lib/audit";
 
 export async function POST(
@@ -19,6 +19,8 @@ export async function POST(
     if (!allowForceSign) {
       return NextResponse.json({ ok: false, error: 'Accion deshabilitada en este ambiente.', code: 'force_sign_disabled' }, { status: 403 });
     }
+
+    const supabaseAdmin = getSupabaseAdminClient();
 
     const { data: doc } = await supabaseAdmin
       .from('documents')

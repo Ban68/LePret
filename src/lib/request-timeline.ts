@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 
 export type TimelineItemKind = "event" | "message";
 
@@ -110,10 +110,11 @@ export async function createRequestMessage(
 }
 
 export async function createRequestMessageAdmin(input: RequestMessageInput) {
-  return createRequestMessage(supabaseAdmin, input);
+  return createRequestMessage(getSupabaseAdminClient(), input);
 }
 
 export async function createRequestEvent(input: RequestEventInput) {
+  const supabaseAdmin = getSupabaseAdminClient();
   const payload = {
     request_id: input.requestId,
     company_id: input.companyId,

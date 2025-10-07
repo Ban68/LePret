@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { supabaseServer } from "@/lib/supabase-server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 import { isBackofficeAllowed } from "@/lib/hq-auth";
 import type { CollectionCaseSummary } from "@/lib/request-timeline";
 
@@ -44,6 +44,7 @@ export default async function CollectionsPage() {
     );
   }
 
+  const supabaseAdmin = getSupabaseAdminClient();
   const { data: cases, error } = await supabaseAdmin
     .from("collection_case_summaries")
     .select(

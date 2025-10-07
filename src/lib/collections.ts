@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 
 export type CollectionActionRow = {
   id: string;
@@ -71,7 +71,7 @@ export async function updateCollectionCase(
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await getSupabaseAdminClient()
     .from("collection_cases")
     .update(payload)
     .eq("id", caseId)
@@ -107,7 +107,7 @@ export async function createCollectionAction(input: {
     metadata: input.metadata ?? null,
   };
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await getSupabaseAdminClient()
     .from("collection_actions")
     .insert(payload)
     .select()

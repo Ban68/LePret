@@ -51,7 +51,8 @@ export async function POST(req: Request) {
 
     // Ensure profile exists (user may predate trigger) via UPSERT
     {
-      const { supabaseAdmin } = await import("@/lib/supabase");
+      const { getSupabaseAdminClient } = await import("@/lib/supabase");
+      const supabaseAdmin = getSupabaseAdminClient();
       const { error: pErr } = await supabaseAdmin
         .from("profiles")
         .upsert(
@@ -71,7 +72,8 @@ export async function POST(req: Request) {
     }
 
     // Create company and membership
-    const { supabaseAdmin } = await import("@/lib/supabase");
+    const { getSupabaseAdminClient } = await import("@/lib/supabase");
+    const supabaseAdmin = getSupabaseAdminClient();
     const { data: org, error: orgErr } = await supabaseAdmin
       .from("companies")
       .insert({ name, type })

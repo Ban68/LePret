@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 import {
   DEFAULT_MEMBER_ROLE,
   DEFAULT_MEMBER_STATUS,
@@ -88,6 +88,7 @@ async function resolveUserIdFromPayload(payload: Record<string, unknown>) {
     throw new Error("Missing user identifier");
   }
 
+  const supabaseAdmin = getSupabaseAdminClient();
   const adminAuth = (supabaseAdmin.auth as unknown as { admin?: AdminAuthClient }).admin;
   if (!adminAuth || typeof adminAuth.getUserByEmail !== "function") {
     throw new Error("Supabase admin client unavailable");
@@ -119,6 +120,8 @@ export async function GET(
     if (!canRead) {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
+
+    const supabaseAdmin = getSupabaseAdminClient();
 
     const { data, error } = await supabaseAdmin
       .from("memberships")
@@ -169,6 +172,8 @@ export async function POST(
     } catch {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
+
+    const supabaseAdmin = getSupabaseAdminClient();
 
     let payload: Record<string, unknown>;
     try {
@@ -268,6 +273,8 @@ export async function PATCH(
     } catch {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
+
+    const supabaseAdmin = getSupabaseAdminClient();
 
     let payload: Record<string, unknown>;
     try {
@@ -384,6 +391,8 @@ export async function DELETE(
     } catch {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
+
+    const supabaseAdmin = getSupabaseAdminClient();
 
     const { data: existingRows, error: existingError } = await supabaseAdmin
       .from("memberships")
