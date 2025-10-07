@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Toaster, toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ type SettingsClientProps = {
 };
 
 export function SettingsClient({ orgId }: SettingsClientProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +59,7 @@ export function SettingsClient({ orgId }: SettingsClientProps) {
   const [canEdit, setCanEdit] = useState(false);
   const [membershipRole, setMembershipRole] = useState<string | null>(null);
   const [isStaff, setIsStaff] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const baselineRef = useRef<FormState | null>(null);
 
   const mapCompany = useCallback((company: CompanySettingsPayload): FormState => {
@@ -118,6 +121,32 @@ export function SettingsClient({ orgId }: SettingsClientProps) {
   const resetForm = () => {
     if (baselineRef.current) {
       setForm({ ...baselineRef.current });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!canEdit) {
+      toast.error("No tienes permisos para eliminar esta organización");
+      return;
+    }
+    if (!confirm("¿Eliminar esta organización? Esta acción no se puede deshacer.")) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/orgs/${orgId}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({ ok: false, error: "No se pudo leer la respuesta" }));
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "No se pudo eliminar la organización");
+      }
+      toast.success("Organización eliminada");
+      router.push("/select-org");
+      router.refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error inesperado";
+      toast.error(message);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -186,7 +215,7 @@ export function SettingsClient({ orgId }: SettingsClientProps) {
       <div>
         <h1 className="font-colette text-2xl font-bold text-lp-primary-1">Configuracion</h1>
         <p className="text-sm text-lp-sec-3">
-          Gestiona los datos de la organizacion <span className="font-semibold text-lp-primary-1">{displayOrgName}</span>.
+          Gestiona los datos de la organización <span className="font-semibold text-lp-primary-1">{displayOrgName}</span>.
         </p>
         <div className="mt-2 text-xs text-lp-sec-3">
           Rol: {isStaff ? "staff" : membershipRole ? membershipRole.toLowerCase() : "miembro"}
@@ -204,7 +233,7 @@ export function SettingsClient({ orgId }: SettingsClientProps) {
         <div className="rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-700">{error}</div>
       ) : !form ? (
         <div className="rounded-md border border-dashed border-lp-sec-4/60 p-4 text-sm text-lp-sec-3">
-          No se encontraron datos de la organizacion.
+          No se encontraron datos de la organización.
         </div>
       ) : (
         <>
@@ -337,7 +366,7 @@ export function SettingsClient({ orgId }: SettingsClientProps) {
 
             <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-lp-sec-3">
-              Los cambios se guardan para toda la organizacion.
+              Los cambios se guardan para toda la organización.
             </div>
             <div className="flex gap-3">
               <Button type="button" variant="outline" onClick={resetForm} disabled={!hasChanges || saving || !canEdit}>
@@ -350,6 +379,26 @@ export function SettingsClient({ orgId }: SettingsClientProps) {
           </div>
           </form>
           <MembersManager orgId={orgId} />
+          <section className="space-y-4 rounded-lg border border-red-200/80 bg-red-50/60 p-5">
+            <div>
+              <h2 className="text-lg font-semibold text-red-700">Eliminar organización</h2>
+              <p className="text-sm text-red-600">
+                Quita permanentemente esta organización del portal. Todos los datos asociados se eliminarán y no podrás
+                recuperarlos.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={!canEdit || deleting}
+            >
+              {deleting ? "Eliminando..." : "Eliminar organización"}
+            </Button>
+            {!canEdit && (
+              <p className="text-xs text-red-600/80">Solo los administradores pueden eliminar una organización.</p>
+            )}
+          </section>
         </>
       )}
     </div>
