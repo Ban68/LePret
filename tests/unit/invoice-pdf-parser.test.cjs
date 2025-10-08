@@ -1,9 +1,9 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { readFileSync } = require("node:fs");
+const { join } = require("node:path");
 
-import { extractInvoiceFieldsFromText, parseInvoicePdf } from "../../src/lib/invoices/pdf-parser";
+const { extractInvoiceFieldsFromText, parseInvoicePdf } = require("../../src/lib/invoices/pdf-parser");
 
 test("parseInvoicePdf extracts structured data from sample PDF", async (t) => {
   const fixturePath = join(process.cwd(), "tests", "fixtures", "invoice-sample.pdf");
