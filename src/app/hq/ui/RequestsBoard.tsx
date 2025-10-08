@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
+import { MoreVertical } from "lucide-react";
 
 const STATUS_LABEL: Record<string, string> = {
   review: "En revision",
@@ -503,64 +505,259 @@ function GroupSection({ block, onOpenDetail }: GroupSectionProps) {
           </thead>
           <tbody className="divide-y divide-lp-sec-4/80">
             {block.items.map((item) => (
-              <tr key={item.id} className={item.archived_at ? "bg-lp-sec-4/40" : item.needs_action ? "bg-amber-50/40" : "bg-white"}>
-                <td className="px-3 py-2 align-top">
-                  <div className="font-mono text-xs text-lp-primary-1">{truncateId(item.id)}</div>
-                  <div className="text-xs text-lp-sec-3">Facturas: {item.invoices_count}</div>
-                  {item.offer ? <div className="text-[11px] text-lp-sec-3">Oferta: {item.offer.summary}</div> : null}
-                </td>
-                <td className="px-3 py-2 align-top text-sm">
-                  <div className="font-medium text-lp-primary-1">{item.company_name}</div>
-                  {item.created_by_name && (
-                    <div className="text-xs text-lp-sec-3">Analista: {item.created_by_name}</div>
-                  )}
-                </td>
-                <td className="px-3 py-2 align-top text-sm">
-                  <div className="text-lp-primary-1">{resolvePayerLabel(item.payers)}</div>
-                  {renderIdentifiers(item.payers)}
-                </td>
-                <td className="px-3 py-2 align-top text-sm">
-                  <div className="font-semibold text-lp-primary-1">${formatCurrency(item.requested_amount)}</div>
-                  <div className="text-xs text-lp-sec-3">{item.currency} | Facturas ${formatCurrency(item.invoices_total)}</div>
-                </td>
-                <td className="px-3 py-2 align-top text-sm">
-                  <StatusBadge status={item.status} kind="request" />
-                </td>
-                <td className="px-3 py-2 align-top text-sm text-lp-primary-1">{item.next_action}</td>
-                <td className="px-3 py-2 align-top text-xs text-lp-sec-3">
-                  {item.pending_documents.length === 0 ? "Sin pendientes" : item.pending_documents.join(", ")}
-                </td>
-                <td className="px-3 py-2 align-top text-xs text-lp-sec-3">
-                  <div>{formatDate(item.created_at)}</div>
-                  <div>{formatAge(item.created_at)}</div>
-                </td>
-                <td className="px-3 py-2 align-top text-xs">
-                  <div className="flex flex-col gap-1">
-                    <button
-                      type="button"
-                      className="text-lp-primary-1 underline hover:opacity-80"
-                      onClick={() => onOpenDetail(item)}
-                    >
-                      Ver detalle
-                    </button>
-                    <Link href={`/hq/companies/${item.company_id}`} className="text-lp-primary-1 underline hover:opacity-80">
-                      Ver cliente
-                    </Link>
-                    <Link
-                      href={`/c/${item.company_id}/requests`}
-                      className="text-lp-sec-3 underline hover:opacity-80"
-                      target="_blank"
-                    >
-                      Abrir portal
-                    </Link>
-                  </div>
-                </td>
-              </tr>
+              <RequestRow key={item.id} item={item} onOpenDetail={onOpenDetail} />
             ))}
           </tbody>
         </table>
       </div>
     </div>
+  );
+}
+
+const ROW_MENU_SECTION_TITLE_CLASS = "text-[11px] font-semibold uppercase tracking-wide text-lp-sec-3";
+const ROW_MENU_ACTION_CLASS =
+  "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-lp-primary-1 transition hover:bg-lp-sec-4/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lp-primary-1/50";
+
+type RequestRowProps = {
+  item: RequestItem;
+  onOpenDetail: (item: RequestItem) => void;
+};
+
+function RequestRow({ item, onOpenDetail }: RequestRowProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuReady, setMenuReady] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [menuPlacement, setMenuPlacement] = useState<"top" | "bottom">("bottom");
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false);
+  }, []);
+
+  const updateMenuPosition = useCallback(() => {
+    if (!triggerRef.current) {
+      return;
+    }
+
+    const rect = triggerRef.current.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const menuWidth = menuRef.current?.offsetWidth ?? 256;
+    const menuHeight = menuRef.current?.offsetHeight ?? 280;
+    const padding = 16;
+
+    let left = rect.right - menuWidth;
+    if (left < padding) {
+      left = padding;
+    }
+    if (left + menuWidth + padding > viewportWidth) {
+      left = Math.max(padding, Math.min(rect.left, viewportWidth - menuWidth - padding));
+    }
+
+    let placement: "top" | "bottom" = "bottom";
+    let top = rect.bottom + 8;
+    if (rect.bottom + menuHeight + padding > viewportHeight && rect.top - menuHeight - 8 > padding) {
+      placement = "top";
+      top = Math.max(padding, rect.top - menuHeight - 8);
+    } else if (top + menuHeight + padding > viewportHeight) {
+      top = Math.max(padding, viewportHeight - menuHeight - padding);
+    }
+
+    setMenuPlacement(placement);
+    setMenuPosition({ top, left });
+  }, []);
+
+  const toggleMenu = useCallback(() => {
+    setMenuOpen((prev) => {
+      const next = !prev;
+      if (!prev) {
+        if (triggerRef.current) {
+          const rect = triggerRef.current.getBoundingClientRect();
+          const viewportWidth = window.innerWidth;
+          const viewportHeight = window.innerHeight;
+          const fallbackWidth = menuRef.current?.offsetWidth ?? 256;
+          const fallbackHeight = menuRef.current?.offsetHeight ?? 280;
+          const padding = 16;
+
+          let left = rect.right - fallbackWidth;
+          if (left < padding) {
+            left = padding;
+          }
+          if (left + fallbackWidth + padding > viewportWidth) {
+            left = Math.max(padding, Math.min(rect.left, viewportWidth - fallbackWidth - padding));
+          }
+
+          let placement: "top" | "bottom" = "bottom";
+          let top = rect.bottom + 8;
+          if (rect.bottom + fallbackHeight + padding > viewportHeight && rect.top - fallbackHeight - 8 > padding) {
+            placement = "top";
+            top = Math.max(padding, rect.top - fallbackHeight - 8);
+          } else if (top + fallbackHeight + padding > viewportHeight) {
+            top = Math.max(padding, viewportHeight - fallbackHeight - padding);
+          }
+
+          setMenuPlacement(placement);
+          setMenuPosition({ top, left });
+        }
+
+        requestAnimationFrame(() => {
+          updateMenuPosition();
+        });
+      }
+      return next;
+    });
+  }, [updateMenuPosition]);
+
+  useEffect(() => {
+    setMenuReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      setMenuPosition(null);
+      return;
+    }
+
+    updateMenuPosition();
+
+    const handleResize = () => updateMenuPosition();
+    const handleScroll = () => updateMenuPosition();
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeMenu();
+      }
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target) || triggerRef.current?.contains(target)) {
+        return;
+      }
+      closeMenu();
+    };
+
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("scroll", handleScroll, true);
+    document.addEventListener("keyup", handleKeyUp);
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("scroll", handleScroll, true);
+      document.removeEventListener("keyup", handleKeyUp);
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [menuOpen, closeMenu, updateMenuPosition]);
+
+  const nextAction = item.next_action?.trim() || "";
+  const pendingLabel = item.pending_documents.length === 0 ? "Sin pendientes" : item.pending_documents.join(", ");
+
+  return (
+    <tr className={item.archived_at ? "bg-lp-sec-4/40" : item.needs_action ? "bg-amber-50/40" : "bg-white"}>
+      <td className="px-3 py-2 align-top">
+        <div className="font-mono text-xs text-lp-primary-1">{truncateId(item.id)}</div>
+        <div className="text-xs text-lp-sec-3">Facturas: {item.invoices_count}</div>
+        {item.offer ? <div className="text-[11px] text-lp-sec-3">Oferta: {item.offer.summary}</div> : null}
+      </td>
+      <td className="px-3 py-2 align-top text-sm">
+        <div className="font-medium text-lp-primary-1">{item.company_name}</div>
+        {item.created_by_name && <div className="text-xs text-lp-sec-3">Analista: {item.created_by_name}</div>}
+      </td>
+      <td className="px-3 py-2 align-top text-sm">
+        <div className="text-lp-primary-1">{resolvePayerLabel(item.payers)}</div>
+        {renderIdentifiers(item.payers)}
+      </td>
+      <td className="px-3 py-2 align-top text-sm">
+        <div className="font-semibold text-lp-primary-1">${formatCurrency(item.requested_amount)}</div>
+        <div className="text-xs text-lp-sec-3">{item.currency} | Facturas ${formatCurrency(item.invoices_total)}</div>
+      </td>
+      <td className="px-3 py-2 align-top text-sm">
+        <StatusBadge status={item.status} kind="request" />
+      </td>
+      <td className="px-3 py-2 align-top text-sm text-lp-primary-1">{item.next_action}</td>
+      <td className="px-3 py-2 align-top text-xs text-lp-sec-3">{pendingLabel}</td>
+      <td className="px-3 py-2 align-top text-xs text-lp-sec-3">
+        <div>{formatDate(item.created_at)}</div>
+        <div>{formatAge(item.created_at)}</div>
+      </td>
+      <td className="px-3 py-2 align-top text-xs">
+        <div className="flex justify-end">
+          <button
+            ref={triggerRef}
+            type="button"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-lp-sec-4/80 text-lp-primary-1 transition hover:bg-lp-sec-4/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lp-primary-1/50"
+            onClick={toggleMenu}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+          >
+            <span className="sr-only">Abrir acciones</span>
+            <MoreVertical className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        {menuReady && menuOpen && menuPosition && typeof document !== "undefined"
+          ? createPortal(
+              <>
+                <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px]" aria-hidden="true" onClick={closeMenu}></div>
+                <div
+                  ref={menuRef}
+                  role="menu"
+                  className={`fixed z-50 w-64 rounded-xl border border-lp-sec-4/60 bg-white p-3 text-sm shadow-2xl transition-all duration-150 ${
+                    menuPlacement === "bottom" ? "origin-top-right translate-y-1" : "origin-bottom-right -translate-y-1"
+                  }`}
+                  style={{ top: menuPosition.top, left: menuPosition.left }}
+                >
+                  <div className="space-y-3">
+                    {nextAction ? (
+                      <div className="rounded-lg border border-lp-primary-1/30 bg-lp-primary-1/10 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-lp-primary-1">Próximo paso</p>
+                        <p className="mt-1 text-sm font-medium text-lp-primary-1">{nextAction}</p>
+                        {item.pending_documents.length > 0 ? (
+                          <p className="text-xs text-lp-sec-3">Pendientes: {item.pending_documents.join(", ")}</p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <div>
+                      <p className={ROW_MENU_SECTION_TITLE_CLASS}>Seguimiento</p>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={ROW_MENU_ACTION_CLASS}
+                        onClick={() => {
+                          closeMenu();
+                          onOpenDetail(item);
+                        }}
+                      >
+                        Ver detalle
+                      </button>
+                    </div>
+                    <div>
+                      <p className={ROW_MENU_SECTION_TITLE_CLASS}>Navegación</p>
+                      <Link
+                        href={`/hq/companies/${item.company_id}`}
+                        role="menuitem"
+                        className={`${ROW_MENU_ACTION_CLASS} mt-1`}
+                        onClick={closeMenu}
+                      >
+                        Ver cliente
+                      </Link>
+                      <Link
+                        href={`/c/${item.company_id}/requests`}
+                        role="menuitem"
+                        className={`${ROW_MENU_ACTION_CLASS} mt-1 text-lp-sec-3`}
+                        target="_blank"
+                        onClick={closeMenu}
+                      >
+                        Abrir portal
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </>,
+              document.body,
+            )
+          : null}
+      </td>
+    </tr>
   );
 }
 
