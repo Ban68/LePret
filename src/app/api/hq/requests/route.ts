@@ -11,7 +11,6 @@ const REQUIRED_DOC_TYPES = [
   "KYC_CAMARA",
   "KYC_CERT_BANCARIA",
   "CONTRATO_MARCO",
-  "ANEXO_OPERACION",
 ];
 
 type FundingRequestRow = {
