@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/card";
 import { Toaster, toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { MoreVertical, Plus, Sparkles, Wand2 } from "lucide-react";
+import { Loader2, MoreVertical, Plus, Sparkles, Wand2 } from "lucide-react";
 
 type Invoice = {
   id: string;
@@ -84,9 +84,30 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
     contact_email: "",
     contact_phone: "",
   });
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const [extractedFields, setExtractedFields] = useState<
+    | {
+        amount?: number | null;
+        issue_date?: string | null;
+        due_date?: string | null;
+        payer_name?: string | null;
+        payer_tax_id?: string | null;
+      }
+    | null
+  >(null);
   const amountRef = useRef<HTMLInputElement | null>(null);
   const payerRef = useRef<HTMLSelectElement | null>(null);
   const previousDueDateRef = useRef<string | null>(null);
+  const extractionTokenRef = useRef(0);
+  const manualSnapshotRef = useRef<{
+    amount: string;
+    dateRange: DateRangeValue;
+    payer: string;
+    forecastDate: string;
+    showPayerForm: boolean;
+    newPayer: typeof newPayer;
+  } | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [minAmount, setMinAmount] = useState<string>("");
@@ -113,8 +134,11 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
     const orderOk = d1 && d2 ? new Date(dateRange.start) <= new Date(dateRange.end) : false;
     const payerOk = payer.trim().length > 0;
     const forecastOk = !!forecastDate && !Number.isNaN(Date.parse(forecastDate));
-    return amtOk && d1 && d2 && orderOk && payerOk && forecastOk && !saving;
-  }, [amount, dateRange, forecastDate, payer, saving]);
+    return amtOk && d1 && d2 && orderOk && payerOk && forecastOk && !saving && !extracting;
+  }, [amount, dateRange, forecastDate, payer, saving, extracting]);
+
+  const currencyFormatter = useMemo(() => new Intl.NumberFormat("es-CO"), []);
+  const dateFormatter = useMemo(() => new Intl.DateTimeFormat("es-CO", { dateStyle: "medium" }), []);
 
   useEffect(() => {
     const due = dateRange.end;
@@ -329,6 +353,184 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
     setNewPayerError(null);
   };
 
+  const normalizeString = (value: string) =>
+    value
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toUpperCase()
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const normalizeTaxId = (value: string | null | undefined) => (value ?? "").replace(/\D/g, "");
+
+  const handleFileSelection = async (incomingFile: File | null) => {
+    setExtractError(null);
+    setExtractedFields(null);
+    manualSnapshotRef.current = null;
+
+    if (!incomingFile) {
+      setFile(null);
+      return;
+    }
+
+    const MAX = 10 * 1024 * 1024;
+    if (incomingFile.size > MAX) {
+      const msg = "El archivo supera 10MB";
+      setExtractError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    const type = (incomingFile.type || "").toLowerCase();
+    const okType = /application\/pdf|image\/(jpeg|png)/.test(type);
+    if (!okType) {
+      const msg = "Formato no soportado (PDF, JPG, PNG)";
+      setExtractError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    setFile(incomingFile);
+
+    if (!/application\/pdf/.test(type)) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", incomingFile);
+    const token = extractionTokenRef.current + 1;
+    extractionTokenRef.current = token;
+    setExtracting(true);
+
+    try {
+      const response = await fetch(`/api/c/${orgId}/invoices/extract`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = typeof data?.error === "string" ? data.error : "No se pudo extraer la información del PDF";
+        throw new Error(message);
+      }
+
+      if (token !== extractionTokenRef.current) {
+        return;
+      }
+
+      const extractedAmount = (() => {
+        const raw = (data as { amount?: unknown })?.amount;
+        if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+        if (typeof raw === "string") {
+          const numeric = Number(raw.replace(/[^0-9,.-]/g, "").replace(/,/g, "."));
+          return Number.isNaN(numeric) ? null : numeric;
+        }
+        return null;
+      })();
+
+      const issueDate = (data as { issue_date?: unknown })?.issue_date;
+      const dueDate = (data as { due_date?: unknown })?.due_date;
+      const payerName = (data as { payer_name?: unknown })?.payer_name;
+      const payerTaxId = (data as { payer_tax_id?: unknown })?.payer_tax_id;
+
+      const sanitizedDates = {
+        start: typeof issueDate === "string" ? issueDate.slice(0, 10) : "",
+        end: typeof dueDate === "string" ? dueDate.slice(0, 10) : "",
+      };
+
+      manualSnapshotRef.current = {
+        amount,
+        dateRange: { ...dateRange },
+        payer,
+        forecastDate,
+        showPayerForm,
+        newPayer: { ...newPayer },
+      };
+
+      const extractedPayload = {
+        amount: extractedAmount,
+        issue_date: sanitizedDates.start || null,
+        due_date: sanitizedDates.end || null,
+        payer_name: typeof payerName === "string" ? payerName : null,
+        payer_tax_id: typeof payerTaxId === "string" ? payerTaxId : null,
+      };
+
+      setExtractedFields(extractedPayload);
+      setExtractError(null);
+
+      if (typeof extractedAmount === "number" && Number.isFinite(extractedAmount) && extractedAmount > 0) {
+        setAmount(currencyFormatter.format(extractedAmount));
+      }
+
+      if (sanitizedDates.start || sanitizedDates.end) {
+        setForecastDate("");
+        previousDueDateRef.current = null;
+        setDateRange({ start: sanitizedDates.start, end: sanitizedDates.end });
+      }
+
+      if (typeof payerName === "string" && payerName.trim()) {
+        const normalizedName = normalizeString(payerName);
+        const normalizedTax = normalizeTaxId(typeof payerTaxId === "string" ? payerTaxId : null);
+        const matched = payerOptions.find((option) => {
+          if (normalizedTax && option.tax_id && normalizeTaxId(option.tax_id) === normalizedTax) {
+            return true;
+          }
+          return normalizeString(option.name) === normalizedName;
+        });
+
+        if (matched) {
+          setPayer(matched.name);
+          setShowPayerForm(false);
+          setNewPayerError(null);
+        } else {
+          setPayer(payerName.trim());
+          setShowPayerForm(true);
+          setNewPayer((prev) => ({
+            ...prev,
+            name: payerName.trim(),
+            tax_id: typeof payerTaxId === "string" ? payerTaxId : prev.tax_id,
+          }));
+          setNewPayerError(null);
+        }
+      }
+
+      toast.success("Datos autollenados desde el PDF");
+    } catch (error) {
+      if (token !== extractionTokenRef.current) {
+        return;
+      }
+      const message = error instanceof Error ? error.message : "No se pudo extraer la información del PDF";
+      setExtractError(message);
+      toast.error(message);
+    } finally {
+      if (token === extractionTokenRef.current) {
+        setExtracting(false);
+      }
+    }
+  };
+
+  const handleDiscardAutofill = () => {
+    const snapshot = manualSnapshotRef.current;
+    if (snapshot) {
+      setAmount(snapshot.amount);
+      setDateRange({ ...snapshot.dateRange });
+      setPayer(snapshot.payer);
+      setForecastDate(snapshot.forecastDate);
+      setShowPayerForm(snapshot.showPayerForm);
+      setNewPayer({ ...snapshot.newPayer });
+      if (!snapshot.showPayerForm) {
+        setNewPayerError(null);
+      }
+      previousDueDateRef.current = snapshot.dateRange.end || null;
+    }
+    setExtractedFields(null);
+    setExtractError(null);
+    manualSnapshotRef.current = null;
+  };
+
+  const handleEditAutofill = () => {
+    amountRef.current?.focus();
+  };
+
   const handleCreatePayer = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (creatingPayer) return;
@@ -471,6 +673,9 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
       await load();
       await loadSummary();
       setFile(null);
+      setExtractedFields(null);
+      setExtractError(null);
+      manualSnapshotRef.current = null;
       setBanner({
         tone: "success",
         title: "Factura cargada con éxito",
@@ -882,7 +1087,9 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
                       e.preventDefault();
                       setDragOver(false);
                       const f = e.dataTransfer.files?.[0];
-                      if (f) setFile(f);
+                      if (f) {
+                        void handleFileSelection(f);
+                      }
                     }}
                     className={cn(
                       "flex flex-col gap-2 rounded-md border border-dashed px-4 py-6 text-sm focus-within:border-lp-primary-1 focus-within:ring-2 focus-within:ring-lp-primary-1/40",
@@ -890,6 +1097,7 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
                     )}
                     role="group"
                     aria-label="Zona de carga de archivos"
+                    aria-busy={extracting}
                   >
                     <p className="text-lp-primary-1">
                       {file ? file.name : "Arrastra un archivo o selecciona desde tu dispositivo"}
@@ -901,7 +1109,12 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
                         type="file"
                         accept=".pdf,image/*"
                         className="sr-only"
-                        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                        onChange={(e) => {
+                          const input = e.target;
+                          const selectedFile = input.files?.[0] ?? null;
+                          void handleFileSelection(selectedFile);
+                          input.value = "";
+                        }}
                       />
                     </label>
                     {file && (
@@ -909,6 +1122,57 @@ export function InvoicesClient({ orgId }: { orgId: string }) {
                         {(file.size / 1024 / 1024).toFixed(2)} MB • {file.type || "tipo no detectado"}
                       </p>
                     )}
+                    {extracting ? (
+                      <div className="flex items-center gap-2 text-xs text-lp-primary-1">
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                        <span>Extrayendo datos del PDF...</span>
+                      </div>
+                    ) : null}
+                    {extractError ? <p className="text-xs text-red-600">{extractError}</p> : null}
+                    {extractedFields ? (
+                      <div className="w-full space-y-2 rounded-md border border-lp-primary-1/40 bg-lp-primary-1/5 p-3 text-xs text-lp-primary-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-medium">Autollenado listo</span>
+                          <div className="flex items-center gap-2">
+                            <Button type="button" size="sm" variant="secondary" onClick={handleEditAutofill}>
+                              Editar
+                            </Button>
+                            <Button type="button" size="sm" variant="ghost" onClick={handleDiscardAutofill}>
+                              Descartar autollenado
+                            </Button>
+                          </div>
+                        </div>
+                        <dl className="grid gap-2 sm:grid-cols-2">
+                          {typeof extractedFields.amount === "number" && Number.isFinite(extractedFields.amount) ? (
+                            <div>
+                              <dt className="font-medium">Monto</dt>
+                              <dd>{currencyFormatter.format(extractedFields.amount)}</dd>
+                            </div>
+                          ) : null}
+                          {extractedFields.issue_date && !Number.isNaN(Date.parse(extractedFields.issue_date)) ? (
+                            <div>
+                              <dt className="font-medium">Emisión</dt>
+                              <dd>{dateFormatter.format(new Date(extractedFields.issue_date))}</dd>
+                            </div>
+                          ) : null}
+                          {extractedFields.due_date && !Number.isNaN(Date.parse(extractedFields.due_date)) ? (
+                            <div>
+                              <dt className="font-medium">Vencimiento</dt>
+                              <dd>{dateFormatter.format(new Date(extractedFields.due_date))}</dd>
+                            </div>
+                          ) : null}
+                          {extractedFields.payer_name ? (
+                            <div className="sm:col-span-2">
+                              <dt className="font-medium">Pagador sugerido</dt>
+                              <dd>
+                                {extractedFields.payer_name}
+                                {extractedFields.payer_tax_id ? ` • ${extractedFields.payer_tax_id}` : ""}
+                              </dd>
+                            </div>
+                          ) : null}
+                        </dl>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 <div className="sm:col-span-6 space-y-2">
