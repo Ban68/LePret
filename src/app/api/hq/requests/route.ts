@@ -29,11 +29,12 @@ type FundingRequestRow = {
 
 type DocumentRow = {
   id: string;
-  request_id: string;
+  request_id: string | null;
   type: string;
   status: string;
   file_path?: string | null;
   created_at: string;
+  company_id?: string | null;
 };
 
 type OfferRow = {
@@ -167,7 +168,7 @@ export async function GET(req: Request) {
   const companyIds = Array.from(new Set(requests.map((item) => item.company_id).filter(Boolean)));
   const creatorIds = Array.from(new Set(requests.map((item) => item.created_by).filter(Boolean))) as string[];
 
-  const [companiesRes, linksRes, documentsRes, offersRes, profilesRes] = await Promise.all([
+  const [companiesRes, linksRes, requestDocumentsRes, companyDocumentsRes, offersRes, profilesRes] = await Promise.all([
     companyIds.length
       ? supabaseAdmin.from('companies').select('id, name, type').in('id', companyIds)
       : Promise.resolve({ data: [] as Array<{ id: string; name: string; type: string | null }>, error: null }),
@@ -175,7 +176,17 @@ export async function GET(req: Request) {
       ? supabaseAdmin.from('funding_request_invoices').select('request_id, invoice_id').in('request_id', requestIds)
       : Promise.resolve({ data: [] as Array<{ request_id: string; invoice_id: string }>, error: null }),
     requestIds.length
-      ? supabaseAdmin.from('documents').select('id, request_id, type, status, file_path, created_at').in('request_id', requestIds)
+      ? supabaseAdmin
+          .from('documents')
+          .select('id, request_id, type, status, file_path, created_at, company_id')
+          .in('request_id', requestIds)
+      : Promise.resolve({ data: [] as DocumentRow[], error: null }),
+    companyIds.length
+      ? supabaseAdmin
+          .from('documents')
+          .select('id, request_id, type, status, file_path, created_at, company_id')
+          .is('request_id', null)
+          .in('company_id', companyIds)
       : Promise.resolve({ data: [] as DocumentRow[], error: null }),
     requestIds.length
       ? supabaseAdmin.from('offers').select('id, request_id, status, annual_rate, advance_pct, net_amount, valid_until, created_at').in('request_id', requestIds)
@@ -191,8 +202,11 @@ export async function GET(req: Request) {
   if (linksRes.error) {
     return NextResponse.json({ ok: false, error: linksRes.error.message }, { status: 500 });
   }
-  if (documentsRes.error) {
-    return NextResponse.json({ ok: false, error: documentsRes.error.message }, { status: 500 });
+  if (requestDocumentsRes.error) {
+    return NextResponse.json({ ok: false, error: requestDocumentsRes.error.message }, { status: 500 });
+  }
+  if (companyDocumentsRes.error) {
+    return NextResponse.json({ ok: false, error: companyDocumentsRes.error.message }, { status: 500 });
   }
   if (offersRes.error) {
     return NextResponse.json({ ok: false, error: offersRes.error.message }, { status: 500 });
@@ -231,10 +245,27 @@ export async function GET(req: Request) {
   }
 
   const docsMap = new Map<string, DocumentRow[]>();
-  for (const doc of documentsRes.data || []) {
-    const existing = docsMap.get(doc.request_id) || [];
-    existing.push(doc);
-    docsMap.set(doc.request_id, existing);
+  const companyDocsMap = new Map<string, DocumentRow[]>();
+  for (const doc of requestDocumentsRes.data || []) {
+    if (doc.request_id) {
+      const existing = docsMap.get(doc.request_id) || [];
+      existing.push(doc);
+      docsMap.set(doc.request_id, existing);
+    }
+
+    if (doc.company_id) {
+      const companyDocs = companyDocsMap.get(doc.company_id) || [];
+      companyDocs.push(doc);
+      companyDocsMap.set(doc.company_id, companyDocs);
+    }
+  }
+
+  for (const doc of companyDocumentsRes.data || []) {
+    if (doc.company_id) {
+      const companyDocs = companyDocsMap.get(doc.company_id) || [];
+      companyDocs.push(doc);
+      companyDocsMap.set(doc.company_id, companyDocs);
+    }
   }
 
   const offersMap = new Map<string, OfferRow[]>();
@@ -261,10 +292,13 @@ export async function GET(req: Request) {
 
     const invoicesTotal = invoices.reduce((acc, invoice) => acc + resolveInvoiceAmount(invoice), 0);
     const payers = resolvePayers(invoices);
-    const documents = (docsMap.get(request.id) || []).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const requestDocs = docsMap.get(request.id) || [];
+    const companyDocs = request.company_id ? companyDocsMap.get(request.company_id) || [] : [];
+    const combinedDocs = dedupeDocuments([...requestDocs, ...companyDocs.filter((doc) => doc.type.startsWith('KYC_'))]);
+    const documents = combinedDocs.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     const offers = (offersMap.get(request.id) || []).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const activeOffer = offers.length ? offers[0] : null;
-    const docSummary = summariseDocuments(documents);
+    const docSummary = summariseDocuments(requestDocs, companyDocs);
     const nextStep = computeNextAction(request.status, docSummary, activeOffer?.status ?? null);
     const creator = request.created_by ? profileMap.get(request.created_by) : null;
 
@@ -364,13 +398,34 @@ function extractFromMetadata(metadata: Record<string, unknown>): { name: string;
   return null;
 }
 
-function summariseDocuments(documents: DocumentRow[]) {
+function dedupeDocuments(documents: DocumentRow[]) {
+  const seen = new Set<string>();
+  return documents.filter((doc) => {
+    if (seen.has(doc.id)) {
+      return false;
+    }
+    seen.add(doc.id);
+    return true;
+  });
+}
+
+function summariseDocuments(requestDocs: DocumentRow[], companyDocs: DocumentRow[]) {
   const latestByType = new Map<string, DocumentRow>();
-  for (const doc of documents) {
+  const maybeUpdate = (doc: DocumentRow) => {
     const existing = latestByType.get(doc.type);
     if (!existing || new Date(existing.created_at).getTime() < new Date(doc.created_at).getTime()) {
       latestByType.set(doc.type, doc);
     }
+  };
+
+  for (const doc of companyDocs) {
+    if (doc.type.startsWith('KYC_')) {
+      maybeUpdate(doc);
+    }
+  }
+
+  for (const doc of requestDocs) {
+    maybeUpdate(doc);
   }
 
   const missing = REQUIRED_DOC_TYPES.filter((type) => !latestByType.has(type));
