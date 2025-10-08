@@ -428,8 +428,10 @@ function summariseDocuments(requestDocs: DocumentRow[], companyDocs: DocumentRow
     maybeUpdate(doc);
   }
 
-  const missing = REQUIRED_DOC_TYPES.filter((type) => !latestByType.has(type));
+  const missing = REQUIRED_DOC_TYPES.filter((type) => !latestByType.has(type))
+    .filter((type) => !type.startsWith('KYC_'));
   const unsigned = Array.from(latestByType.values())
+    .filter((doc) => !doc.type.startsWith('KYC_'))
     .filter((doc) => doc.status !== 'signed')
     .map((doc) => doc.type);
 
