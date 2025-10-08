@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -1228,6 +1229,12 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
   const [err, setErr] = useState<string | null>(null);
   const [showInvoices, setShowInvoices] = useState(false);
   const [offerDetailsOpen, setOfferDetailsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuReady, setMenuReady] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [menuPlacement, setMenuPlacement] = useState<"top" | "bottom">("bottom");
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const supabase = createClientComponentClient();
 
   const parseCurrency = (s: string) => Number((s || "").replace(/[^0-9]/g, ""));
@@ -1241,7 +1248,123 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
       ? "Ver contrato"
       : "Abrir contrato");
 
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false);
+  }, []);
+
+  const updateMenuPosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const menuWidth = menuRef.current?.offsetWidth ?? 256;
+    const menuHeight = menuRef.current?.offsetHeight ?? 320;
+    const padding = 16;
+
+    let left = rect.right - menuWidth;
+    if (left < padding) {
+      left = padding;
+    }
+    if (left + menuWidth + padding > viewportWidth) {
+      left = Math.max(padding, Math.min(rect.left, viewportWidth - menuWidth - padding));
+    }
+
+    let placement: "top" | "bottom" = "bottom";
+    let top = rect.bottom + 8;
+    if (rect.bottom + menuHeight + padding > viewportHeight && rect.top - menuHeight - 8 > padding) {
+      placement = "top";
+      top = Math.max(padding, rect.top - menuHeight - 8);
+    } else if (top + menuHeight + padding > viewportHeight) {
+      top = Math.max(padding, viewportHeight - menuHeight - padding);
+    }
+
+    setMenuPlacement(placement);
+    setMenuPosition({ top, left });
+  }, []);
+
+  const toggleMenu = useCallback(() => {
+    setMenuOpen((prev) => {
+      const next = !prev;
+      if (!prev) {
+        if (triggerRef.current) {
+          const rect = triggerRef.current.getBoundingClientRect();
+          const viewportWidth = window.innerWidth;
+          const viewportHeight = window.innerHeight;
+          const fallbackWidth = menuRef.current?.offsetWidth ?? 256;
+          const fallbackHeight = menuRef.current?.offsetHeight ?? 320;
+          const padding = 16;
+
+          let left = rect.right - fallbackWidth;
+          if (left < padding) {
+            left = padding;
+          }
+          if (left + fallbackWidth + padding > viewportWidth) {
+            left = Math.max(padding, Math.min(rect.left, viewportWidth - fallbackWidth - padding));
+          }
+
+          let placement: "top" | "bottom" = "bottom";
+          let top = rect.bottom + 8;
+          if (rect.bottom + fallbackHeight + padding > viewportHeight && rect.top - fallbackHeight - 8 > padding) {
+            placement = "top";
+            top = Math.max(padding, rect.top - fallbackHeight - 8);
+          } else if (top + fallbackHeight + padding > viewportHeight) {
+            top = Math.max(padding, viewportHeight - fallbackHeight - padding);
+          }
+
+          setMenuPlacement(placement);
+          setMenuPosition({ top, left });
+        }
+        requestAnimationFrame(() => {
+          updateMenuPosition();
+        });
+      }
+      return next;
+    });
+  }, [updateMenuPosition]);
+
+  useEffect(() => {
+    setMenuReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      setMenuPosition(null);
+      return;
+    }
+
+    updateMenuPosition();
+
+    const handleResize = () => updateMenuPosition();
+    const handleScroll = () => updateMenuPosition();
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMenu();
+      }
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target) || triggerRef.current?.contains(target)) {
+        return;
+      }
+      closeMenu();
+    };
+
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("scroll", handleScroll, true);
+    document.addEventListener("keyup", handleKeyUp);
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("scroll", handleScroll, true);
+      document.removeEventListener("keyup", handleKeyUp);
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [menuOpen, closeMenu, updateMenuPosition]);
+
   const onSave = async () => {
+    closeMenu();
     setBusy(true);
     try {
       const res = await fetch(`/api/c/${orgId}/requests/${req.id}`, {
@@ -1264,6 +1387,7 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
 
   const onDelete = async () => {
     if (!confirm("Eliminar solicitud?")) return;
+    closeMenu();
     setBusy(true);
     try {
       const res = await fetch(`/api/c/${orgId}/requests/${req.id}`, { method: "DELETE" });
@@ -1281,6 +1405,7 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
 
   const onReplace = async (file: File | null) => {
     if (!file) return;
+    closeMenu();
     setBusy(true);
     setErr(null);
     try {
@@ -1308,6 +1433,7 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
   };
 
   const onDeleteFile = async () => {
+    closeMenu();
     setBusy(true);
     setErr(null);
     try {
@@ -1326,6 +1452,7 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
   };
 
   const onAcceptOffer = async (offerId: string) => {
+    closeMenu();
     setBusy(true);
     setErr(null);
     try {
@@ -1344,6 +1471,7 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
   };
 
   const onDownloadSupport = async () => {
+    closeMenu();
     if (!req.file_path) {
       toast.error("No encontramos un soporte para esta solicitud.");
       return;
@@ -1375,6 +1503,7 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
     }
   };
   const onOpenContract = async () => {
+    closeMenu();
     setBusy(true);
     setErr(null);
     try {
@@ -1464,6 +1593,10 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
     if (typeof value !== "number" || Number.isNaN(value)) return null;
     return new Intl.NumberFormat("es-CO").format(value);
   };
+
+  const hasSupport = Boolean(req.file_path);
+  const actionButtonClass = "flex w-full items-center justify-between rounded-md px-3 py-2 text-left transition hover:bg-lp-sec-4/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lp-primary-1/50";
+  const sectionTitleClass = "px-1 text-[11px] font-semibold uppercase tracking-wide text-lp-sec-3";
 
   return (
     <tr className="border-t border-lp-sec-4/60 text-sm">
@@ -1587,7 +1720,7 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
                 size="sm"
                 variant="default"
                 className="mt-1"
-                onClick={() => onAcceptOffer(nextStep.cta!.offer_id!)}
+                onClick={() => void onAcceptOffer(nextStep.cta!.offer_id!)}
                 disabled={busy}
               >
                 {nextStep.cta.label ?? "Aceptar oferta"}
@@ -1599,7 +1732,7 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
                 size="sm"
                 variant="default"
                 className="mt-1"
-                onClick={onOpenContract}
+                onClick={() => void onOpenContract()}
                 disabled={busy}
               >
                 {contractActionLabel}
@@ -1611,111 +1744,172 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
           <span className="text-lp-sec-3">-</span>
         )}
       </td>
-      <td className="px-4 py-2">
-        <details className="relative">
-          <summary className="flex cursor-pointer items-center justify-center rounded-md border border-lp-sec-4/60 bg-white p-1 text-lp-sec-3 transition hover:border-lp-primary-1 hover:text-lp-primary-1">
-            <span className="sr-only">Abrir acciones</span>
-            <MoreVertical className="h-4 w-4" aria-hidden="true" />
-          </summary>
-          <div className="absolute right-0 z-10 mt-2 w-52 rounded-md border border-lp-sec-4/60 bg-white p-2 text-sm shadow-lg">
-            <button
-              type="button"
-              className="w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
-              onClick={() => onOpenTimeline(req.id)}
-              disabled={busy}
-            >
-              Ver historial
-            </button>
-            <Link
-              href={`/c/${orgId}/requests/${req.id}`}
-              className="mt-1 block w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
-            >
-              Abrir detalle
-            </Link>
-            {nextStep?.cta?.kind === "accept_offer" && nextStep.cta.offer_id ? (
-              <button
-                type="button"
-                className="w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
-                onClick={() => onAcceptOffer(nextStep.cta!.offer_id!)}
-                disabled={busy}
-              >
-                {nextStep.cta.label ?? "Aceptar oferta"}
-              </button>
-            ) : null}
-            {nextStep?.cta?.kind === "open_contract" ? (
-              <button
-                type="button"
-                className="mt-1 w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
-                onClick={onOpenContract}
-                disabled={busy}
-              >
-                {contractActionLabel}
-              </button>
-            ) : null}
-            {editing ? (
-              <button
-                type="button"
-                className="w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
-                onClick={onSave}
-                disabled={busy}
-              >
-                Guardar cambios
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
-                onClick={() => setEditing(true)}
-                disabled={busy}
-              >
-                Editar monto
-              </button>
+      <td className="px-4 py-2 text-right">
+        <div className="flex justify-end">
+          <button
+            ref={triggerRef}
+            type="button"
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-md border border-lp-sec-4/60 bg-white text-lp-sec-3 transition hover:border-lp-primary-1 hover:text-lp-primary-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lp-primary-1/40",
+              busy ? "opacity-60" : undefined,
             )}
-            {req.file_path ? (
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-label="Abrir acciones"
+            onClick={toggleMenu}
+            disabled={busy}
+          >
+            <MoreVertical className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        {menuReady && menuOpen && typeof document !== "undefined" && menuPosition
+          ? createPortal(
               <>
-                <button
-                  type="button"
-                  className="mt-1 w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
-                  onClick={onDownloadSupport}
-                  disabled={busy}
+                <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px]" aria-hidden="true" onClick={closeMenu}></div>
+                <div
+                  ref={menuRef}
+                  role="menu"
+                  className={cn(
+                    "fixed z-50 w-64 rounded-xl border border-lp-sec-4/60 bg-white p-3 text-sm shadow-2xl transition-all duration-150",
+                    menuPlacement === "bottom" ? "origin-top-right translate-y-1" : "origin-bottom-right -translate-y-1",
+                  )}
+                  style={{ top: menuPosition.top, left: menuPosition.left }}
                 >
-                  Descargar soporte
-                </button>
-                <button
-                  type="button"
-                  className="mt-1 w-full rounded-md px-2 py-1 text-left hover:bg-lp-sec-4/30"
-                  onClick={onDeleteFile}
-                  disabled={busy}
-                >
-                  Eliminar soporte
-                </button>
-              </>
-            ) : null}
-            <label
-              htmlFor={`support-${req.id}`}
-              className="mt-1 flex cursor-pointer items-center justify-between rounded-md px-2 py-1 hover:bg-lp-sec-4/30"
-            >
-              {req.file_path ? "Reemplazar soporte" : "Subir soporte"}
-              <input
-                id={`support-${req.id}`}
-                type="file"
-                accept=".pdf,image/*"
-                className="hidden"
-                onChange={(e) => onReplace(e.target.files?.[0] ?? null)}
-              />
-            </label>
-            <button
-              type="button"
-              className="mt-1 w-full rounded-md px-2 py-1 text-left text-red-700 hover:bg-red-50"
-              onClick={onDelete}
-              disabled={busy}
-            >
-              Eliminar solicitud
-            </button>
-            {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
-            {busy && <p className="mt-1 text-xs text-lp-sec-3">Procesando...</p>}
-          </div>
-        </details>
+                  <div className="space-y-3">
+                    <div>
+                      <p className={sectionTitleClass}>Seguimiento</p>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={actionButtonClass}
+                        onClick={() => {
+                          closeMenu();
+                          onOpenTimeline(req.id);
+                        }}
+                        disabled={busy}
+                      >
+                        Ver historial
+                      </button>
+                      <Link
+                        href={`/c/${orgId}/requests/${req.id}`}
+                        role="menuitem"
+                        className={cn(actionButtonClass, "mt-1")}
+                        onClick={closeMenu}
+                      >
+                        Abrir detalle
+                      </Link>
+                    </div>
+                    {nextStep?.label ? (
+                      <div className="rounded-lg border border-lp-primary-1/30 bg-lp-primary-1/10 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-lp-primary-1">Próximo paso</p>
+                        <p className="mt-1 text-sm font-medium text-lp-primary-1">{nextStep.label}</p>
+                        {nextStep.hint ? <p className="text-xs text-lp-sec-3">{nextStep.hint}</p> : null}
+                        {nextStep.cta?.kind === "accept_offer" && nextStep.cta.offer_id ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="mt-3 w-full"
+                            onClick={() => void onAcceptOffer(nextStep.cta!.offer_id!)}
+                            disabled={busy}
+                          >
+                            {nextStep.cta.label ?? "Aceptar oferta"}
+                          </Button>
+                        ) : null}
+                        {nextStep.cta?.kind === "open_contract" ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="mt-3 w-full"
+                            onClick={() => void onOpenContract()}
+                            disabled={busy}
+                          >
+                            {contractActionLabel}
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <div>
+                      <p className={sectionTitleClass}>Administrar solicitud</p>
+                      {editing ? (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={actionButtonClass}
+                          onClick={() => void onSave()}
+                          disabled={busy}
+                        >
+                          Guardar cambios
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={actionButtonClass}
+                          onClick={() => {
+                            closeMenu();
+                            setEditing(true);
+                          }}
+                          disabled={busy}
+                        >
+                          Editar monto
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={cn(actionButtonClass, "mt-1 text-red-700 hover:bg-red-50")}
+                        onClick={() => void onDelete()}
+                        disabled={busy}
+                      >
+                        Eliminar solicitud
+                      </button>
+                    </div>
+                    <div>
+                      <p className={sectionTitleClass}>Soportes</p>
+                      {hasSupport ? (
+                        <>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className={actionButtonClass}
+                            onClick={() => void onDownloadSupport()}
+                            disabled={busy}
+                          >
+                            Descargar soporte
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className={cn(actionButtonClass, "mt-1")}
+                            onClick={() => void onDeleteFile()}
+                            disabled={busy}
+                          >
+                            Eliminar soporte
+                          </button>
+                        </>
+                      ) : null}
+                      <label
+                        htmlFor={`support-${req.id}`}
+                        className={cn(actionButtonClass, hasSupport ? "mt-1" : undefined, "cursor-pointer")}
+                      >
+                        {hasSupport ? "Reemplazar soporte" : "Subir soporte"}
+                        <input
+                          id={`support-${req.id}`}
+                          type="file"
+                          accept=".pdf,image/*"
+                          className="hidden"
+                          onChange={(e) => onReplace(e.target.files?.[0] ?? null)}
+                        />
+                      </label>
+                    </div>
+                    {err ? <p className="text-xs text-red-600">{err}</p> : null}
+                    {busy ? <p className="text-xs text-lp-sec-3">Procesando...</p> : null}
+                  </div>
+                </div>
+              </>,
+              document.body,
+            )
+          : null}
       </td>
     </tr>
   );
