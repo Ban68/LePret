@@ -1,7 +1,8 @@
 ﻿import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { logAudit, logStatusChange } from "@/lib/audit";
+import { logAudit, logStatusChange, logIntegrationWarning } from "@/lib/audit";
+import { generateContractForRequest, ContractGenerationError } from "@/lib/contracts";
 
 export async function POST(
   _req: Request,
@@ -40,6 +41,27 @@ export async function POST(
       const { notifyStaffOfferAccepted } = await import("@/lib/notifications");
       await notifyStaffOfferAccepted(offer.company_id, offerId);
     } catch {}
+
+    try {
+      await generateContractForRequest({
+        orgId: offer.company_id,
+        requestId: offer.request_id,
+        actorId: session.user.id,
+        fallbackEmail: session.user.email,
+        skipIfExists: true,
+      });
+    } catch (error) {
+      if (!(error instanceof ContractGenerationError)) {
+        const message = error instanceof Error ? error.message : String(error);
+        await logIntegrationWarning({
+          company_id: offer.company_id,
+          actor_id: session.user.id,
+          provider: "pandadoc",
+          message,
+          meta: { request_id: offer.request_id, offer_id: offerId, code: "contract_generation_failed" },
+        });
+      }
+    }
 
     await logStatusChange({
       company_id: offer.company_id,
