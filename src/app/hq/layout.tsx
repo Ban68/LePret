@@ -1,7 +1,10 @@
 import { ReactNode } from "react";
+
+import { supabaseServer } from "@/lib/supabase-server";
+import { isBackofficeAllowed } from "@/lib/hq-auth";
 import { Toaster } from "@/components/ui/sonner";
 import { HqNavigation } from "./ui/HqNavigation";
-import { HqAccessGate } from "./ui/HqAccessGate";
+
 
 export const dynamic = "force-dynamic";
 
