@@ -21,6 +21,7 @@ Autenticación (Supabase Auth — nativo)
 APIs Placeholder
 ----------------
 - `GET/POST /api/c/:orgId/invoices` — lista/crea facturas (mock).
+- `POST /api/c/:orgId/invoices/extract` — extrae monto, fechas y pagador desde un PDF (máx. 10 MB, `multipart/form-data`).
 - `GET/POST /api/c/:orgId/requests` — lista/crea solicitudes (mock).
 - `GET /api/c/:orgId/me` — devuelve sesión/membresía de ejemplo.
 
