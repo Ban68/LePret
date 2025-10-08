@@ -1,12 +1,12 @@
 ﻿import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { getCompanyActiveMemberEmails } from "@/lib/notifications";
 import { isStaffUser } from "@/lib/staff";
-import { logAudit, logIntegrationWarning } from "@/lib/audit";
+import { logIntegrationWarning } from "@/lib/audit";
+import { generateContractForRequest, ContractGenerationError } from "@/lib/contracts";
 
 export async function POST(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ orgId: string; requestId: string }> }
 ) {
   const { orgId, requestId } = await params;
@@ -24,92 +24,21 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
     }
 
-    const { data: reqRow, error: rErr } = await supabase
-      .from("funding_requests")
-      .select("id, company_id, status, requested_amount")
-      .eq("id", requestId)
-      .eq("company_id", orgId)
-      .single();
-    if (rErr || !reqRow) throw new Error(rErr?.message || "Request not found");
-    if (reqRow.status !== "accepted" && reqRow.status !== "offered") {
-      return NextResponse.json({ ok: false, error: "invalid_status" }, { status: 400 });
-    }
-
-    const { createSignatureEnvelope } = await import("@/lib/integrations/pandadoc");
-    const templateId = process.env.PANDADOC_TEMPLATE_CONTRATO_MARCO;
-    if (!templateId) {
-      await logIntegrationWarning({
-        company_id: orgId,
-        actor_id: session.user.id,
-        provider: "pandadoc",
-        message: "missing_template_env",
-        meta: { request_id: requestId },
-      });
-      return NextResponse.json({ ok: false, error: "missing_template_env" }, { status: 500 });
-    }
-    const signRole = process.env.PANDADOC_SIGN_ROLE || "signer";
-
-    const { admins, clients } = await getCompanyActiveMemberEmails(orgId);
-    const recipientEmail = (clients[0] || admins[0] || session.user.email) as string;
-    const sendViaPandaDoc = (process.env.PANDADOC_SEND || "").toLowerCase() === "true";
-
-    let envelope;
     try {
-      envelope = await createSignatureEnvelope({
-        name: `Contrato Marco - ${orgId}`,
-        recipients: [{ email: recipientEmail || "", role: signRole }],
-        variables: { company_id: orgId, request_id: requestId, amount: Number(reqRow.requested_amount || 0) },
-        templateId,
-        send: sendViaPandaDoc,
-        subject: `[LePret] Contrato listo para firma`,
-        message: `Se ha generado un contrato para la solicitud ${requestId}. Por favor, revísalo y fírmalo.`,
+      const result = await generateContractForRequest({
+        orgId,
+        requestId,
+        actorId: session.user.id,
+        fallbackEmail: session.user.email,
       });
+
+      return NextResponse.json({ ok: true, envelope: result.envelope, document: result.document });
     } catch (error) {
-      await logIntegrationWarning({
-        company_id: orgId,
-        actor_id: session.user.id,
-        provider: "pandadoc",
-        message: error instanceof Error ? error.message : String(error),
-        meta: { request_id: requestId },
-      });
+      if (error instanceof ContractGenerationError) {
+        return NextResponse.json({ ok: false, error: error.code }, { status: error.status });
+      }
       throw error;
     }
-
-    const { data: doc, error: dErr } = await supabase
-      .from("documents")
-      .insert({
-        company_id: orgId,
-        request_id: requestId,
-        type: "CONTRATO_MARCO",
-        status: "created",
-        provider: "PANDADOC",
-        provider_envelope_id: (envelope as { envelopeId: string }).envelopeId,
-        uploaded_by: session.user.id,
-      })
-      .select()
-      .single();
-    if (dErr) throw dErr;
-
-    try {
-      const { notifyClientContractReady } = await import("@/lib/notifications");
-      const appBase = process.env.PANDADOC_APP_URL || "https://app.pandadoc.com/a/#/documents/";
-      const appUrl = `${appBase}${(doc as { provider_envelope_id: string | null }).provider_envelope_id}`;
-      await notifyClientContractReady(orgId, {
-        signUrl: (envelope as { signUrl?: string | null }).signUrl || null,
-        appUrl,
-      });
-    } catch {}
-
-    await logAudit({
-      company_id: orgId,
-      actor_id: session.user.id,
-      entity: "document",
-      entity_id: doc.id,
-      action: "created",
-      data: { type: "CONTRATO_MARCO" },
-    });
-
-    return NextResponse.json({ ok: true, envelope, document: doc });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     await logIntegrationWarning({
