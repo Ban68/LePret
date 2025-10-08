@@ -42,6 +42,7 @@ type ClientNextStep = {
     kind: string;
     label?: string | null;
     offer_id?: string;
+    url?: string | null;
   } | null;
 } | null;
 
@@ -61,11 +62,14 @@ function computeClientNextStep(
   const contractStatus = (contract?.status || "").toLowerCase();
   const contractSigned = contractStatus.includes('signed') || contractStatus.includes('completed');
   const isContractDraftLike = contractStatus.includes('draft') || contractStatus.includes('creating');
-  const contractCTA = !contract || isContractDraftLike
+  const appBase = process.env.PANDADOC_APP_URL || 'https://app.pandadoc.com/a/#/documents/';
+  const contractUrl = contract?.provider_envelope_id ? `${appBase}${contract.provider_envelope_id}` : null;
+  const contractCTA = !contract || isContractDraftLike || !contractUrl
     ? null
     : {
         kind: "open_contract",
         label: contractSigned ? "Ver contrato" : "Firmar contrato",
+        url: contractUrl,
       };
 
   if (normalized === "offered") {

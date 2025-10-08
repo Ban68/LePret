@@ -52,6 +52,7 @@ type RequestItem = {
       kind: string;
       label?: string | null;
       offer_id?: string;
+      url?: string | null;
     } | null;
   } | null;
 };
@@ -1502,35 +1503,6 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
       setBusy(false);
     }
   };
-  const onOpenContract = async () => {
-    closeMenu();
-    setBusy(true);
-    setErr(null);
-    try {
-      const res = await fetch(`/api/c/${orgId}/requests/${req.id}/contract/link`);
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
-      if (!res.ok || !data?.ok || typeof data.url !== "string") {
-        const friendly = data?.error === 'contract_not_ready'
-          ? "Aun estamos preparando tu contrato. Te avisaremos en cuanto este listo."
-          : data?.error || "No se pudo abrir el contrato";
-        throw new Error(friendly);
-      }
-      const popup = window.open(data.url, "_blank", "noopener,noreferrer");
-      if (!popup) {
-        window.location.href = data.url;
-      } else {
-        popup.opener = null;
-      }
-      toast.success("Contrato listo para firma");
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error abriendo contrato";
-      setErr(msg);
-      toast.error(msg);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const formatCurrencyCOP = (value: number | null | undefined) => {
     if (typeof value !== "number" || Number.isNaN(value)) return "-";
     return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
@@ -1726,16 +1698,17 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
                 {nextStep.cta.label ?? "Aceptar oferta"}
               </Button>
             ) : null}
-            {nextStep.cta?.kind === "open_contract" ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="default"
-                className="mt-1"
-                onClick={() => void onOpenContract()}
-                disabled={busy}
-              >
-                {contractActionLabel}
+            {nextStep.cta?.kind === "open_contract" && nextStep.cta?.url ? (
+              <Button asChild size="sm" variant="default" className="mt-1">
+                <Link
+                  href={nextStep.cta.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  prefetch={false}
+                  onClick={closeMenu}
+                >
+                  {contractActionLabel}
+                </Link>
               </Button>
             ) : null}
             {err && <p className="text-xs text-red-600">{err}</p>}
@@ -1815,15 +1788,17 @@ function RequestRow({ orgId, req, onChanged, onOpenTimeline }: { orgId: string; 
                             {nextStep.cta.label ?? "Aceptar oferta"}
                           </Button>
                         ) : null}
-                        {nextStep.cta?.kind === "open_contract" ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="mt-3 w-full"
-                            onClick={() => void onOpenContract()}
-                            disabled={busy}
-                          >
-                            {contractActionLabel}
+                        {nextStep.cta?.kind === "open_contract" && nextStep.cta?.url ? (
+                          <Button asChild size="sm" className="mt-3 w-full">
+                            <Link
+                              href={nextStep.cta.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              prefetch={false}
+                              onClick={closeMenu}
+                            >
+                              {contractActionLabel}
+                            </Link>
                           </Button>
                         ) : null}
                       </div>
