@@ -7,8 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:unit": "node --require ./tests/helpers/register-ts.js --test tests/unit/invoice-pdf-parser.test.cjs",
     "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "pipeline:local": "npm run lint && npm run test:unit && npm run test:e2e"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

@@ -15,6 +15,7 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
 *   **Validación de Formularios:** Zod + React Hook Form
 *   **Base de Datos:** Supabase (PostgreSQL)
 *   **Emails:** Resend (integración preparada, requiere configuración)
+*   **Procesamiento de PDF:** [`pdf-parse`](./packages/pdf-parse) (paquete local usado para prellenar facturas)
 *   **Despliegue:** Vercel
 
 ## Características Principales (MVP)
@@ -106,6 +107,24 @@ Las variables sin el prefijo `NEXT_PUBLIC_` se utilizan del lado del servidor, m
 2. Ejecuta el contenido del archivo `docs/supabase-schema.sql` para crear las tablas requeridas.
 
 Con esto, la base de datos quedará lista para su uso en el proyecto.
+
+## Pruebas y pipeline local
+
+- **Unitarias del parser de facturas:**
+  ```bash
+  npm run test:unit
+  ```
+  El comando utiliza `node --test` junto con el registro TS incluido en `tests/helpers/register-ts.js` para evaluar la extracción de datos desde PDFs de ejemplo.
+- **End-to-end (Playwright):**
+  ```bash
+  npm run test:e2e
+  ```
+  Requiere levantar la app (`npm run dev`) automáticamente y definir `PLAYWRIGHT_STORAGE_STATE`, `E2E_ORG_ID` (obligatorio) y, opcionalmente, `E2E_REQUEST_ID`/`E2E_SIMULATOR_REQUEST_ID` para escenarios adicionales.
+- **Pipeline local completo:**
+  ```bash
+  npm run pipeline:local
+  ```
+  Ejecuta `lint`, pruebas unitarias del parser y las pruebas e2e.
 
 ## Cómo Cambiar Reglas del "Cupo Estimado"
 
