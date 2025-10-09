@@ -88,27 +88,26 @@ export function normalizeHqSettings(input: unknown): HqParameterSettings {
   }
 
   if (value.autoApproval && typeof value.autoApproval === "object") {
+    const current: NonNullable<HqParameterSettings["autoApproval"]> = {
+      ...(base.autoApproval ?? DEFAULT_HQ_SETTINGS.autoApproval!),
+    };
+
     const ratio = toNumber(value.autoApproval.maxExposureRatio);
     if (ratio !== null && ratio > 0) {
-      base.autoApproval = {
-        ...base.autoApproval,
-        maxExposureRatio: ratio,
-      };
+      current.maxExposureRatio = ratio;
     }
+
     const buffer = toNumber(value.autoApproval.maxTenorBufferDays);
     if (buffer !== null && buffer >= 0) {
-      base.autoApproval = {
-        ...base.autoApproval,
-        maxTenorBufferDays: buffer,
-      };
+      current.maxTenorBufferDays = buffer;
     }
+
     const minLevel = value.autoApproval.minRiskLevel;
     if (minLevel === "low" || minLevel === "medium" || minLevel === "high") {
-      base.autoApproval = {
-        ...base.autoApproval,
-        minRiskLevel: minLevel,
-      };
+      current.minRiskLevel = minLevel;
     }
+
+    base.autoApproval = current;
   }
 
   return base;
