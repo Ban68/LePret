@@ -4,9 +4,9 @@ import { cookies } from "next/headers";
 
 export async function PATCH(
   _req: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
-  const notificationId = params?.id;
+  const notificationId = context?.params?.id;
   if (!notificationId) {
     return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
   }
