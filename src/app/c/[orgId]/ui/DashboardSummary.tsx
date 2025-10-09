@@ -1,181 +1,306 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Sparkline } from "@/components/ui/sparkline";
 
-type TimePoint = { date: string; value: number };
-type NextStep = {
-  id: string;
-  status: string;
-  created_at: string | null;
-  requested_amount: number;
-  title: string;
-  hint: string;
+type SummaryMetrics = {
+  activeRequests: number;
+  activeAmount: number;
+  totalRequested: number;
+  totalFunded: number;
+  pendingInvoices: number;
 };
-type Metrics = {
-  invoices: number;
-  funded: number;
-  requestsOpen: number;
-  offersOpen: number;
-  lastActivity: string | null;
-  invoicesAmountTotal?: number;
-  fundedAmountTotal?: number;
-  requestsAmountOpen?: number;
-  series?: { invoicesDaily?: TimePoint[]; requestsDaily?: TimePoint[] };
-  nextSteps?: NextStep[];
+
+type NextAction = {
+  requestId: string;
+  status: string | null;
+  stage: number;
+  label: string;
+  description: string | null;
+};
+
+type TrendPoint = { label: string; requested: number; funded: number };
+
+type TimelineEvent = {
+  id: string;
+  requestId: string;
+  title: string;
+  description: string | null;
+  occurredAt: string | null;
+  status: string | null;
+  type: string | null;
+};
+
+type Notification = { type: string; message: string };
+
+type SummaryResponse = {
+  metrics: SummaryMetrics;
+  nextActions: NextAction[];
+  trend: TrendPoint[];
+  events: TimelineEvent[];
+  notifications: Notification[];
 };
 
 export function DashboardSummary({ orgId }: { orgId: string }) {
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const res = await fetch(`/api/c/${orgId}/summary`);
-    const data = await res.json();
-    if (!res.ok) setError(data.error || "Error cargando");
-    else setMetrics(data.metrics);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/c/${orgId}/summary`, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Error al cargar el resumen");
+        setSummary(null);
+      } else {
+        setSummary(data.summary as SummaryResponse);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error inesperado");
+      setSummary(null);
+    } finally {
+      setLoading(false);
+    }
   }, [orgId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const Card = ({ title, value, href }: { title: string; value: number | string; href?: string }) => (
-    <div className="rounded-lg border border-lp-sec-4/60 p-5">
-      <div className="text-sm text-lp-sec-3">{title}</div>
-      <div className="mt-2 text-3xl font-semibold text-lp-primary-1">{loading ? "-" : value}</div>
-      {href && (
-        <div className="mt-3 text-sm">
-          <Link href={href} className="underline">
-            Ver detalle
-          </Link>
-        </div>
-      )}
-    </div>
-  );
+  const formatCurrency = useCallback((value?: number | null) => {
+    const amount = Number(value || 0);
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: "COP",
+      maximumFractionDigits: 0,
+    }).format(amount);
+  }, []);
 
-  const fmt = (n?: number) => new Intl.NumberFormat("es-CO").format(n || 0);
+  const formatNumber = useCallback((value?: number | null) => {
+    return new Intl.NumberFormat("es-CO").format(Number(value || 0));
+  }, []);
+
+  const trendData = useMemo(() => {
+    return (summary?.trend || []).map((point) => ({
+      ...point,
+      month: formatMonth(point.label),
+    }));
+  }, [summary?.trend]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="font-semibold">No pudimos cargar el tablero</div>
+          <p className="mt-1">{error}</p>
+          <button
+            type="button"
+            className="mt-3 rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-700"
+            onClick={load}
+          >
+            Reintentar
+          </button>
+        </div>
       )}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card
-          title="Facturas cargadas"
-          value={`${fmt(metrics?.invoices)} | $${fmt(metrics?.invoicesAmountTotal)}`}
-          href={`/c/${orgId}/invoices`}
-        />
-        <Card
-          title="Solicitudes en curso"
-          value={`${fmt(metrics?.requestsOpen)} | $${fmt(metrics?.requestsAmountOpen)}`}
-          href={`/c/${orgId}/requests`}
-        />
-        <Card
-          title="Desembolsos completados"
-          value={`${fmt(metrics?.funded)} | $${fmt(metrics?.fundedAmountTotal)}`}
-          href={`/c/${orgId}/invoices?status=funded`}
-        />
-      </div>
-      <div className="text-sm text-lp-sec-3">
-        {metrics?.offersOpen ? (
-          <span>Tienes {metrics.offersOpen} oferta(s) para revisar.</span>
-        ) : (
-          <span>Sin ofertas pendientes.</span>
-        )}
-        {metrics?.lastActivity && (
-          <span className="ml-2">Ultima actividad: {new Date(metrics.lastActivity).toLocaleDateString()}</span>
-        )}
-      </div>
-      <NextStepsPanel steps={metrics?.nextSteps} loading={loading} orgId={orgId} />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="rounded-lg border border-lp-sec-4/60 p-5">
-          <div className="mb-2 text-sm text-lp-sec-3">Facturas creadas (30 dias)</div>
-          {loading ? <div className="text-sm text-lp-sec-3">Cargando...</div> : <Spark metrics={metrics} kind="invoicesDaily" />}
-        </div>
-        <div className="rounded-lg border border-lp-sec-4/60 p-5">
-          <div className="mb-2 text-sm text-lp-sec-3">Solicitudes creadas (30 dias)</div>
-          {loading ? <div className="text-sm text-lp-sec-3">Cargando...</div> : <Spark metrics={metrics} kind="requestsDaily" />}
-        </div>
-      </div>
-    </div>
-  );
-}
 
-function Spark({ metrics, kind }: { metrics: Metrics | null; kind: "invoicesDaily" | "requestsDaily" }) {
-  const series = metrics?.series?.[kind] as TimePoint[] | undefined;
-  const data = (series || []).sort((a, b) => a.date.localeCompare(b.date)).map((d) => d.value);
-  if (!data.length) return <div className="text-sm text-lp-sec-3">Sin datos</div>;
-  return (
-    <div className="flex items-end gap-4">
-      <Sparkline data={data} />
-      <div className="text-sm text-lp-sec-3">
-        Total: {new Intl.NumberFormat("es-CO").format(data.reduce((s, v) => s + v, 0))}
-      </div>
-    </div>
-  );
-}
-
-function NextStepsPanel({ steps, loading, orgId }: { steps?: NextStep[] | null; loading: boolean; orgId: string }) {
-  if (loading) {
-    return (
-      <div className="rounded-lg border border-dashed border-lp-sec-4/60 p-5 text-sm text-lp-sec-3">
-        Cargando proximos pasos...
-      </div>
-    );
-  }
-
-  const list = steps || [];
-
-  if (!list.length) {
-    return (
-      <div className="rounded-lg border border-lp-sec-4/60 p-5">
-        <div className="text-lg font-semibold text-lp-primary-1">Proximos pasos</div>
-        <p className="text-sm text-lp-sec-3">No tienes acciones pendientes por ahora.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-lg border border-lp-sec-4/60 p-5">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="text-lg font-semibold text-lp-primary-1">Proximos pasos</div>
-          <p className="text-sm text-lp-sec-3">Acciones recomendadas para avanzar tus solicitudes activas.</p>
-        </div>
-        <Link href={`/c/${orgId}/requests`} className="text-sm font-medium text-lp-primary-1 underline hover:opacity-80">
-          Ver solicitudes
-        </Link>
-      </div>
-      <ul className="space-y-3">
-        {list.map((step) => (
-          <li key={step.id} className="rounded-md border border-lp-sec-4/60 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="font-mono text-xs text-lp-sec-3">#{truncateId(step.id)}</div>
-              <StatusBadge status={step.status} kind="request" />
+      {!!summary?.notifications?.length && (
+        <div className="space-y-2">
+          {summary.notifications.map((notification) => (
+            <div
+              key={`${notification.type}-${notification.message}`}
+              className="flex items-start gap-3 rounded-md border border-lp-primary-1/20 bg-lp-primary-1/5 p-4 text-sm text-lp-primary-1"
+            >
+              <span className="mt-0.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-lp-primary-1" aria-hidden />
+              <span>{notification.message}</span>
             </div>
-            <div className="mt-2 text-sm font-semibold text-lp-primary-1">{step.title}</div>
-            <p className="mt-1 text-sm text-lp-sec-3">{step.hint}</p>
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-lp-sec-3">
-              <span>Monto solicitado: ${formatCurrency(step.requested_amount)}</span>
-              {step.created_at && <span>Creada: {formatDate(step.created_at)}</span>}
-            </div>
-            <div className="mt-3">
-              <Link href={`/c/${orgId}/requests`} className="text-xs font-medium text-lp-primary-1 underline hover:opacity-80">
-                Abrir solicitud
+          ))}
+        </div>
+      )}
+
+      <section>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            title="Solicitudes activas"
+            value={loading ? "-" : formatNumber(summary?.metrics.activeRequests)}
+            hint={`Monto en curso: ${formatCurrency(summary?.metrics.activeAmount)}`}
+          />
+          <MetricCard
+            title="Importe solicitado"
+            value={loading ? "-" : formatCurrency(summary?.metrics.totalRequested)}
+            hint="Histórico de solicitudes registradas"
+          />
+          <MetricCard
+            title="Total desembolsado"
+            value={loading ? "-" : formatCurrency(summary?.metrics.totalFunded)}
+            hint="Importe acumulado de desembolsos"
+          />
+          <MetricCard
+            title="Facturas por validar"
+            value={loading ? "-" : formatNumber(summary?.metrics.pendingInvoices)}
+            hint="Facturas cargadas en espera de revisión"
+          />
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+        <div className="space-y-4 lg:col-span-3">
+          <div className="rounded-lg border border-lp-sec-4/60 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-lp-primary-1">Siguiente acción</h2>
+                <p className="text-sm text-lp-sec-3">
+                  Recomendaciones basadas en el estado más avanzado de tus solicitudes activas.
+                </p>
+              </div>
+              <Link href={`/c/${orgId}/requests`} className="text-sm font-medium text-lp-primary-1 underline">
+                Ver todas
               </Link>
             </div>
-          </li>
-        ))}
-      </ul>
+
+            {loading ? (
+              <div className="mt-4 rounded-md border border-dashed border-lp-sec-4/60 p-4 text-sm text-lp-sec-3">
+                Cargando acciones sugeridas...
+              </div>
+            ) : summary?.nextActions?.length ? (
+              <ul className="mt-4 space-y-3">
+                {summary.nextActions.map((action) => (
+                  <li key={action.requestId} className="rounded-md border border-lp-sec-4/60 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-lp-sec-3">
+                      <span className="font-mono">#{truncateId(action.requestId)}</span>
+                      <StatusBadge status={action.status} kind="request" />
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-lp-primary-1">{action.label}</div>
+                    {action.description && <p className="mt-1 text-sm text-lp-sec-3">{action.description}</p>}
+                    <div className="mt-3 text-xs text-lp-primary-1">
+                      <Link href={`/c/${orgId}/requests`} className="underline">
+                        Abrir solicitud
+                      </Link>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="mt-4 rounded-md border border-lp-sec-4/60 p-4 text-sm text-lp-sec-3">
+                No hay acciones pendientes por ahora.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4 lg:col-span-2">
+          <div className="rounded-lg border border-lp-sec-4/60 p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-lp-primary-1">Eventos recientes</h2>
+                <p className="text-sm text-lp-sec-3">Últimas novedades registradas en tus solicitudes.</p>
+              </div>
+              <Link href={`/c/${orgId}/requests`} className="text-xs font-medium text-lp-primary-1 underline">
+                Revisar
+              </Link>
+            </div>
+            {loading ? (
+              <div className="rounded-md border border-dashed border-lp-sec-4/60 p-4 text-sm text-lp-sec-3">
+                Consultando actividad reciente...
+              </div>
+            ) : summary?.events?.length ? (
+              <ul className="space-y-3 text-sm">
+                {summary.events.map((event) => (
+                  <li key={event.id} className="rounded-md border border-lp-sec-4/60 p-3">
+                    <div className="flex items-center justify-between gap-2 text-xs text-lp-sec-3">
+                      <span className="font-mono">#{truncateId(event.requestId)}</span>
+                      {event.occurredAt && <span>{formatDate(event.occurredAt)}</span>}
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-lp-primary-1">{event.title}</div>
+                    {event.description && (
+                      <p className="mt-1 text-sm text-lp-sec-3">{event.description}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="rounded-md border border-lp-sec-4/60 p-4 text-sm text-lp-sec-3">
+                No registramos eventos recientes.
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-lp-sec-4/60 p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-lp-primary-1">Evolución de operaciones</h2>
+            <p className="text-sm text-lp-sec-3">Solicitudes registradas vs. importes desembolsados en los últimos meses.</p>
+          </div>
+        </div>
+        {loading ? (
+          <div className="rounded-md border border-dashed border-lp-sec-4/60 p-4 text-sm text-lp-sec-3">
+            Preparando gráfico...
+          </div>
+        ) : trendData.length ? (
+          <div className="h-64 w-full">
+            <ResponsiveContainer>
+              <AreaChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorRequested" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#1A56DB" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#1A56DB" stopOpacity={0.05} />
+                  </linearGradient>
+                  <linearGradient id="colorFunded" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#16A34A" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#16A34A" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="month" stroke="#6b7280" tickLine={false} axisLine={false} />
+                <YAxis stroke="#6b7280" tickFormatter={(value) => formatYAxis(value)} width={90} />
+                <Tooltip
+                  formatter={(value: number, name: string) => [formatCurrency(value), name === "requested" ? "Solicitado" : "Desembolsado"]}
+                  labelFormatter={(label: string) => label}
+                />
+                <Legend formatter={(value) => (value === "requested" ? "Solicitado" : "Desembolsado")} />
+                <Area type="monotone" dataKey="requested" stroke="#1A56DB" fill="url(#colorRequested)" name="requested" />
+                <Area type="monotone" dataKey="funded" stroke="#16A34A" fill="url(#colorFunded)" name="funded" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="rounded-md border border-lp-sec-4/60 p-4 text-sm text-lp-sec-3">
+            Aún no contamos con datos suficientes para mostrar el gráfico.
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+type MetricCardProps = {
+  title: string;
+  value: string;
+  hint?: string;
+};
+
+function MetricCard({ title, value, hint }: MetricCardProps) {
+  return (
+    <div className="rounded-lg border border-lp-sec-4/60 p-5">
+      <div className="text-sm text-lp-sec-3">{title}</div>
+      <div className="mt-2 text-2xl font-semibold text-lp-primary-1">{value}</div>
+      {hint && <p className="mt-1 text-xs text-lp-sec-3">{hint}</p>}
     </div>
   );
 }
@@ -185,12 +310,23 @@ function truncateId(value: string): string {
   return `${value.slice(0, 4)}...${value.slice(-3)}`;
 }
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(value || 0);
+function formatMonth(label: string): string {
+  const [year, month] = label.split("-");
+  if (!year || !month) return label;
+  const date = new Date(Number(year), Number(month) - 1, 1);
+  if (Number.isNaN(date.getTime())) return label;
+  return date.toLocaleDateString("es-CO", { month: "short", year: "2-digit" });
 }
 
 function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function formatYAxis(value: number): string {
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
+  return `${Math.round(value)}`;
 }

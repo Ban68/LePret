@@ -1,9 +1,184 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { getUsedInvoiceIds } from "../invoices/helpers";
 
 export const runtime = "nodejs";
+
+type FundingRequestRow = {
+  id: string;
+  status: string | null;
+  requested_amount: number | null;
+  created_at: string | null;
+  invoice_id: string | null;
+  archived_at: string | null;
+};
+
+type InvoiceRow = {
+  id: string;
+  amount: number | null;
+  status: string | null;
+  created_at: string | null;
+};
+
+type TimelineRow = {
+  id: string;
+  request_id: string;
+  event_type: string | null;
+  title: string | null;
+  description: string | null;
+  occurred_at: string | null;
+  status: string | null;
+};
+
+const FINAL_REQUEST_STATUSES = new Set(["funded", "cancelled", "rejected", "declined", "denied", "archived"]);
+
+const REQUEST_STAGE_ORDER: Record<string, number> = {
+  review: 1,
+  offered: 2,
+  accepted: 3,
+  signed: 4,
+  funded: 5,
+};
+
+type NextAction = {
+  requestId: string;
+  status: string | null;
+  stage: number;
+  label: string;
+  description: string | null;
+};
+
+type Notification = { type: string; message: string };
+
+type TrendPoint = { label: string; requested: number; funded: number };
+
+function computeNextAction(row: FundingRequestRow): NextAction {
+  const status = (row.status || "").toLowerCase();
+  const stage = REQUEST_STAGE_ORDER[status] ?? 0;
+  if (!status || FINAL_REQUEST_STATUSES.has(status)) {
+    return {
+      requestId: row.id,
+      status: row.status,
+      stage,
+      label: "Seguimiento en curso",
+      description: "Estamos monitoreando el estado de tu solicitud.",
+    };
+  }
+
+  if (status === "review") {
+    if (!row.invoice_id) {
+      return {
+        requestId: row.id,
+        status: row.status,
+        stage,
+        label: "Adjuntar factura",
+        description: "Agrega una factura a la solicitud para continuar con el análisis.",
+      };
+    }
+    return {
+      requestId: row.id,
+      status: row.status,
+      stage,
+      label: "Completar revisión",
+      description: "Nuestro equipo revisa tus documentos. Te avisaremos si necesitamos algo más.",
+    };
+  }
+
+  if (status === "offered") {
+    return {
+      requestId: row.id,
+      status: row.status,
+      stage,
+      label: "Revisar oferta",
+      description: "Valida la oferta disponible y confirma si deseas avanzar.",
+    };
+  }
+
+  if (status === "accepted") {
+    return {
+      requestId: row.id,
+      status: row.status,
+      stage,
+      label: "Firmar contrato",
+      description: "Firma el contrato para preparar el desembolso.",
+    };
+  }
+
+  if (status === "signed") {
+    return {
+      requestId: row.id,
+      status: row.status,
+      stage,
+      label: "Esperar desembolso",
+      description: "Estamos programando el desembolso correspondiente.",
+    };
+  }
+
+  if (status === "funded") {
+    return {
+      requestId: row.id,
+      status: row.status,
+      stage,
+      label: "Solicitud desembolsada",
+      description: "El proceso finalizó con éxito.",
+    };
+  }
+
+  if (status === "cancelled") {
+    return {
+      requestId: row.id,
+      status: row.status,
+      stage,
+      label: "Solicitud cancelada",
+      description: "Contáctanos si deseas retomarla.",
+    };
+  }
+
+  return {
+    requestId: row.id,
+    status: row.status,
+    stage,
+    label: "Seguimiento en curso",
+    description: "Seguimos acompañando tu operación.",
+  };
+}
+
+function monthKey(value: Date): string {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function buildTrend(requests: FundingRequestRow[], invoices: InvoiceRow[]): TrendPoint[] {
+  const months = new Map<string, TrendPoint>();
+  const today = new Date();
+  for (let i = 5; i >= 0; i -= 1) {
+    const seed = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const label = monthKey(seed);
+    months.set(label, { label, requested: 0, funded: 0 });
+  }
+
+  requests.forEach((row) => {
+    if (!row.created_at) return;
+    const created = new Date(row.created_at);
+    if (Number.isNaN(created.getTime())) return;
+    const label = monthKey(new Date(created.getFullYear(), created.getMonth(), 1));
+    if (!months.has(label)) return;
+    const point = months.get(label)!;
+    point.requested += Number(row.requested_amount || 0);
+  });
+
+  invoices.forEach((row) => {
+    if ((row.status || "").toLowerCase() !== "funded") return;
+    if (!row.created_at) return;
+    const created = new Date(row.created_at);
+    if (Number.isNaN(created.getTime())) return;
+    const label = monthKey(new Date(created.getFullYear(), created.getMonth(), 1));
+    if (!months.has(label)) return;
+    const point = months.get(label)!;
+    point.funded += Number(row.amount || 0);
+  });
+
+  return Array.from(months.values()).sort((a, b) => a.label.localeCompare(b.label));
+}
 
 export async function GET(
   _req: Request,
@@ -21,114 +196,87 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const [invAll, invFunded, requestsActive, offerOpen, usedIds] = await Promise.all([
-      supabase.from('invoices').select('id, amount, created_at, status').eq('company_id', orgId),
-      supabase.from('invoices').select('id, amount, created_at, status').eq('company_id', orgId).eq('status', 'funded'),
+    const [requestsRes, invoicesRes, eventsRes] = await Promise.all([
       supabase
-        .from('funding_requests')
-        .select('id, requested_amount, created_at, status, archived_at')
-        .eq('company_id', orgId)
-        .is('archived_at', null)
-        .in('status', ['review', 'offered', 'accepted', 'signed']),
-      supabase.from('offers').select('id', { count: 'exact', head: true }).eq('company_id', orgId).eq('status', 'offered'),
-      getUsedInvoiceIds(supabase, orgId),
+        .from("funding_requests")
+        .select("id, status, requested_amount, created_at, invoice_id, archived_at")
+        .eq("company_id", orgId),
+      supabase.from("invoices").select("id, amount, status, created_at").eq("company_id", orgId),
+      supabase
+        .from("request_timeline_entries")
+        .select("id, request_id, event_type, title, description, occurred_at, status")
+        .eq("company_id", orgId)
+        .order("occurred_at", { ascending: false })
+        .limit(6),
     ]);
 
-    const allDates: string[] = [];
-    const addDate = (d?: string | null) => {
-      if (!d) return;
-      const key = d.slice(0, 10);
-      allDates.push(key);
-    };
-    const invRows = (invAll.data || []).filter((row) => !usedIds.has((row as { id: string }).id));
-    invRows.forEach((r) => addDate((r as { created_at?: string | null }).created_at || null));
-    const lastActivity = allDates.sort().pop() || null;
-
-    const requestsRows = (requestsActive.data || []) as Array<{ id: string; status?: string | null; requested_amount?: number | string | null; created_at?: string | null }>;
-
-    const invoicesCount = invRows.length;
-    const invoicesAmountTotal = invRows.reduce(
-      (sum: number, row) => sum + Number((row as { amount?: number | string | null }).amount || 0),
-      0,
-    );
-    const fundedCount = invFunded.data?.length ?? 0;
-    const fundedAmountTotal = (invFunded.data || []).reduce((sum: number, row) => sum + Number((row as { amount?: number | string | null }).amount || 0), 0);
-    const requestsOpenCount = requestsRows.filter((row) => {
-      const status = (row.status || '').toLowerCase();
-      return status === 'review' || status === 'offered';
-    }).length;
-    const requestsAmountOpen = requestsRows.reduce((sum: number, row) => {
-      const status = (row.status || '').toLowerCase();
-      if (status !== 'review' && status !== 'offered') return sum;
-      return sum + Number(row.requested_amount || 0);
-    }, 0);
-
-    const start = new Date(Date.now() - 30 * 24 * 3600 * 1000);
-    function makeSeries(rows: Array<Record<string, unknown>>, field: 'created_at', valueField?: string) {
-      const map = new Map<string, number>();
-      for (let i = 0; i < 31; i++) {
-        const d = new Date(start.getTime() + i * 24 * 3600 * 1000);
-        const k = d.toISOString().slice(0, 10);
-        map.set(k, 0);
-      }
-      rows.forEach((record) => {
-        const created = record[field] as string | null | undefined;
-        if (!created) return;
-        const date = new Date(created);
-        if (date >= start) {
-          const key = date.toISOString().slice(0, 10);
-          const raw = valueField ? (record[valueField] as number | string | null) : 1;
-          const val = valueField ? Number(raw || 0) : 1;
-          map.set(key, (map.get(key) || 0) + val);
-        }
-      });
-      return Array.from(map.entries()).map(([date, value]) => ({ date, value }));
+    if (requestsRes.error) {
+      return NextResponse.json({ ok: false, error: requestsRes.error.message }, { status: 500 });
+    }
+    if (invoicesRes.error) {
+      return NextResponse.json({ ok: false, error: invoicesRes.error.message }, { status: 500 });
     }
 
-    const nextSteps = requestsRows
-      .map((row) => {
-        const status = (row.status || '').toLowerCase();
-        const base = {
-          id: row.id,
-          status,
-          created_at: row.created_at || null,
-          requested_amount: Number(row.requested_amount || 0),
-        };
-        switch (status) {
-          case 'review':
-            return { ...base, title: 'Estamos revisando tu solicitud', hint: 'Estamos validando tus documentos y te avisaremos cuando tengamos una oferta.' };
-          case 'offered':
-            return { ...base, title: 'Revisar y responder la oferta', hint: 'Ingresa a la solicitud para aceptar la oferta o pedir ajustes.' };
-          case 'accepted':
-            return { ...base, title: 'Completar documentacion y firmas', hint: 'Sube los documentos faltantes y revisa el contrato para continuar.' };
-          case 'signed':
-            return { ...base, title: 'Esperar desembolso', hint: 'Estamos programando el desembolso y te notificaremos al completarlo.' };
-          case 'cancelled':
-            return { ...base, title: 'Solicitud denegada', hint: 'Te contactaremos si necesitamos informacion adicional o si podemos reevaluar mas adelante.' };
-          default:
-            return { ...base, title: 'Seguimiento en curso', hint: 'Seguimos acompanando tu operacion.' };
-        }
-      })
-      .sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime())
-      .slice(0, 4);
+    const requests = (requestsRes.data || []) as FundingRequestRow[];
+    const invoices = (invoicesRes.data || []) as InvoiceRow[];
+    const events = (eventsRes?.data || []) as TimelineRow[];
 
-    const invoicesDaily = makeSeries(invRows as Array<Record<string, unknown>>, 'created_at');
-    const fundedDaily = makeSeries(invFunded.data || [], 'created_at');
-    const requestsDaily = makeSeries(requestsRows as unknown as Array<Record<string, unknown>>, 'created_at');
+    const activeRequests = requests.filter((row) => {
+      const status = (row.status || "").toLowerCase();
+      return !FINAL_REQUEST_STATUSES.has(status) && !row.archived_at;
+    });
+
+    const metrics = {
+      activeRequests: activeRequests.length,
+      activeAmount: activeRequests.reduce((sum, row) => sum + Number(row.requested_amount || 0), 0),
+      totalRequested: requests.reduce((sum, row) => sum + Number(row.requested_amount || 0), 0),
+      totalFunded: invoices
+        .filter((row) => (row.status || "").toLowerCase() === "funded")
+        .reduce((sum, row) => sum + Number(row.amount || 0), 0),
+      pendingInvoices: invoices.filter((row) => (row.status || "").toLowerCase() === "uploaded").length,
+    };
+
+    const nextActions = activeRequests
+      .map((row) => computeNextAction(row))
+      .sort((a, b) => b.stage - a.stage)
+      .slice(0, 5);
+
+    const trend = buildTrend(requests, invoices);
+
+    const notifications: Notification[] = [];
+    if (metrics.pendingInvoices > 0) {
+      notifications.push({
+        type: "pending_invoices",
+        message: `Tienes ${metrics.pendingInvoices} factura${metrics.pendingInvoices === 1 ? "" : "s"} pendiente${
+          metrics.pendingInvoices === 1 ? "" : "s"
+        } de validación.`,
+      });
+    }
+    if (metrics.activeRequests === 0 && requests.length > 0) {
+      notifications.push({
+        type: "no_active_requests",
+        message: "No tienes solicitudes activas en este momento.",
+      });
+    }
+
+    const formattedEvents = events.map((event) => ({
+      id: event.id,
+      requestId: event.request_id,
+      title: event.title || event.event_type || "Actualización",
+      description: event.description,
+      occurredAt: event.occurred_at,
+      status: event.status,
+      type: event.event_type,
+    }));
 
     return NextResponse.json({
       ok: true,
-      metrics: {
-        invoices: invoicesCount,
-        invoicesAmountTotal,
-        funded: fundedCount,
-        fundedAmountTotal,
-        requestsOpen: requestsOpenCount,
-        requestsAmountOpen,
-        offersOpen: offerOpen.count ?? 0,
-        lastActivity,
-        series: { invoicesDaily, fundedDaily, requestsDaily },
-        nextSteps,
+      summary: {
+        metrics,
+        nextActions,
+        trend,
+        events: formattedEvents,
+        notifications,
       },
     });
   } catch (e: unknown) {
