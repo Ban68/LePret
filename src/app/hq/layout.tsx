@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { isBackofficeAllowed } from "@/lib/hq-auth";
 import { Toaster } from "@/components/ui/sonner";
 import { HqNavigation } from "./ui/HqNavigation";
+import { NotificationCenter } from "@/components/ui/NotificationCenter";
 
 export const dynamic = "force-dynamic";
 
@@ -33,11 +34,14 @@ export default async function HqLayout({ children }: HqLayoutProps) {
   return (
     <div className="py-10">
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <header className="mb-8">
-          <h1 className="font-colette text-3xl font-bold text-lp-primary-1">Backoffice HQ</h1>
-          <p className="mt-2 text-sm text-lp-sec-3">
-            Panel de control con métricas, operaciones y gestión de usuarios.
-          </p>
+        <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="font-colette text-3xl font-bold text-lp-primary-1">Backoffice HQ</h1>
+            <p className="mt-2 text-sm text-lp-sec-3">
+              Panel de control con métricas, operaciones y gestión de usuarios.
+            </p>
+          </div>
+          <NotificationCenter />
         </header>
 
         <HqNavigation />
