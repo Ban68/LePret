@@ -4,12 +4,14 @@ import { InvestorNavigation } from "./ui/InvestorNavigation";
 
 interface InvestorLayoutProps {
   children: ReactNode;
-  params: {
+  params: Promise<{
     orgId: string;
-  };
+  }>;
 }
 
-export default function InvestorLayout({ children, params }: InvestorLayoutProps) {
+export default async function InvestorLayout({ children, params }: InvestorLayoutProps) {
+  const { orgId } = await params;
+
   return (
     <div className="py-10">
       <div className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -20,7 +22,7 @@ export default function InvestorLayout({ children, params }: InvestorLayoutProps
           </p>
         </header>
 
-        <InvestorNavigation orgId={params.orgId} />
+        <InvestorNavigation orgId={orgId} />
 
         <main className="mt-8 space-y-8">{children}</main>
       </div>
