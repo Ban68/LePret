@@ -2,13 +2,10 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
-type Params = {
-  params: {
-    id: string;
-  };
-};
-
-export async function PATCH(_req: Request, { params }: Params) {
+export async function PATCH(
+  _req: Request,
+  { params }: { params: { id: string } }
+) {
   const notificationId = params?.id;
   if (!notificationId) {
     return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
