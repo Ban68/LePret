@@ -4,6 +4,16 @@ import { cookies } from "next/headers";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
+async function getAuthenticatedClient() {
+  const cookieStore = cookies();
+  const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  return { supabase, session } as const;
+}
+
 export async function PATCH(
   _req: Request,
   { params }: RouteParams
@@ -13,11 +23,7 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
   }
 
-  const cookieStore = cookies();
-  const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const { supabase, session } = await getAuthenticatedClient();
 
   if (!session) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });

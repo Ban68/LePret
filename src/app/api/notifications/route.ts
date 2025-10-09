@@ -46,12 +46,18 @@ function parseIsRead(value: string | null): boolean | null {
   return null;
 }
 
-export async function GET(req: Request) {
+async function getAuthenticatedClient() {
   const cookieStore = cookies();
   const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
   const {
     data: { session },
   } = await supabase.auth.getSession();
+
+  return { supabase, session } as const;
+}
+
+export async function GET(req: Request) {
+  const { supabase, session } = await getAuthenticatedClient();
 
   if (!session) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -97,11 +103,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const cookieStore = cookies();
-  const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const { supabase, session } = await getAuthenticatedClient();
 
   if (!session) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
