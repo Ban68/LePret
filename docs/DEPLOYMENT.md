@@ -10,7 +10,7 @@ Este documento es una guía práctica para dejar la aplicación lista en producc
 
 ## 1) Supabase (Producción)
 1. Crea un proyecto “prod” y abre el SQL Editor.
-2. Ejecuta una sola vez el esquema: `docs/supabase-schema.sql`.
+2. Crea una nueva consulta y pega todo el contenido del archivo `docs/supabase-schema.sql` (desde el repo) y ejecútalo una sola vez; el script es idempotente y se encargará de crear tablas, RLS y buckets requeridos. Si lo necesitas desde el navegador, abre `https://raw.githubusercontent.com/LePret/LePret/main/docs/supabase-schema.sql`, copia todo el texto sin cambios y pégalo tal cual en el SQL Editor.
 3. Verifica tablas: `profiles, companies, memberships, invoices, funding_requests, offers, documents, audit_logs`.
 4. Verifica buckets privados: `invoices, requests, kyc, contracts`.
 5. Marca al menos un usuario staff global (operaciones):

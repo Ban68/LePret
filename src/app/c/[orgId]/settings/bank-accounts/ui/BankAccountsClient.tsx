@@ -151,11 +151,12 @@ export function BankAccountsClient({ orgId }: { orgId: string }) {
       if (!res.ok || !data.ok || !data.account) {
         throw new Error(data.error || "No se pudo guardar la cuenta");
       }
+      const account = data.account;
       setItems((prev) => {
-        const next = form.is_default
+        const normalized: BankAccount[] = form.is_default
           ? prev.map((item) => ({ ...item, is_default: false }))
-          : prev.slice();
-        return [data.account, ...next];
+          : [...prev];
+        return [account, ...normalized];
       });
       resetForm();
       toast.success("Cuenta bancaria guardada");

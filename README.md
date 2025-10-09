@@ -80,6 +80,7 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
 
 Este proyecto está optimizado para despliegue en Vercel.
 
+0.  **Prepara Supabase:** Antes del primer deploy crea un proyecto en Supabase (prod) y ejecuta el script `docs/supabase-schema.sql` desde el SQL Editor. Esto crea las tablas, políticas RLS y buckets privados (`invoices`, `requests`, `kyc`, `contracts`) necesarios. Marca al menos un usuario con `is_staff = true` para poder operar el backoffice.
 1.  **Conectar Repositorio:** Conecta tu repositorio de GitHub/GitLab/Bitbucket a Vercel.
 2.  **Configurar Variables de Entorno:** En la configuración del proyecto en Vercel, añade las mismas variables de entorno (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RESEND_API_KEY`) que usaste localmente.
 3.  **Despliegue Automático:** Cada push a la rama principal (o a una PR, si configuras los preview deploys) activará un nuevo despliegue.
@@ -104,7 +105,8 @@ Las variables sin el prefijo `NEXT_PUBLIC_` se utilizan del lado del servidor, m
 ### Aplicar el esquema inicial
 
 1. Ingresa al panel de Supabase y abre el SQL Editor, o utiliza la CLI de Supabase.
-2. Ejecuta el contenido del archivo `docs/supabase-schema.sql` para crear las tablas requeridas.
+2. Crea una nueva consulta y copia/pega **todo** el contenido del archivo `docs/supabase-schema.sql`. Puedes abrirlo en tu editor local o desde GitHub usando el botón **Raw** de este enlace directo: `https://raw.githubusercontent.com/LePret/LePret/main/docs/supabase-schema.sql`. Copia ese texto completo y pégalo sin modificarlo en el SQL Editor. Si prefieres copiarlo directamente desde este repositorio sin salir del README, consulta `docs/SUPABASE_SQL_EDITOR.md`, donde encontrarás el script completo dentro de un bloque expandible.
+3. Ejecuta la consulta; el script es idempotente y creará/actualizará tablas, políticas RLS y buckets necesarios.
 
 Con esto, la base de datos quedará lista para su uso en el proyecto.
 
