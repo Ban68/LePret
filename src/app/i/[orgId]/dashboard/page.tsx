@@ -1,12 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getInvestorSummary } from "@/lib/investors";
 
-interface DashboardPageProps {
-  params: {
-    orgId: string;
-  };
-}
-
 function formatCurrency(amount: number, currency: string) {
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
@@ -19,8 +13,13 @@ function formatPercentage(value: number) {
   return `${value.toFixed(2)}%`;
 }
 
-export default async function InvestorDashboardPage({ params }: DashboardPageProps) {
-  const summary = await getInvestorSummary(params.orgId);
+export default async function InvestorDashboardPage({
+  params,
+}: {
+  params: Promise<{ orgId: string }>;
+}) {
+  const { orgId } = await params;
+  const summary = await getInvestorSummary(orgId);
 
   return (
     <div className="space-y-8">
