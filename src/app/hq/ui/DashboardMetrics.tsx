@@ -1,22 +1,10 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { Skeleton } from "@/components/ui/skeleton";
 
-type Metrics = {
-  totalRequests: number;
-  totalAmount: number;
-  requestsByStatus: Record<string, number>;
-  requestsByMonth: Record<string, number>;
-  approvalRate?: number;
-  stageDurations?: Record<string, { averageHours: number; samples: number }>;
-  validationErrors30d?: number;
-  feedback?: {
-    nps: { average: number | null; responses: number };
-    csat: { average: number | null; responses: number };
-  };
-};
+import { Skeleton } from "@/components/ui/skeleton";
+import { useHqMetrics } from "./useHqMetrics";
 
 const STATUS_LABEL: Record<string, string> = {
   review: "En revisión",
@@ -49,34 +37,11 @@ function StatCard({ title, value, isLoading }: { title: string; value: string | 
 }
 
 export function DashboardMetrics() {
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchMetrics() {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await fetch("/api/hq/metrics");
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || "Error al cargar las métricas");
-        }
-        setMetrics(data);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Error inesperado";
-        setError(message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchMetrics();
-  }, []);
+  const { metrics, loading, error } = useHqMetrics();
 
   const chartData = useMemo(() => {
     if (!metrics) return [];
-    return Object.entries(metrics.requestsByMonth)
+    return Object.entries(metrics.requestsByMonth || {})
       .map(([month, count]) => ({
         name: month,
         Solicitudes: count,

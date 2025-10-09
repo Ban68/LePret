@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 
 import { supabaseAdmin } from "@/lib/supabase";
 import { isBackofficeAllowed } from "@/lib/hq-auth";
+import { getHqSettings, type HqParameterSettings } from "@/lib/hq-settings";
 
 const NEEDS_ACTION_STATUSES = new Set(["review", "offered", "accepted", "signed"]);
 const REQUIRED_DOC_TYPES = [
@@ -84,6 +85,13 @@ type RequestResponseItem = {
   } | null;
   archived_at: string | null;
   force_sign_enabled: boolean;
+  risk: {
+    level: "low" | "medium" | "high";
+    score: number;
+    reasons: string[];
+    exposureRatio: number | null;
+    tenorDays: number | null;
+  };
 };
 
 export async function GET(req: Request) {
@@ -167,7 +175,17 @@ export async function GET(req: Request) {
   const companyIds = Array.from(new Set(requests.map((item) => item.company_id).filter(Boolean)));
   const creatorIds = Array.from(new Set(requests.map((item) => item.created_by).filter(Boolean))) as string[];
 
-  const [companiesRes, linksRes, requestDocumentsRes, companyDocumentsRes, offersRes, profilesRes] = await Promise.all([
+  const { settings: hqSettings } = await getHqSettings();
+
+  const [
+    companiesRes,
+    linksRes,
+    requestDocumentsRes,
+    companyDocumentsRes,
+    offersRes,
+    profilesRes,
+    exposureRes,
+  ] = await Promise.all([
     companyIds.length
       ? supabaseAdmin.from('companies').select('id, name, type').in('id', companyIds)
       : Promise.resolve({ data: [] as Array<{ id: string; name: string; type: string | null }>, error: null }),
@@ -193,6 +211,13 @@ export async function GET(req: Request) {
     creatorIds.length
       ? supabaseAdmin.from('profiles').select('user_id, full_name').in('user_id', creatorIds)
       : Promise.resolve({ data: [] as ProfileRow[], error: null }),
+    companyIds.length
+      ? supabaseAdmin
+          .from('funding_requests')
+          .select('company_id, requested_amount, status')
+          .in('company_id', companyIds)
+          .in('status', ['review', 'offered', 'accepted', 'signed', 'funded'])
+      : Promise.resolve({ data: [] as Array<{ company_id: string; requested_amount: number; status: string }>, error: null }),
   ]);
 
   if (companiesRes.error) {
@@ -212,6 +237,9 @@ export async function GET(req: Request) {
   }
   if (profilesRes.error) {
     return NextResponse.json({ ok: false, error: profilesRes.error.message }, { status: 500 });
+  }
+  if (exposureRes.error) {
+    return NextResponse.json({ ok: false, error: exposureRes.error.message }, { status: 500 });
   }
 
   const invoiceIds = new Set<string>();
@@ -274,6 +302,14 @@ export async function GET(req: Request) {
     offersMap.set(offer.request_id, existing);
   }
 
+  const exposureMap = new Map<string, number>();
+  for (const row of exposureRes.data || []) {
+    if (!row?.company_id) continue;
+    const amount = Number(row.requested_amount ?? 0);
+    if (!Number.isFinite(amount)) continue;
+    exposureMap.set(row.company_id, (exposureMap.get(row.company_id) ?? 0) + amount);
+  }
+
   const items: RequestResponseItem[] = requests.map((request) => {
     const company = companyMap.get(request.company_id);
     const invoiceIdsForRequest = new Set<string>();
@@ -300,6 +336,17 @@ export async function GET(req: Request) {
     const docSummary = summariseDocuments(requestDocs, companyDocs);
     const nextStep = computeNextAction(request.status, docSummary, activeOffer?.status ?? null);
     const creator = request.created_by ? profileMap.get(request.created_by) : null;
+    const companyExposure = exposureMap.get(request.company_id) ?? Number(request.requested_amount ?? 0);
+    const risk = assessRisk({
+      request,
+      companyType: company?.type ?? null,
+      invoices,
+      payers,
+      docSummary,
+      settings: hqSettings,
+      exposure: companyExposure,
+      invoicesTotal,
+    });
 
     return {
       id: request.id,
@@ -321,6 +368,7 @@ export async function GET(req: Request) {
       documents: documents.map((doc) => ({ type: doc.type, status: doc.status, created_at: doc.created_at })),
       archived_at: request.archived_at ?? null,
       force_sign_enabled: allowForceSign,
+      risk,
       offer: activeOffer
         ? {
             id: activeOffer.id,
@@ -435,6 +483,103 @@ function summariseDocuments(requestDocs: DocumentRow[], companyDocs: DocumentRow
     .map((doc) => doc.type);
 
   return { latestByType, missing, unsigned };
+}
+
+function resolveSegmentKey(companyType: string | null | undefined): string {
+  if (!companyType) return 'default';
+  const normalized = companyType.toLowerCase();
+  if (normalized.includes('corp')) return 'corporativo';
+  if (normalized.includes('start')) return 'startup';
+  if (normalized.includes('pyme') || normalized.includes('sme')) return 'pyme';
+  return 'default';
+}
+
+function assessRisk(input: {
+  request: FundingRequestRow;
+  companyType: string | null;
+  invoices: InvoiceRow[];
+  payers: Array<{ name: string; identifier: string | null }>;
+  docSummary: ReturnType<typeof summariseDocuments>;
+  settings: HqParameterSettings;
+  exposure: number;
+  invoicesTotal: number;
+}): { level: 'low' | 'medium' | 'high'; score: number; reasons: string[]; exposureRatio: number | null; tenorDays: number | null } {
+  const reasons: string[] = [];
+  let score = 0;
+  const segment = resolveSegmentKey(input.companyType);
+  const limit = input.settings.creditLimits[segment] ?? input.settings.creditLimits.default ?? 0;
+  const tenorLimit = input.settings.terms[segment] ?? input.settings.terms.default ?? 90;
+
+  const exposureRatio = limit > 0 ? input.exposure / limit : null;
+  if (exposureRatio !== null) {
+    if (exposureRatio >= 1.05) {
+      score += 45;
+      reasons.push('Supera el límite de crédito configurado');
+    } else if (exposureRatio >= 0.8) {
+      score += 25;
+      reasons.push('Cercano al límite de crédito');
+    }
+  }
+
+  const now = Date.now();
+  const tenorDays = input.invoices
+    .map((invoice) => {
+      const due = (invoice as { due_date?: string | null }).due_date;
+      if (!due) return null;
+      const dueAt = new Date(due).getTime();
+      if (Number.isNaN(dueAt)) return null;
+      const diffDays = Math.round((dueAt - now) / (1000 * 60 * 60 * 24));
+      return diffDays;
+    })
+    .filter((value): value is number => Number.isFinite(value));
+  const maxTenor = tenorDays.length ? Math.max(...tenorDays) : null;
+
+  if (maxTenor !== null) {
+    if (maxTenor > tenorLimit + 15) {
+      score += 25;
+      reasons.push('Plazo excede el máximo permitido');
+    } else if (maxTenor > tenorLimit) {
+      score += 15;
+      reasons.push('Plazo superior al objetivo');
+    }
+  }
+
+  if (input.docSummary.missing.length > 0) {
+    score += 15;
+    reasons.push('Documentación obligatoria pendiente');
+  }
+
+  if (input.docSummary.unsigned.length > 0) {
+    score += 10;
+    reasons.push('Documentos sin firma');
+  }
+
+  if (input.payers.length <= 1) {
+    score += 10;
+    reasons.push('Dependencia de un único pagador');
+  }
+
+  const requested = Number(input.request.requested_amount ?? 0);
+  if (input.invoicesTotal > requested * 1.8 && requested > 0) {
+    score += 8;
+    reasons.push('Monto de facturas muy superior al solicitado');
+  }
+
+  const level = exposureRatio !== null && exposureRatio >= 1
+    ? 'high'
+    : score >= 60
+      ? 'high'
+      : score >= 30
+        ? 'medium'
+        : 'low';
+
+  return {
+    level,
+    score,
+    reasons,
+    exposureRatio: exposureRatio !== null ? Number(exposureRatio.toFixed(2)) : null,
+    tenorDays: maxTenor,
+  };
 }
 
 function computeNextAction(status: string | null | undefined, summary: { missing: string[]; unsigned: string[] }, offerStatus: string | null) {

@@ -7,8 +7,11 @@ import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/hq", label: "Resumen" },
-  { href: "/hq/kyc", label: "Verificaciones KYC" },
   { href: "/hq/operaciones", label: "Operaciones" },
+  { href: "/hq/riesgo", label: "Riesgo" },
+  { href: "/hq/kpi", label: "KPIs" },
+  { href: "/hq/configuracion", label: "Configuración" },
+  { href: "/hq/kyc", label: "Verificaciones KYC" },
   { href: "/hq/usuarios", label: "Usuarios" },
 ];
 
