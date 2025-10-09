@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { getOrganizationDisplayName, getOrganizationKycStatus, isKycCompleted } from "@/lib/organizations";
 
 import { ClientPortalNav } from "./ui/ClientPortalNav";
+import { NotificationCenter } from "@/components/ui/NotificationCenter";
 
 export default async function ClientPortalLayout({
   children,
@@ -38,10 +39,13 @@ export default async function ClientPortalLayout({
   return (
     <div className="py-8 sm:py-10">
       <div className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-lp-sec-3">
-          <span className="font-semibold text-lp-primary-1">Portal Clientes</span>
-          <span className="opacity-60">/</span>
-          <span className="truncate">Org: {displayOrg}</span>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-lp-sec-3">
+            <span className="font-semibold text-lp-primary-1">Portal Clientes</span>
+            <span className="opacity-60">/</span>
+            <span className="truncate">Org: {displayOrg}</span>
+          </div>
+          <NotificationCenter />
         </div>
 
         <ClientPortalNav links={links} />

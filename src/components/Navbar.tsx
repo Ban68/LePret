@@ -7,6 +7,7 @@ import { Logo } from './Logo';
 import Image from 'next/image';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter, usePathname } from 'next/navigation';
+import { NotificationCenter } from '@/components/ui/NotificationCenter';
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -81,6 +82,7 @@ export function Navbar() {
           </nav>
 
           <div className="flex flex-1 items-center justify-end gap-4 md:pl-4">
+            <NotificationCenter />
 
             <div className="hidden md:block">
               <Button
