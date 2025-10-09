@@ -31,6 +31,7 @@ export default async function ClientPortalLayout({
     { href: `/c/${orgId}/invoices`, label: "Facturas" },
     { href: `/c/${orgId}/payers`, label: "Pagadores" },
     { href: `/c/${orgId}/requests`, label: "Solicitudes" },
+    { href: `/c/${orgId}/documents`, label: "Documentos" },
     { href: `/c/${orgId}/settings`, label: "Ajustes" },
   ];
 
