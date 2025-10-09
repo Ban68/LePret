@@ -78,6 +78,11 @@ export async function generateContractForRequest(
       .maybeSingle();
 
     if (existingDoc) {
+      try {
+        const appBase = process.env.PANDADOC_APP_URL || "https://app.pandadoc.com/a/#/documents/";
+        const appUrl = existingDoc.provider_envelope_id ? `${appBase}${existingDoc.provider_envelope_id}` : null;
+        await notifyClientContractReady(orgId, requestId, { signUrl: null, appUrl });
+      } catch {}
       return { document: existingDoc as DocumentRow, envelope: null, skipped: true, skipReason: "existing_document" };
     }
   }
@@ -158,7 +163,7 @@ export async function generateContractForRequest(
   try {
     const appBase = process.env.PANDADOC_APP_URL || "https://app.pandadoc.com/a/#/documents/";
     const appUrl = `${appBase}${documentRow.provider_envelope_id ?? ""}`;
-    await notifyClientContractReady(orgId, {
+    await notifyClientContractReady(orgId, requestId, {
       signUrl: envelope.signUrl || null,
       appUrl,
     });

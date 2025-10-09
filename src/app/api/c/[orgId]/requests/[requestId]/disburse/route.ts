@@ -3,7 +3,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
 import { getSupabaseAdminClient } from "@/lib/supabase";
-import { notifyStaffDisbursementRequested } from "@/lib/notifications";
+import { notifyStaffDisbursementRequested, notifyClientFunded } from "@/lib/notifications";
 
 const VALID_STATUSES = new Set(["accepted", "signed"]);
 
@@ -153,9 +153,8 @@ export async function POST(
       return NextResponse.json({ ok: false, error: updateRequestError.message }, { status: 500 });
     }
 
-    if (paymentId) {
-      await notifyStaffDisbursementRequested(orgId, requestId, paymentId).catch(() => undefined);
-    }
+    await notifyClientFunded(orgId, requestId).catch(() => undefined);
+    await notifyStaffDisbursementRequested(orgId, requestId, paymentId).catch(() => undefined);
 
     return NextResponse.json({ ok: true, payment_id: paymentId });
   } catch (err) {

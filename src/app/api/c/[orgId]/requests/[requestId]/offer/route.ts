@@ -161,8 +161,11 @@ export async function POST(
 
     // Notificar al cliente: oferta generada
     try {
-      const { notifyClientOfferGenerated } = await import("@/lib/notifications");
-      await notifyClientOfferGenerated(orgId, offer.id);
+      const { notifyClientOfferGenerated, notifyStaffOfferGenerated } = await import("@/lib/notifications");
+      await Promise.all([
+        notifyClientOfferGenerated(orgId, offer.id),
+        notifyStaffOfferGenerated(orgId, requestId, offer.id),
+      ]);
     } catch {}
 
     // AuditorÃ­a

@@ -74,7 +74,7 @@ export async function POST(_req: Request, { params }: RouteContext) {
         const appBase = process.env.PANDADOC_APP_URL || "https://app.pandadoc.com/a/#/documents/";
         const appUrl = row.provider_envelope_id ? `${appBase}${row.provider_envelope_id}` : null;
         if (appUrl) {
-          await notifyClientContractReady(orgId, { appUrl });
+          await notifyClientContractReady(orgId, row.request_id, { appUrl });
         }
         return NextResponse.json({ ok: true, skipped: true, reason: result.skipReason ?? "existing_document" });
       }
