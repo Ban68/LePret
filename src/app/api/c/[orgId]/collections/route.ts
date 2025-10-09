@@ -39,7 +39,7 @@ export async function GET(
     )
     .eq("company_id", orgId)
     .eq("direction", "inbound")
-    .order("due_date", { ascending: true, nullsLast: false })
+    .order("due_date", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
 
   if (error) {
