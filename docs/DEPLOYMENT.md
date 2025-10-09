@@ -10,7 +10,7 @@ Este documento es una guía práctica para dejar la aplicación lista en producc
 
 ## 1) Supabase (Producción)
 1. Crea un proyecto “prod” y abre el SQL Editor.
-2. Ejecuta una sola vez el esquema: `docs/supabase-schema.sql` (esto crea tablas, RLS y buckets requeridos).
+2. Crea una nueva consulta y pega todo el contenido del archivo `docs/supabase-schema.sql` (desde el repo) y ejecútalo una sola vez; el script es idempotente y se encargará de crear tablas, RLS y buckets requeridos.
 3. Verifica tablas: `profiles, companies, memberships, invoices, funding_requests, offers, documents, audit_logs`.
 4. Verifica buckets privados: `invoices, requests, kyc, contracts`.
 5. Marca al menos un usuario staff global (operaciones):
