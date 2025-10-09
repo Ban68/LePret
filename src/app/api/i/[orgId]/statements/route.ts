@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 
 import { getInvestorStatements } from "@/lib/investors";
 
-export async function GET(
-  _: Request,
-  { params }: { params: { orgId: string } }
-) {
-  const statements = await getInvestorStatements(params.orgId);
+type RouteContext = { params: Promise<{ orgId: string }> };
+
+export async function GET(_: Request, { params }: RouteContext) {
+  const { orgId } = await params;
+  const statements = await getInvestorStatements(orgId);
 
   return NextResponse.json({ items: statements });
 }
