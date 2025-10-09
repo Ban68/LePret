@@ -105,7 +105,7 @@ Las variables sin el prefijo `NEXT_PUBLIC_` se utilizan del lado del servidor, m
 ### Aplicar el esquema inicial
 
 1. Ingresa al panel de Supabase y abre el SQL Editor, o utiliza la CLI de Supabase.
-2. Crea una nueva consulta y copia/pega **todo** el contenido del archivo `docs/supabase-schema.sql` (puedes abrirlo en tu editor local y copiarlo tal cual).
+2. Crea una nueva consulta y copia/pega **todo** el contenido del archivo `docs/supabase-schema.sql`. Puedes abrirlo en tu editor local o desde GitHub usando el botón **Raw** de este enlace directo: `https://raw.githubusercontent.com/LePret/LePret/main/docs/supabase-schema.sql`. Copia ese texto completo y pégalo sin modificarlo en el SQL Editor.
 3. Ejecuta la consulta; el script es idempotente y creará/actualizará tablas, políticas RLS y buckets necesarios.
 
 Con esto, la base de datos quedará lista para su uso en el proyecto.
