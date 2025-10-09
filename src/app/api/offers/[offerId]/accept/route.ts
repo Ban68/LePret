@@ -42,8 +42,9 @@ export async function POST(
       await notifyStaffOfferAccepted(offer.company_id, offerId);
     } catch {}
 
+    let contractResult: Awaited<ReturnType<typeof generateContractForRequest>> | null = null;
     try {
-      await generateContractForRequest({
+      contractResult = await generateContractForRequest({
         orgId: offer.company_id,
         requestId: offer.request_id,
         actorId: session.user.id,
@@ -61,6 +62,19 @@ export async function POST(
           meta: { request_id: offer.request_id, offer_id: offerId, code: "contract_generation_failed" },
         });
       }
+    }
+
+    if (contractResult && (contractResult.document || contractResult.skipped)) {
+      try {
+        const { notifyStaffContractReady } = await import("@/lib/notifications");
+        const doc = contractResult.document as { id?: string | null; provider_envelope_id?: string | null } | null;
+        const appBase = process.env.PANDADOC_APP_URL || "https://app.pandadoc.com/a/#/documents/";
+        const appUrl = doc?.provider_envelope_id ? `${appBase}${doc.provider_envelope_id}` : null;
+        await notifyStaffContractReady(offer.company_id, offer.request_id, {
+          documentId: doc?.id ?? null,
+          appUrl,
+        });
+      } catch {}
     }
 
     await logStatusChange({

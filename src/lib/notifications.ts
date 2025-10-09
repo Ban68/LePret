@@ -158,6 +158,24 @@ export async function notifyStaffNewRequest(companyId: string, requestId: string
   });
 }
 
+export async function notifyCompanyRequestCreated(
+  companyId: string,
+  requestId: string,
+  actorId?: string | null,
+) {
+  const { adminIds, clientIds } = await getCompanyActiveMemberEmails(companyId);
+  const recipients = unique([
+    ...adminIds,
+    ...clientIds,
+  ]);
+  const filtered = actorId ? recipients.filter((id) => id !== actorId) : recipients;
+  if (!filtered.length) return;
+  await createNotification(filtered, "request_created", "Se creó una nueva solicitud en tu empresa.", {
+    companyId,
+    requestId,
+  });
+}
+
 export async function notifyClientOfferGenerated(companyId: string, offerId: string) {
   const { admins, clients, adminIds, clientIds } = await getCompanyActiveMemberEmails(companyId);
   const recipients = clients.length ? clients : admins; // fallback a admins si no hay clientes
@@ -177,6 +195,25 @@ export async function notifyClientOfferGenerated(companyId: string, offerId: str
   );
 }
 
+export async function notifyStaffOfferGenerated(companyId: string, requestId: string, offerId: string) {
+  const staff = staffRecipients();
+  if (!staff.length) return;
+  const staffIds = await getUserIdsForEmails(staff);
+  if (!staffIds.length) return;
+  const subject = `Nueva oferta generada (${companyId})`;
+  const html = `
+    <p>Se generó una nueva oferta para la solicitud <code>${requestId}</code>.</p>
+    <p><strong>Empresa:</strong> <code>${companyId}</code></p>
+    <p><strong>Oferta:</strong> <code>${offerId}</code></p>
+  `;
+  await sendEmail(staff, subject, html);
+  await createNotification(staffIds, "staff_offer_generated", `Nueva oferta generada (${companyId})`, {
+    companyId,
+    requestId,
+    offerId,
+  });
+}
+
 export async function notifyStaffOfferAccepted(companyId: string, offerId: string) {
   const staff = staffRecipients();
   if (!staff.length) return;
@@ -194,6 +231,7 @@ export async function notifyStaffOfferAccepted(companyId: string, offerId: strin
 // { signUrl?: string, appUrl?: string }
 export async function notifyClientContractReady(
   companyId: string,
+  requestId: string,
   options: string | { signUrl?: string | null; appUrl?: string | null }
 ) {
   const { admins, clients, adminIds, clientIds } = await getCompanyActiveMemberEmails(companyId);
@@ -221,10 +259,34 @@ export async function notifyClientContractReady(
     html += `<p>Te contactaremos con el enlace de firma en breve.</p>`;
   }
   await sendEmail(recipients, subject, html);
-  await createNotification(recipientIds, "client_contract_ready", "Tu contrato está listo para firma.", {
+  await createNotification(recipientIds, "contract_ready", "Tu contrato está listo para firma.", {
     companyId,
+    requestId,
     signUrl,
     appUrl,
+  });
+}
+
+export async function notifyStaffContractReady(
+  companyId: string,
+  requestId: string,
+  options?: { documentId?: string | null; appUrl?: string | null }
+) {
+  const staff = staffRecipients();
+  if (!staff.length) return;
+  const staffIds = await getUserIdsForEmails(staff);
+  if (!staffIds.length) return;
+  const subject = `Contrato listo para firma (${companyId})`;
+  const html = `
+    <p>El contrato para la solicitud <code>${requestId}</code> está listo para firma.</p>
+    ${options?.appUrl ? `<p><a href="${options.appUrl}">Ver en PandaDoc</a></p>` : ""}
+  `;
+  await sendEmail(staff, subject, html);
+  await createNotification(staffIds, "contract_ready", `Contrato listo para firma (${companyId})`, {
+    companyId,
+    requestId,
+    documentId: options?.documentId ?? null,
+    appUrl: options?.appUrl ?? null,
   });
 }
 
@@ -236,7 +298,7 @@ export async function notifyClientFunded(companyId: string, requestId: string) {
   const subject = `Desembolso realizado`;
   const html = `<p>Tu operación ha sido desembolsada.</p><p>Solicitud: <code>${requestId}</code></p>`;
   await sendEmail(recipients, subject, html);
-  await createNotification(recipientIds, "client_funded", "Tu operación ha sido desembolsada.", {
+  await createNotification(recipientIds, "request_funded", "Tu operación ha sido desembolsada.", {
     companyId,
     requestId,
   });
@@ -257,7 +319,7 @@ export async function notifyStaffDisbursementRequested(
     <p>Revisa el portal de back-office para procesar la transferencia.</p>
   `;
   await sendEmail(staff, subject, html);
-  await createNotification(staffIds, "staff_disbursement_requested", `Solicitud de desembolso (${companyId})`, {
+  await createNotification(staffIds, "disbursement_requested", `Solicitud de desembolso (${companyId})`, {
     companyId,
     requestId,
     paymentId: paymentId ?? null,

@@ -350,6 +350,11 @@ export async function POST(
     await notifyStaffNewRequest(orgId, requestId);
   } catch {}
 
+  try {
+    const { notifyCompanyRequestCreated } = await import("@/lib/notifications");
+    await notifyCompanyRequestCreated(orgId, requestId, session.user.id);
+  } catch {}
+
   await logAudit({
     company_id: orgId,
     actor_id: session.user.id,
