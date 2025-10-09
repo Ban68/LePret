@@ -80,6 +80,7 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
 
 Este proyecto está optimizado para despliegue en Vercel.
 
+0.  **Prepara Supabase:** Antes del primer deploy crea un proyecto en Supabase (prod) y ejecuta el script `docs/supabase-schema.sql` desde el SQL Editor. Esto crea las tablas, políticas RLS y buckets privados (`invoices`, `requests`, `kyc`, `contracts`) necesarios. Marca al menos un usuario con `is_staff = true` para poder operar el backoffice.
 1.  **Conectar Repositorio:** Conecta tu repositorio de GitHub/GitLab/Bitbucket a Vercel.
 2.  **Configurar Variables de Entorno:** En la configuración del proyecto en Vercel, añade las mismas variables de entorno (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RESEND_API_KEY`) que usaste localmente.
 3.  **Despliegue Automático:** Cada push a la rama principal (o a una PR, si configuras los preview deploys) activará un nuevo despliegue.
