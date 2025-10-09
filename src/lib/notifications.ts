@@ -123,6 +123,22 @@ export async function notifyClientFunded(companyId: string, requestId: string) {
   await sendEmail(recipients, subject, html);
 }
 
+export async function notifyStaffDisbursementRequested(
+  companyId: string,
+  requestId: string,
+  paymentId?: string | null
+) {
+  const staff = staffRecipients();
+  if (!staff.length) return;
+  const subject = `Solicitud de desembolso (${companyId})`;
+  const html = `
+    <p>El cliente pidió el desembolso de la solicitud <code>${requestId}</code>.</p>
+    ${paymentId ? `<p>Registro de pago: <code>${paymentId}</code></p>` : ""}
+    <p>Revisa el portal de back-office para procesar la transferencia.</p>
+  `;
+  await sendEmail(staff, subject, html);
+}
+
 export async function notifyClientNeedsDocs(companyId: string, note?: string) {
   const { admins, clients } = await getCompanyActiveMemberEmails(companyId);
   const recipients = clients.length ? clients : admins;

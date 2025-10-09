@@ -6,6 +6,7 @@ import { TimelineFeed } from "@/components/app/timeline/TimelineFeed";
 import { TimelineNextSteps } from "@/components/app/timeline/TimelineNextSteps";
 import { TimelineRealtimeBridge } from "@/components/app/timeline/TimelineRealtimeBridge";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { DisbursementPanel } from "./DisbursementPanel";
 import { computeClientNextSteps, getRequestTimeline } from "@/lib/request-timeline";
 import { supabaseServer } from "@/lib/supabase-server";
 
@@ -48,7 +49,9 @@ export default async function ClientRequestTimelinePage({
 
   const { data: request, error: requestError } = await supabase
     .from("funding_requests")
-    .select("id, company_id, status, requested_amount, currency, created_at")
+    .select(
+      "id, company_id, status, requested_amount, currency, created_at, disbursement_account_id, disbursed_at"
+    )
     .eq("id", requestId)
     .eq("company_id", orgId)
     .maybeSingle();
@@ -74,6 +77,26 @@ export default async function ClientRequestTimelinePage({
   }
 
   const timeline = await getRequestTimeline(supabase, requestId);
+
+  const { data: bankAccounts } = await supabase
+    .from("bank_accounts")
+    .select(
+      "id, label, bank_name, account_type, account_number, account_holder_name, account_holder_id, is_default, created_at"
+    )
+    .eq("company_id", orgId)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  const { data: paymentRows } = await supabase
+    .from("payments")
+    .select(
+      "id, request_id, status, amount, currency, due_date, paid_at, created_at, direction, bank_account_id, notes"
+    )
+    .eq("company_id", orgId)
+    .eq("request_id", requestId)
+    .order("created_at", { ascending: false });
+
+  const disbursementPayment = (paymentRows || []).find((row) => row.direction === "outbound") ?? null;
 
   const { data: collectionCase } = await supabase
     .from("collection_cases")
@@ -129,6 +152,17 @@ export default async function ClientRequestTimelinePage({
             </div>
           </div>
         </div>
+
+        <DisbursementPanel
+          orgId={orgId}
+          requestId={requestId}
+          status={request.status}
+          amount={request.requested_amount}
+          currency={request.currency}
+          bankAccounts={bankAccounts ?? []}
+          selectedAccountId={request.disbursement_account_id ?? null}
+          disbursement={disbursementPayment ?? null}
+        />
 
         <TimelineNextSteps status={request.status} nextSteps={nextSteps} />
 

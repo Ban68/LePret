@@ -44,7 +44,7 @@ create index if not exists idx_preapprovals_created_at on preapprovals (created_
 alter table contacts enable row level security;
 alter table preapprovals enable row level security;
 
--- === PORTAL CLIENTES (mínimo) ===
+-- === PORTAL CLIENTES (mÃ­nimo) ===
 -- Perfiles de usuario (1-1 con auth.users)
 create table if not exists profiles (
   user_id uuid primary key,
@@ -83,7 +83,26 @@ alter table companies add column if not exists notification_sms boolean default 
 alter table companies add column if not exists notification_whatsapp boolean default false;
 alter table companies add column if not exists updated_at timestamptz default now();
 
--- Membresías usuario-empresa con rol
+create table if not exists bank_accounts (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies(id) on delete cascade,
+  label text,
+  bank_name text not null,
+  account_type text not null,
+  account_number text not null,
+  account_holder_name text not null,
+  account_holder_id text,
+  is_default boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists bank_accounts_company_idx on bank_accounts (company_id, created_at desc);
+create index if not exists bank_accounts_default_idx on bank_accounts (company_id) where is_default = true;
+
+alter table bank_accounts enable row level security;
+
+-- Pagadores (catlogo de pagadores por organizacin)
 create table if not exists memberships (
   user_id uuid not null,
   company_id uuid not null,
@@ -100,7 +119,7 @@ alter table memberships drop constraint if exists memberships_role_check;
 alter table memberships add constraint memberships_role_check
   check (role in ('client','admin','investor','OWNER','ADMIN','OPERATOR','VIEWER'));
 
--- Pagadores (cat�logo de pagadores por organizaci�n)
+-- Pagadores (catálogo de pagadores por organización)
 create table if not exists payers (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references companies(id) on delete cascade,
@@ -146,7 +165,10 @@ alter table invoices drop constraint if exists invoices_status_check;
 alter table invoices add constraint invoices_status_check
   check (status in ('uploaded','validated','rejected','funded','cancelled'));
 
--- Solicitudes de financiación (simplificado)
+alter table funding_requests add column if not exists disbursement_account_id uuid references bank_accounts(id) on delete set null;
+alter table funding_requests add column if not exists disbursed_at timestamptz;
+
+-- payers: miembros activos pueden leer; administracin restringida a owners/admins o staff
 create table if not exists funding_requests (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references companies(id) on delete cascade,
@@ -176,7 +198,7 @@ alter table payers enable row level security;
 alter table invoices enable row level security;
 alter table funding_requests enable row level security;
 
--- Políticas básicas
+-- PolÃ­ticas bÃ¡sicas
 -- profiles: cada usuario ve/edita su propio perfil
 drop policy if exists "profiles_self_select" on profiles;
 create policy "profiles_self_select" on profiles for select using (auth.uid() = user_id);
@@ -199,7 +221,7 @@ create policy "companies_member_select" on companies for select using (
   )
 );
 
--- payers: miembros activos pueden leer; administraci�n restringida a owners/admins o staff
+-- payers: miembros activos pueden leer; administración restringida a owners/admins o staff
 drop policy if exists "payers_member_select" on payers;
 create policy "payers_member_select" on payers for select using (
   exists (
@@ -378,7 +400,7 @@ create policy "offers_member_update" on offers for update using (
   )
 );
 
--- === RELACIÓN SOLICITUD-FACTURAS (muchas a muchas) ===
+-- === RELACIÃN SOLICITUD-FACTURAS (muchas a muchas) ===
 create table if not exists funding_request_invoices (
   request_id uuid not null references funding_requests(id) on delete cascade,
   invoice_id uuid not null references invoices(id) on delete cascade,
@@ -391,7 +413,7 @@ create unique index if not exists funding_request_invoices_invoice_unique
 
 alter table funding_request_invoices enable row level security;
 
--- Políticas: miembros de la empresa o staff pueden ver/insertar
+-- PolÃ­ticas: miembros de la empresa o staff pueden ver/insertar
 drop policy if exists "fri_member_select" on funding_request_invoices;
 create policy "fri_member_select" on funding_request_invoices for select using (
   exists (
@@ -429,11 +451,11 @@ do $$ begin
     insert into storage.buckets (id, name, public) values ('invoices', 'invoices', false);
   end if;
 end $$;
--- asegurar límite de tamaño (idempotente)
+-- asegurar lÃ­mite de tamaÃ±o (idempotente)
 update storage.buckets set file_size_limit = 10485760 where id = 'invoices';
 
--- Políticas de acceso: miembros de la organización pueden leer/subir/borrar
--- Convención: el path del archivo inicia con "<company_id>/<nombre-archivo>"
+-- PolÃ­ticas de acceso: miembros de la organizaciÃ³n pueden leer/subir/borrar
+-- ConvenciÃ³n: el path del archivo inicia con "<company_id>/<nombre-archivo>"
 drop policy if exists "invoices_read" on storage.objects;
 create policy "invoices_read" on storage.objects for select using (
   bucket_id = 'invoices' and exists (
@@ -684,7 +706,7 @@ end $$;
 update storage.buckets set file_size_limit = 10485760 where id = 'kyc';
 update storage.buckets set file_size_limit = 20971520 where id = 'contracts';
 
--- Convención de path: <company_id>/...
+-- ConvenciÃ³n de path: <company_id>/...
 drop policy if exists "kyc_read" on storage.objects;
 create policy "kyc_read" on storage.objects for select using (
   bucket_id = 'kyc' and (
@@ -775,7 +797,30 @@ create policy "contracts_delete" on storage.objects for delete using (
   )
 );
 
--- === AUDITORÍA ===
+create table if not exists payments (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid references funding_requests(id) on delete set null,
+  company_id uuid not null references companies(id) on delete cascade,
+  bank_account_id uuid references bank_accounts(id) on delete set null,
+  direction text not null default 'outbound' check (direction in ('outbound','inbound')),
+  status text not null default 'pending' check (status in ('pending','in_collection','paid','overdue','cancelled')),
+  amount numeric(14,2) not null,
+  currency text not null default 'COP',
+  due_date date,
+  paid_at timestamptz,
+  notes text,
+  metadata jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists payments_company_idx on payments (company_id, created_at desc);
+create index if not exists payments_request_idx on payments (request_id);
+create index if not exists payments_status_idx on payments (status, due_date);
+
+alter table payments enable row level security;
+
+-- === AUDITORÃA ===
 create table if not exists audit_logs (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references companies(id) on delete cascade,
