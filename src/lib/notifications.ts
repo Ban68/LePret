@@ -14,22 +14,70 @@ function staffRecipients(): string[] {
   return Array.from(new Set(list));
 }
 
-export async function getCompanyActiveMemberEmails(companyId: string): Promise<{ owners: string[]; admins: string[]; clients: string[]; all: string[]; }> {
+function unique(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+async function getUserIdsForEmails(emails: string[]): Promise<string[]> {
+  if (!emails.length) return [];
+  const supabaseAdmin = getSupabaseAdminClient();
+  const { data, error } = await supabaseAdmin
+    .from("auth.users" as unknown as string)
+    .select("id, email")
+    .in("email", emails);
+  if (error || !data) return [];
+  const ids = (data as Array<{ id: string | null }>).map((row) => row.id).filter((id): id is string => Boolean(id));
+  return unique(ids);
+}
+
+export async function getCompanyActiveMemberEmails(companyId: string): Promise<{
+  owners: string[];
+  admins: string[];
+  clients: string[];
+  all: string[];
+  ownerIds: string[];
+  adminIds: string[];
+  clientIds: string[];
+  allIds: string[];
+}> {
   const supabaseAdmin = getSupabaseAdminClient();
   const { data: members, error } = await supabaseAdmin
     .from("memberships")
     .select("user_id, role, status")
     .eq("company_id", companyId)
     .eq("status", "ACTIVE");
-  if (error) return { owners: [], admins: [], clients: [], all: [] };
+  if (error)
+    return {
+      owners: [],
+      admins: [],
+      clients: [],
+      all: [],
+      ownerIds: [],
+      adminIds: [],
+      clientIds: [],
+      allIds: [],
+    };
   const userIds = (members || []).map((m) => (m as { user_id: string }).user_id);
-  if (!userIds.length) return { owners: [], admins: [], clients: [], all: [] };
+  if (!userIds.length)
+    return {
+      owners: [],
+      admins: [],
+      clients: [],
+      all: [],
+      ownerIds: [],
+      adminIds: [],
+      clientIds: [],
+      allIds: [],
+    };
   const { data: users } = await supabaseAdmin.from("auth.users" as unknown as string).select("id, email").in("id", userIds);
   const emailById: Record<string, string> = {};
   (users as Array<{ id: string; email: string | null }> | null || []).forEach((u) => { if (u.email) emailById[u.id] = u.email; });
-  const owners: string[] = [];
-  const admins: string[] = [];
-  const clients: string[] = [];
+  const ownerEmails: string[] = [];
+  const adminEmails: string[] = [];
+  const clientEmails: string[] = [];
+  const ownerIds: string[] = [];
+  const adminIds: string[] = [];
+  const clientIds: string[] = [];
   (members || []).forEach((m) => {
     const row = m as { user_id: string; role: string };
     const email = emailById[row.user_id];
@@ -37,16 +85,56 @@ export async function getCompanyActiveMemberEmails(companyId: string): Promise<{
     const canonicalRole = normalizeMemberRole(row.role);
     if (!canonicalRole) return;
     if (canManageMembership(canonicalRole)) {
-      admins.push(email);
+      adminEmails.push(email);
+      adminIds.push(row.user_id);
     } else {
-      clients.push(email);
+      clientEmails.push(email);
+      clientIds.push(row.user_id);
     }
     if (canonicalRole === "OWNER") {
-      owners.push(email);
+      ownerEmails.push(email);
+      ownerIds.push(row.user_id);
     }
   });
-  const all = Array.from(new Set([...owners, ...admins, ...clients]));
-  return { owners, admins, clients, all };
+  const owners = unique(ownerEmails);
+  const admins = unique(adminEmails);
+  const clients = unique(clientEmails);
+  const all = unique([...owners, ...admins, ...clients]);
+  const uniqueOwnerIds = unique(ownerIds);
+  const uniqueAdminIds = unique(adminIds);
+  const uniqueClientIds = unique(clientIds);
+  const allIds = unique([...uniqueOwnerIds, ...uniqueAdminIds, ...uniqueClientIds]);
+  return {
+    owners,
+    admins,
+    clients,
+    all,
+    ownerIds: uniqueOwnerIds,
+    adminIds: uniqueAdminIds,
+    clientIds: uniqueClientIds,
+    allIds,
+  };
+}
+
+export async function createNotification(
+  userIds: string[],
+  type: string,
+  message: string,
+  data?: Record<string, unknown> | null,
+) {
+  const recipientIds = unique(userIds);
+  if (!recipientIds.length) return;
+  const supabaseAdmin = getSupabaseAdminClient();
+  const rows = recipientIds.map((userId) => ({
+    user_id: userId,
+    type,
+    message,
+    data: data ?? null,
+  }));
+  const { error } = await supabaseAdmin.from("notifications").insert(rows);
+  if (error) {
+    console.error("Failed to create notification", error);
+  }
 }
 
 async function sendEmail(to: string[] | string, subject: string, html: string) {
@@ -60,26 +148,46 @@ async function sendEmail(to: string[] | string, subject: string, html: string) {
 export async function notifyStaffNewRequest(companyId: string, requestId: string) {
   const staff = staffRecipients();
   if (!staff.length) return;
+  const staffIds = await getUserIdsForEmails(staff);
   const subject = `Nueva solicitud creada (${companyId})`;
   const html = `<p>Se creó una nueva solicitud</p><p>Empresa: <code>${companyId}</code></p><p>Solicitud: <code>${requestId}</code></p>`;
   await sendEmail(staff, subject, html);
+  await createNotification(staffIds, "staff_new_request", `Nueva solicitud creada (${companyId})`, {
+    companyId,
+    requestId,
+  });
 }
 
 export async function notifyClientOfferGenerated(companyId: string, offerId: string) {
-  const { admins, clients } = await getCompanyActiveMemberEmails(companyId);
+  const { admins, clients, adminIds, clientIds } = await getCompanyActiveMemberEmails(companyId);
   const recipients = clients.length ? clients : admins; // fallback a admins si no hay clientes
+  const recipientIds = clients.length ? clientIds : adminIds;
   if (!recipients.length) return;
   const subject = `Tu oferta está lista (#${offerId.slice(0, 8)})`;
   const html = `<p>Hemos generado una oferta para tu solicitud.</p><p>Identificador de oferta: <code>${offerId}</code></p>`;
   await sendEmail(recipients, subject, html);
+  await createNotification(
+    recipientIds,
+    "client_offer_generated",
+    "Hemos generado una oferta para tu solicitud.",
+    {
+      companyId,
+      offerId,
+    },
+  );
 }
 
 export async function notifyStaffOfferAccepted(companyId: string, offerId: string) {
   const staff = staffRecipients();
   if (!staff.length) return;
+  const staffIds = await getUserIdsForEmails(staff);
   const subject = `Oferta aceptada (${companyId})`;
   const html = `<p>El cliente aceptó una oferta.</p><p>Empresa: <code>${companyId}</code></p><p>Oferta: <code>${offerId}</code></p>`;
   await sendEmail(staff, subject, html);
+  await createNotification(staffIds, "staff_offer_accepted", `Oferta aceptada (${companyId})`, {
+    companyId,
+    offerId,
+  });
 }
 
 // Flexible helper: accepts either a signUrl (string) or an options object
@@ -88,8 +196,9 @@ export async function notifyClientContractReady(
   companyId: string,
   options: string | { signUrl?: string | null; appUrl?: string | null }
 ) {
-  const { admins, clients } = await getCompanyActiveMemberEmails(companyId);
+  const { admins, clients, adminIds, clientIds } = await getCompanyActiveMemberEmails(companyId);
   const recipients = clients.length ? clients : admins;
+  const recipientIds = clients.length ? clientIds : adminIds;
   if (!recipients.length) return;
 
   let signUrl: string | null = null;
@@ -112,15 +221,25 @@ export async function notifyClientContractReady(
     html += `<p>Te contactaremos con el enlace de firma en breve.</p>`;
   }
   await sendEmail(recipients, subject, html);
+  await createNotification(recipientIds, "client_contract_ready", "Tu contrato está listo para firma.", {
+    companyId,
+    signUrl,
+    appUrl,
+  });
 }
 
 export async function notifyClientFunded(companyId: string, requestId: string) {
-  const { admins, clients } = await getCompanyActiveMemberEmails(companyId);
+  const { admins, clients, adminIds, clientIds } = await getCompanyActiveMemberEmails(companyId);
   const recipients = clients.length ? clients : admins;
+  const recipientIds = clients.length ? clientIds : adminIds;
   if (!recipients.length) return;
   const subject = `Desembolso realizado`;
   const html = `<p>Tu operación ha sido desembolsada.</p><p>Solicitud: <code>${requestId}</code></p>`;
   await sendEmail(recipients, subject, html);
+  await createNotification(recipientIds, "client_funded", "Tu operación ha sido desembolsada.", {
+    companyId,
+    requestId,
+  });
 }
 
 export async function notifyStaffDisbursementRequested(
@@ -130,6 +249,7 @@ export async function notifyStaffDisbursementRequested(
 ) {
   const staff = staffRecipients();
   if (!staff.length) return;
+  const staffIds = await getUserIdsForEmails(staff);
   const subject = `Solicitud de desembolso (${companyId})`;
   const html = `
     <p>El cliente pidió el desembolso de la solicitud <code>${requestId}</code>.</p>
@@ -137,15 +257,30 @@ export async function notifyStaffDisbursementRequested(
     <p>Revisa el portal de back-office para procesar la transferencia.</p>
   `;
   await sendEmail(staff, subject, html);
+  await createNotification(staffIds, "staff_disbursement_requested", `Solicitud de desembolso (${companyId})`, {
+    companyId,
+    requestId,
+    paymentId: paymentId ?? null,
+  });
 }
 
 export async function notifyClientNeedsDocs(companyId: string, note?: string) {
-  const { admins, clients } = await getCompanyActiveMemberEmails(companyId);
+  const { admins, clients, adminIds, clientIds } = await getCompanyActiveMemberEmails(companyId);
   const recipients = clients.length ? clients : admins;
+  const recipientIds = clients.length ? clientIds : adminIds;
   if (!recipients.length) return;
   const subject = `Documentación requerida`;
   const html = `<p>Necesitamos documentos adicionales para continuar.</p>${note ? `<p>${note}</p>` : ''}`;
   await sendEmail(recipients, subject, html);
+  await createNotification(
+    recipientIds,
+    "client_needs_docs",
+    "Necesitamos documentos adicionales para continuar.",
+    {
+      companyId,
+      note: note ?? null,
+    },
+  );
 }
 
 
@@ -158,6 +293,7 @@ function formatPreview(message: string, maxLength = 180) {
 export async function notifyStaffRequestMessage(companyId: string, requestId: string, body: string) {
   const staff = staffRecipients();
   if (!staff.length) return;
+  const staffIds = await getUserIdsForEmails(staff);
   const preview = formatPreview(body);
   const subject = `Nuevo mensaje en solicitud ${requestId.slice(0, 8)}`;
   const html = `
@@ -166,11 +302,17 @@ export async function notifyStaffRequestMessage(companyId: string, requestId: st
     <blockquote>${preview}</blockquote>
   `;
   await sendEmail(staff, subject, html);
+  await createNotification(staffIds, "staff_request_message", `Nuevo mensaje en solicitud ${requestId.slice(0, 8)}`, {
+    companyId,
+    requestId,
+    preview,
+  });
 }
 
 export async function notifyClientRequestMessage(companyId: string, requestId: string, body: string) {
-  const { admins, clients } = await getCompanyActiveMemberEmails(companyId);
+  const { admins, clients, adminIds, clientIds } = await getCompanyActiveMemberEmails(companyId);
   const recipients = clients.length ? clients : admins;
+  const recipientIds = clients.length ? clientIds : adminIds;
   if (!recipients.length) return;
   const preview = formatPreview(body);
   const subject = `Nuevo mensaje de nuestro equipo`;
@@ -179,11 +321,17 @@ export async function notifyClientRequestMessage(companyId: string, requestId: s
     <blockquote>${preview}</blockquote>
   `;
   await sendEmail(recipients, subject, html);
+  await createNotification(recipientIds, "client_request_message", "Nuevo mensaje de nuestro equipo.", {
+    companyId,
+    requestId,
+    preview,
+  });
 }
 
 export async function notifyStaffKycSubmitted(companyId: string) {
   const staff = staffRecipients();
   if (!staff.length) return;
+  const staffIds = await getUserIdsForEmails(staff);
   const subject = `KYC enviado (${companyId})`;
   const html = `
     <p>El cliente completó la información de KYC.</p>
@@ -191,11 +339,15 @@ export async function notifyStaffKycSubmitted(companyId: string) {
   `;
 
   await sendEmail(staff, subject, html);
+  await createNotification(staffIds, "staff_kyc_submitted", `KYC enviado (${companyId})`, {
+    companyId,
+  });
 }
 
 export async function notifyClientKycApproved(companyId: string) {
-  const { admins, clients } = await getCompanyActiveMemberEmails(companyId);
+  const { admins, clients, adminIds, clientIds } = await getCompanyActiveMemberEmails(companyId);
   const recipients = clients.length ? clients : admins;
+  const recipientIds = clients.length ? clientIds : adminIds;
   if (!recipients.length) return;
 
   const subject = `Verificación KYC aprobada`;
@@ -204,6 +356,9 @@ export async function notifyClientKycApproved(companyId: string) {
     <p>¡Gracias por completar el proceso!</p>
   `;
   await sendEmail(recipients, subject, html);
+  await createNotification(recipientIds, "client_kyc_approved", "Hemos aprobado la verificación KYC de tu empresa.", {
+    companyId,
+  });
 }
 
 export async function notifyStaffCollectionPromise(
@@ -214,6 +369,7 @@ export async function notifyStaffCollectionPromise(
 ) {
   const staff = staffRecipients();
   if (!staff.length) return;
+  const staffIds = await getUserIdsForEmails(staff);
   const amountPart = promiseAmount ? ` por ${promiseAmount}` : "";
   const subject = `Promesa de pago registrada (${requestId.slice(0, 8)})`;
   const dateText = promiseDate ? new Date(promiseDate).toLocaleDateString("es-CO") : "sin fecha";
@@ -223,4 +379,10 @@ export async function notifyStaffCollectionPromise(
     <p>Compromiso${amountPart} con fecha ${dateText}.</p>
   `;
   await sendEmail(staff, subject, html);
+  await createNotification(staffIds, "staff_collection_promise", `Promesa de pago registrada (${requestId.slice(0, 8)})`, {
+    companyId,
+    requestId,
+    promiseDate: promiseDate ?? null,
+    promiseAmount: promiseAmount ?? null,
+  });
 }
