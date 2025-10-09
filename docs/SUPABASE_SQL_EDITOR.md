@@ -1,3 +1,11 @@
+# Script para el SQL Editor de Supabase
+
+Para preparar la base de datos antes del primer despliegue, copia y pega el siguiente script en el SQL Editor de tu proyecto de Supabase. Es exactamente el mismo contenido que el archivo `docs/supabase-schema.sql` dentro del repositorio.
+
+<details>
+<summary>Ver script completo</summary>
+
+```sql
 create extension if not exists pgcrypto;
 
 create table if not exists contacts (
@@ -845,3 +853,6 @@ drop policy if exists "audit_member_insert" on audit_logs;
 create policy "audit_member_insert" on audit_logs for insert with check (
   auth.uid() is not null
 );
+```
+
+</details>
