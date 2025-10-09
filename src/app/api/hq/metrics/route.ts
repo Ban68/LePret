@@ -106,7 +106,17 @@ export async function GET() {
     const thirtyDaysAgo = new Date(now.getTime());
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const [totalRes, amountsRes, statusRes, monthlyRes, statusLogsRes, validationRes, feedbackRes] = await Promise.all([
+    const [
+      totalRes,
+      amountsRes,
+      statusRes,
+      monthlyRes,
+      statusLogsRes,
+      validationRes,
+      feedbackRes,
+      fundedRes,
+      offersRes,
+    ] = await Promise.all([
       supabaseAdmin.from('funding_requests').select('id', { count: 'exact', head: true }),
       supabaseAdmin.from('funding_requests').select('requested_amount'),
       supabaseAdmin.from('funding_requests').select('status'),
@@ -130,6 +140,14 @@ export async function GET() {
         .select('data')
         .eq('action', 'feedback_submitted')
         .gte('inserted_at', sixMonthsAgo.toISOString()),
+      supabaseAdmin
+        .from('funding_requests')
+        .select('requested_amount, disbursed_at, created_at')
+        .eq('status', 'funded'),
+      supabaseAdmin
+        .from('offers')
+        .select('annual_rate, advance_pct, status')
+        .gte('created_at', sixMonthsAgo.toISOString()),
     ]);
 
     if (totalRes.error) throw new Error(`Error fetching total requests: ${totalRes.error.message}`);
@@ -139,6 +157,8 @@ export async function GET() {
     if (statusLogsRes.error) throw new Error(`Error fetching status logs: ${statusLogsRes.error.message}`);
     if (validationRes.error) throw new Error(`Error fetching validation counts: ${validationRes.error.message}`);
     if (feedbackRes.error) throw new Error(`Error fetching feedback: ${feedbackRes.error.message}`);
+    if (fundedRes.error) throw new Error(`Error fetching funded requests: ${fundedRes.error.message}`);
+    if (offersRes.error) throw new Error(`Error fetching offers: ${offersRes.error.message}`);
 
     const totalRequests = totalRes.count ?? 0;
     const totalAmount = (amountsRes.data || []).reduce((sum, { requested_amount }) => sum + requested_amount, 0);
@@ -163,6 +183,52 @@ export async function GET() {
     const validationErrors30d = validationRes.count ?? 0;
     const feedback = computeFeedbackMetrics(feedbackRes.data || []);
 
+    const fundedRows = fundedRes.data || [];
+    const fundedAmount = fundedRows.reduce((sum, row) => sum + Number(row.requested_amount ?? 0), 0);
+    const fundedRequests = fundedRows.length;
+    const disbursementDurations = fundedRows
+      .map((row) => {
+        if (!row.disbursed_at || !row.created_at) return null;
+        const disbursedAt = new Date(row.disbursed_at).getTime();
+        const createdAt = new Date(row.created_at).getTime();
+        if (Number.isNaN(disbursedAt) || Number.isNaN(createdAt) || disbursedAt <= createdAt) return null;
+        const diffHours = (disbursedAt - createdAt) / (1000 * 60 * 60);
+        return diffHours;
+      })
+      .filter((value): value is number => Number.isFinite(value));
+    const averageDisbursementHours = disbursementDurations.length
+      ? Number((disbursementDurations.reduce((sum, hours) => sum + hours, 0) / disbursementDurations.length).toFixed(2))
+      : null;
+
+    const monthlyFundingVolumes = fundedRows.reduce<Record<string, number>>((acc, row) => {
+      if (!row.disbursed_at) return acc;
+      const month = row.disbursed_at.slice(0, 7);
+      const amount = Number(row.requested_amount ?? 0);
+      acc[month] = (acc[month] || 0) + amount;
+      return acc;
+    }, {});
+
+    const offers = offersRes.data || [];
+    const acceptedOffers = offers.filter((offer) => offer.status === 'accepted');
+    const averageYield = acceptedOffers.length
+      ? Number(
+          (
+            acceptedOffers.reduce((sum, offer) => sum + Number(offer.annual_rate ?? 0), 0) /
+            acceptedOffers.length
+          ).toFixed(4)
+        ) * 100
+      : null;
+    const averageAdvancePct = acceptedOffers.length
+      ? Number(
+          (
+            acceptedOffers.reduce((sum, offer) => sum + Number(offer.advance_pct ?? 0), 0) /
+            acceptedOffers.length
+          ).toFixed(2)
+        )
+      : null;
+
+    const averageApprovalHours = stageDurations['review->accepted']?.averageHours ?? null;
+
     return NextResponse.json({
       totalRequests,
       totalAmount,
@@ -172,6 +238,13 @@ export async function GET() {
       stageDurations,
       validationErrors30d,
       feedback,
+      fundedAmount,
+      fundedRequests,
+      averageDisbursementHours,
+      averageApprovalHours,
+      averageYieldPct: averageYield,
+      averageAdvancePct,
+      monthlyFundingVolumes,
       webVitals: {
         provider: "vercel",
         analyticsEnabled: Boolean(process.env.NEXT_PUBLIC_VERCEL_ANALYTICS_ID || process.env.VERCEL_URL),

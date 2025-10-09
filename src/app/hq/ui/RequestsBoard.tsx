@@ -20,6 +20,18 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Cancelada",
 };
 
+const RISK_LABEL: Record<string, string> = {
+  low: "Bajo",
+  medium: "Medio",
+  high: "Alto",
+};
+
+const RISK_BADGE_CLASS: Record<string, string> = {
+  low: "bg-emerald-100 text-emerald-800 border-emerald-300",
+  medium: "bg-amber-100 text-amber-800 border-amber-300",
+  high: "bg-red-100 text-red-700 border-red-300",
+};
+
 const STATUS_ORDER: Record<string, number> = {
   review: 0,
   offered: 1,
@@ -50,6 +62,13 @@ type RequestItem = {
   archived_at: string | null;
   offer: { id: string; status: string; summary: string } | null;
   force_sign_enabled: boolean;
+  risk: {
+    level: "low" | "medium" | "high";
+    score: number;
+    reasons: string[];
+    exposureRatio: number | null;
+    tenorDays: number | null;
+  };
 };
 
 type GroupValue = "needs" | "client" | "payer" | "status" | "month" | "none";
@@ -66,7 +85,7 @@ type GroupedBlock = {
   };
 };
 
-type DrawerAction = "offer" | "contract" | "force-sign" | "fund" | "deny" | "archive";
+type DrawerAction = "offer" | "contract" | "force-sign" | "fund" | "deny" | "archive" | "auto-approve";
 
 type CustomOfferValues = {
   annualRate: number;
@@ -82,6 +101,7 @@ export function RequestsBoard() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [companyFilter, setCompanyFilter] = useState<string>("all");
+  const [riskFilter, setRiskFilter] = useState<string>("all");
   const [needsOnly, setNeedsOnly] = useState<boolean>(false);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -148,6 +168,9 @@ export function RequestsBoard() {
       if (companyFilter !== "all" && item.company_id !== companyFilter) {
         return false;
       }
+      if (riskFilter !== "all" && item.risk.level !== riskFilter) {
+        return false;
+      }
       if (needsOnly && !item.needs_action) {
         return false;
       }
@@ -166,7 +189,7 @@ export function RequestsBoard() {
         .toLowerCase();
       return haystack.includes(searchTerm);
     });
-  }, [items, statusFilter, companyFilter, needsOnly, searchTerm]);
+  }, [items, statusFilter, companyFilter, riskFilter, needsOnly, searchTerm]);
 
   const groupedBlocks = useMemo(() => {
     const map = new Map<string, GroupedBlock>();
@@ -208,7 +231,8 @@ export function RequestsBoard() {
     const total = filtered.length;
     const pending = filtered.filter((item) => item.needs_action).length;
     const amount = filtered.reduce((acc, item) => acc + item.requested_amount, 0);
-    return { total, pending, amount };
+    const highRisk = filtered.filter((item) => item.risk.level === "high").length;
+    return { total, pending, amount, highRisk };
   }, [filtered]);
 
   const companyOptions = useMemo(() => {
@@ -266,6 +290,9 @@ export function RequestsBoard() {
         } else if (action === 'archive') {
           endpoint = `/api/c/${selected.company_id}/requests/${selected.id}/archive`;
           successMessage = 'Solicitud archivada';
+        } else if (action === 'auto-approve') {
+          endpoint = `/api/hq/requests/${selected.id}/approve`;
+          successMessage = 'Solicitud aprobada automáticamente';
         }
 
         if (!endpoint) {
@@ -309,10 +336,11 @@ export function RequestsBoard() {
         </p>
       </div>
 
-      <div className="mb-5 grid gap-3 md:grid-cols-3">
+      <div className="mb-5 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <SummaryCard label="Solicitudes" value={formatNumber(summary.total)} subtitle="Totales filtradas" />
         <SummaryCard label="Pendientes" value={formatNumber(summary.pending)} subtitle="Necesitan accion" highlight />
         <SummaryCard label="Monto solicitado" value={`$${formatCurrency(summary.amount)}`} subtitle="Suma en COP" />
+        <SummaryCard label="Riesgo alto" value={formatNumber(summary.highRisk)} subtitle="Alertas prioritarias" highlight />
       </div>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-4">
@@ -343,6 +371,19 @@ export function RequestsBoard() {
                 {company.name}
               </option>
             ))}
+          </select>
+        </FilterField>
+
+        <FilterField label="Riesgo">
+          <select
+            value={riskFilter}
+            onChange={(event) => setRiskFilter(event.target.value)}
+            className="w-full rounded-md border border-lp-sec-4/80 bg-white px-2 py-2 text-sm"
+          >
+            <option value="all">Todos</option>
+            <option value="high">Alto</option>
+            <option value="medium">Medio</option>
+            <option value="low">Bajo</option>
           </select>
         </FilterField>
 
@@ -496,6 +537,7 @@ function GroupSection({ block, onOpenDetail }: GroupSectionProps) {
               <th className="px-3 py-2 font-medium text-lp-sec-3">Cliente</th>
               <th className="px-3 py-2 font-medium text-lp-sec-3">Pagador</th>
               <th className="px-3 py-2 font-medium text-lp-sec-3">Monto</th>
+              <th className="px-3 py-2 font-medium text-lp-sec-3">Riesgo</th>
               <th className="px-3 py-2 font-medium text-lp-sec-3">Estado</th>
               <th className="px-3 py-2 font-medium text-lp-sec-3">Proximo paso</th>
               <th className="px-3 py-2 font-medium text-lp-sec-3">Pendientes</th>
@@ -651,6 +693,12 @@ function RequestRow({ item, onOpenDetail }: RequestRowProps) {
 
   const nextAction = item.next_action?.trim() || "";
   const pendingLabel = item.pending_documents.length === 0 ? "Sin pendientes" : item.pending_documents.join(", ");
+  const riskLabel = RISK_LABEL[item.risk.level] ?? item.risk.level;
+  const riskClass = RISK_BADGE_CLASS[item.risk.level] ?? "bg-lp-sec-4/40 text-lp-primary-1 border-lp-sec-4/60";
+  const exposureLabel =
+    item.risk.exposureRatio != null ? `${Math.round(item.risk.exposureRatio * 100)}% del límite` : "Sin límite";
+  const tenorLabel =
+    typeof item.risk.tenorDays === "number" ? `${item.risk.tenorDays} días` : "Plazo n/d";
 
   return (
     <tr className={item.archived_at ? "bg-lp-sec-4/40" : item.needs_action ? "bg-amber-50/40" : "bg-white"}>
@@ -670,6 +718,14 @@ function RequestRow({ item, onOpenDetail }: RequestRowProps) {
       <td className="px-3 py-2 align-top text-sm">
         <div className="font-semibold text-lp-primary-1">${formatCurrency(item.requested_amount)}</div>
         <div className="text-xs text-lp-sec-3">{item.currency} | Facturas ${formatCurrency(item.invoices_total)}</div>
+      </td>
+      <td className="px-3 py-2 align-top text-sm">
+        <div className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${riskClass}`}>
+          {riskLabel}
+        </div>
+        <div className="mt-1 text-[11px] text-lp-sec-3">
+          {exposureLabel} · {tenorLabel}
+        </div>
       </td>
       <td className="px-3 py-2 align-top text-sm">
         <StatusBadge status={item.status} kind="request" />
@@ -794,6 +850,14 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
   const canDeny = !isArchived && (request.status === 'review' || request.status === 'offered');
   const canArchive = !isArchived;
   const archiveLabel = isArchived ? 'Solicitud archivada' : 'Archivar solicitud';
+  const isHighRisk = request.risk.level === 'high';
+  const canAutoApprove = !isArchived && request.status === 'review' && !isHighRisk;
+  const riskBadge = RISK_BADGE_CLASS[request.risk.level] ?? 'bg-lp-sec-4/40 text-lp-primary-1 border-lp-sec-4/60';
+  const riskLabel = RISK_LABEL[request.risk.level] ?? request.risk.level;
+  const riskExposure =
+    request.risk.exposureRatio != null ? `${Math.round(request.risk.exposureRatio * 100)}% del límite` : 'Sin límite definido';
+  const riskTenor =
+    typeof request.risk.tenorDays === 'number' ? `${request.risk.tenorDays} días estimados` : 'Plazo no disponible';
 
   const handleOfferWizardOpen = () => {
     if (!canGenerateOffer || actionLoading === 'offer') {
@@ -879,6 +943,25 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
           </section>
 
           <section>
+            <div className="text-xs uppercase text-lp-sec-3">Evaluación de riesgo</div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${riskBadge}`}>
+                {riskLabel}
+              </span>
+              <span className="text-xs text-lp-sec-3">{riskExposure} · {riskTenor}</span>
+            </div>
+            {request.risk.reasons.length > 0 ? (
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-lp-sec-3">
+                {request.risk.reasons.map((reason, index) => (
+                  <li key={`${reason}-${index}`}>{reason}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-xs text-lp-sec-3">Sin observaciones adicionales.</p>
+            )}
+          </section>
+
+          <section>
             <div className="text-xs uppercase text-lp-sec-3">Pagadores</div>
             <ul className="mt-2 space-y-1 text-sm text-lp-primary-1">
               {request.payers.map((payer) => (
@@ -910,6 +993,12 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
           <section className="space-y-2">
             <div className="text-xs uppercase text-lp-sec-3">Acciones rapidas</div>
             <div className="flex flex-wrap gap-2">
+              <ActionButton
+                label="Aprobar automáticamente"
+                disabled={!canAutoApprove}
+                loading={actionLoading === 'auto-approve'}
+                onClick={() => onAction('auto-approve')}
+              />
               <ActionButton
                 label="Generar oferta"
                 disabled={!canGenerateOffer}
@@ -952,6 +1041,9 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
                 variant="secondary"
               />
             </div>
+            {!canAutoApprove && isHighRisk ? (
+              <p className="text-xs text-red-600">Riesgo alto identificado, revisar manualmente.</p>
+            ) : null}
           </section>
         </div>
       </aside>
