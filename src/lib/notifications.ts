@@ -301,6 +301,7 @@ export async function notifyInvestorWithdrawalRequested(params: InvestorTransact
 }
 
 export async function notifyInvestorStatementGenerated(params: InvestorStatementNotificationParams) {
+  const supabaseAdmin = getSupabaseAdminClient();
   const members = await getCompanyActiveMemberEmails(params.orgId);
   const recipients = pickInvestorRecipients(members);
 
@@ -308,11 +309,46 @@ export async function notifyInvestorStatementGenerated(params: InvestorStatement
     return;
   }
 
-  const periodLabel = params.periodLabel || params.period || "un nuevo período";
+  let period = params.period ?? null;
+  let periodLabel = params.periodLabel ?? null;
+  let downloadUrl = params.downloadUrl ?? null;
+  let generatedAt = params.generatedAt ?? null;
+
+  if (!periodLabel || !downloadUrl || !generatedAt || !period) {
+    try {
+      const { data: statementRow, error } = await supabaseAdmin
+        .from("investor_statements")
+        .select("period, period_label, generated_at, download_url")
+        .eq("id", params.statementId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Failed to load investor statement metadata", error);
+      }
+
+      if (statementRow) {
+        period = period ?? (statementRow.period ?? null);
+        periodLabel = (
+          periodLabel
+          ?? statementRow.period_label
+          ?? statementRow.period
+          ?? null
+        );
+        downloadUrl = downloadUrl ?? (statementRow.download_url ?? null);
+        generatedAt = generatedAt ?? (statementRow.generated_at ?? null);
+      }
+    } catch (error) {
+      console.error("Unexpected error fetching investor statement", error);
+    }
+  }
+
+  const resolvedPeriodLabel = periodLabel || period || "un nuevo período";
+  const resolvedDownloadUrl = downloadUrl || undefined;
+  const resolvedGeneratedAt = generatedAt || null;
   const subject = "Nuevo estado de cuenta disponible";
   const html = `
-    <p>Generamos un nuevo estado de cuenta para ${escapeHtml(periodLabel)}.</p>
-    ${params.downloadUrl ? `<p>Puedes descargarlo desde este enlace: <a href="${escapeHtml(params.downloadUrl)}">${escapeHtml(params.downloadUrl)}</a></p>` : ""}
+    <p>Generamos un nuevo estado de cuenta para ${escapeHtml(resolvedPeriodLabel)}.</p>
+    ${resolvedDownloadUrl ? `<p>Puedes descargarlo desde este enlace: <a href="${escapeHtml(resolvedDownloadUrl)}">${escapeHtml(resolvedDownloadUrl)}</a></p>` : ""}
     <p>También lo encontrarás en tu portal de inversionista.</p>
   `;
 
@@ -325,18 +361,23 @@ export async function notifyInvestorStatementGenerated(params: InvestorStatement
   }
 
   if (recipients.userIds.length > 0) {
-    const messageSuffix = periodLabel ? ` (${periodLabel})` : "";
+    const messageSuffix = resolvedPeriodLabel ? ` (${resolvedPeriodLabel})` : "";
     await createNotification(
       recipients.userIds,
       "investor_statement_generated",
       `Nuevo estado de cuenta disponible${messageSuffix}.`,
       {
         orgId: params.orgId,
+        org_id: params.orgId,
         statementId: params.statementId,
-        period: params.period ?? null,
-        periodLabel: params.periodLabel ?? null,
-        downloadUrl: params.downloadUrl ?? null,
-        generatedAt: params.generatedAt ?? null,
+        statement_id: params.statementId,
+        period: period ?? null,
+        periodLabel: resolvedPeriodLabel ?? null,
+        period_label: resolvedPeriodLabel ?? null,
+        downloadUrl: resolvedDownloadUrl ?? null,
+        download_url: resolvedDownloadUrl ?? null,
+        generatedAt: resolvedGeneratedAt,
+        generated_at: resolvedGeneratedAt,
       },
     );
   }

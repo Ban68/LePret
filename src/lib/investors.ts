@@ -61,9 +61,13 @@ export interface InvestorTransaction {
 
 export interface InvestorStatement {
   id: string;
-  period: string;
-  generatedAt: string;
-  downloadUrl: string;
+  period: string | null;
+  periodLabel: string | null;
+  period_label?: string | null;
+  generatedAt: string | null;
+  generated_at?: string | null;
+  downloadUrl: string | null;
+  download_url?: string | null;
 }
 
 export interface InvestorSummaryFilters {
@@ -115,9 +119,10 @@ type InvestorTransactionRow = {
 type InvestorStatementRow = {
   id: string;
   org_id: string;
-  period: string;
-  generated_at: string;
-  download_url: string;
+  period: string | null;
+  period_label?: string | null;
+  generated_at: string | null;
+  download_url: string | null;
 };
 
 function sum(values: Array<number | null | undefined>): number {
@@ -592,7 +597,7 @@ export async function getInvestorStatements(
 
   let query = supabaseAdmin
     .from("investor_statements")
-    .select("id, period, generated_at, download_url")
+    .select("id, period, period_label, generated_at, download_url")
     .eq("org_id", orgId)
     .order("generated_at", { ascending: false })
     .range(from, to);
@@ -615,8 +620,12 @@ export async function getInvestorStatements(
 
   return rows.map((statement) => ({
     id: statement.id,
-    period: statement.period,
-    generatedAt: statement.generated_at,
-    downloadUrl: statement.download_url,
+    period: statement.period ?? null,
+    periodLabel: statement.period_label ?? null,
+    period_label: statement.period_label ?? null,
+    generatedAt: statement.generated_at ?? null,
+    generated_at: statement.generated_at ?? null,
+    downloadUrl: statement.download_url ?? null,
+    download_url: statement.download_url ?? null,
   }));
 }
