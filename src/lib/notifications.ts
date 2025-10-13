@@ -18,6 +18,66 @@ function unique(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatCurrency(amount: number, currency: string): string {
+  if (!Number.isFinite(amount)) {
+    return `${amount} ${currency}`;
+  }
+
+  try {
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    try {
+      return `${amount.toLocaleString("es-CO")} ${currency}`;
+    } catch {
+      return `${amount} ${currency}`;
+    }
+  }
+}
+
+function formatDateTime(value?: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  try {
+    return new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeStyle: "short" }).format(date);
+  } catch {
+    return date.toISOString();
+  }
+}
+
+type InvestorRecipientList = {
+  emails: string[];
+  userIds: string[];
+};
+
+function pickInvestorRecipients(
+  members: Awaited<ReturnType<typeof getCompanyActiveMemberEmails>>,
+): InvestorRecipientList {
+  if (members.clientIds.length > 0) {
+    return { emails: members.clients, userIds: members.clientIds };
+  }
+  if (members.ownerIds.length > 0) {
+    return { emails: members.owners, userIds: members.ownerIds };
+  }
+  if (members.adminIds.length > 0) {
+    return { emails: members.admins, userIds: members.adminIds };
+  }
+  return { emails: members.all, userIds: members.allIds };
+}
+
 async function getUserIdsForEmails(emails: string[]): Promise<string[]> {
   if (!emails.length) return [];
   const supabaseAdmin = getSupabaseAdminClient();
@@ -143,6 +203,143 @@ async function sendEmail(to: string[] | string, subject: string, html: string) {
   const recipients = Array.isArray(to) ? to : [to];
   await resend.emails.send({ from: EMAIL_FROM, to: recipients, subject, html });
   return { ok: true } as const;
+}
+
+type InvestorTransactionNotificationParams = {
+  orgId: string;
+  transactionId: string;
+  amount: number;
+  currency: string;
+  date?: string;
+  description?: string | null;
+  requestedByUserId?: string;
+  requestedByEmail?: string | null;
+};
+
+async function notifyInvestorTransaction(
+  params: InvestorTransactionNotificationParams,
+  options: {
+    type: "investor_deposit_requested" | "investor_withdrawal_requested";
+    message: string | ((amount: string) => string);
+    emailSubject: string;
+    emailIntro: string;
+    status: string;
+  },
+) {
+  const members = await getCompanyActiveMemberEmails(params.orgId);
+  const recipients = pickInvestorRecipients(members);
+
+  if (recipients.emails.length === 0 && recipients.userIds.length === 0) {
+    return;
+  }
+
+  const formattedAmount = formatCurrency(params.amount, params.currency);
+  const formattedDate = formatDateTime(params.date);
+  const description = params.description ? escapeHtml(params.description) : null;
+  const emailBody = `
+    <p>${escapeHtml(options.emailIntro)}</p>
+    <ul>
+      <li><strong>Monto:</strong> ${escapeHtml(formattedAmount)}</li>
+      ${formattedDate ? `<li><strong>Fecha:</strong> ${escapeHtml(formattedDate)}</li>` : ""}
+      ${description ? `<li><strong>Descripción:</strong> ${description}</li>` : ""}
+    </ul>
+    <p>Te avisaremos cuando tengamos novedades.</p>
+  `;
+
+  if (recipients.emails.length > 0) {
+    try {
+      await sendEmail(recipients.emails, options.emailSubject, emailBody);
+    } catch (error) {
+      console.error("Failed to send investor transaction email", error);
+    }
+  }
+
+  if (recipients.userIds.length > 0) {
+    const notificationMessage =
+      typeof options.message === "function" ? options.message(formattedAmount) : options.message;
+    await createNotification(recipients.userIds, options.type, notificationMessage, {
+      orgId: params.orgId,
+      transactionId: params.transactionId,
+      amount: params.amount,
+      currency: params.currency,
+      date: params.date ?? null,
+      description: params.description ?? null,
+      status: options.status,
+      requestedByUserId: params.requestedByUserId ?? null,
+      requestedByEmail: params.requestedByEmail ?? null,
+    });
+  }
+}
+
+type InvestorStatementNotificationParams = {
+  orgId: string;
+  statementId: string;
+  period?: string | null;
+  periodLabel?: string | null;
+  downloadUrl?: string | null;
+  generatedAt?: string | null;
+};
+
+export async function notifyInvestorDepositRequested(params: InvestorTransactionNotificationParams) {
+  await notifyInvestorTransaction(params, {
+    type: "investor_deposit_requested",
+    message: (amount) => `Registramos tu solicitud de aporte por ${amount}.`,
+    emailSubject: "Recibimos tu solicitud de aporte",
+    emailIntro: "Registramos tu solicitud de aporte y nuestro equipo la está revisando.",
+    status: "pending",
+  });
+}
+
+export async function notifyInvestorWithdrawalRequested(params: InvestorTransactionNotificationParams) {
+  await notifyInvestorTransaction(params, {
+    type: "investor_withdrawal_requested",
+    message: (amount) => `Registramos tu solicitud de retiro por ${amount}.`,
+    emailSubject: "Recibimos tu solicitud de retiro",
+    emailIntro: "Registramos tu solicitud de retiro y nuestro equipo la está revisando.",
+    status: "pending",
+  });
+}
+
+export async function notifyInvestorStatementGenerated(params: InvestorStatementNotificationParams) {
+  const members = await getCompanyActiveMemberEmails(params.orgId);
+  const recipients = pickInvestorRecipients(members);
+
+  if (recipients.emails.length === 0 && recipients.userIds.length === 0) {
+    return;
+  }
+
+  const periodLabel = params.periodLabel || params.period || "un nuevo período";
+  const subject = "Nuevo estado de cuenta disponible";
+  const html = `
+    <p>Generamos un nuevo estado de cuenta para ${escapeHtml(periodLabel)}.</p>
+    ${params.downloadUrl ? `<p>Puedes descargarlo desde este enlace: <a href="${escapeHtml(params.downloadUrl)}">${escapeHtml(params.downloadUrl)}</a></p>` : ""}
+    <p>También lo encontrarás en tu portal de inversionista.</p>
+  `;
+
+  if (recipients.emails.length > 0) {
+    try {
+      await sendEmail(recipients.emails, subject, html);
+    } catch (error) {
+      console.error("Failed to send investor statement email", error);
+    }
+  }
+
+  if (recipients.userIds.length > 0) {
+    const messageSuffix = periodLabel ? ` (${periodLabel})` : "";
+    await createNotification(
+      recipients.userIds,
+      "investor_statement_generated",
+      `Nuevo estado de cuenta disponible${messageSuffix}.`,
+      {
+        orgId: params.orgId,
+        statementId: params.statementId,
+        period: params.period ?? null,
+        periodLabel: params.periodLabel ?? null,
+        downloadUrl: params.downloadUrl ?? null,
+        generatedAt: params.generatedAt ?? null,
+      },
+    );
+  }
 }
 
 export async function notifyStaffNewRequest(companyId: string, requestId: string) {
