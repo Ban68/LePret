@@ -16,7 +16,8 @@ export function InvestorNavigation({ orgId }: InvestorNavigationProps) {
   const items = [
     { href: `${basePath}/dashboard`, label: "Dashboard" },
     { href: `${basePath}/posiciones`, label: "Posiciones" },
-    { href: `${basePath}/transacciones`, label: "Transacciones" },
+    { href: `${basePath}/movimientos/depositos`, label: "Depósitos" },
+    { href: `${basePath}/movimientos/retiros`, label: "Retiros" },
     { href: `${basePath}/estados`, label: "Estados de cuenta" },
     { href: `${basePath}/configuracion`, label: "Configuración" },
   ];
@@ -24,7 +25,10 @@ export function InvestorNavigation({ orgId }: InvestorNavigationProps) {
   return (
     <nav className="flex flex-wrap items-center gap-3 border-b border-lp-gray-100 pb-4">
       {items.map((item) => {
-        const isActive = pathname?.startsWith(item.href);
+        const normalizedPathname = pathname?.replace(/\/$/, "");
+        const isActive =
+          normalizedPathname === item.href ||
+          normalizedPathname?.startsWith(`${item.href}/`);
 
         return (
           <Link
