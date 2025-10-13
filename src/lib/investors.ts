@@ -100,7 +100,15 @@ type InvestorStatementRow = {
 };
 
 function sum(values: Array<number | null | undefined>): number {
-  return values.reduce((total, value) => total + (typeof value === "number" ? value : 0), 0);
+  let total = 0;
+
+  for (const value of values) {
+    if (typeof value === "number") {
+      total += value;
+    }
+  }
+
+  return total;
 }
 
 function calculateReturn(
@@ -197,10 +205,10 @@ export async function getInvestorPositions(orgId: string): Promise<InvestorPosit
     id: position.id,
     name: position.name,
     strategy: position.strategy,
-    investedAmount: position.invested_amount,
-    currentValue: position.current_value,
+    investedAmount: position.invested_amount ?? 0,
+    currentValue: position.current_value ?? 0,
     currency: position.currency,
-    irr: position.irr,
+    irr: position.irr ?? 0,
     updatedAt: position.updated_at,
   }));
 }
