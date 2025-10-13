@@ -10,7 +10,8 @@ interface InvestorPosition {
   investedAmount: number;
   currentValue: number;
   currency: string;
-  irr?: number;
+  irr?: number | null;
+  timeWeightedReturn?: number | null;
   updatedAt: string;
 }
 
@@ -26,12 +27,12 @@ function formatCurrency(amount: number, currency: string) {
   }).format(amount);
 }
 
-function formatIrr(irr?: number) {
-  if (irr === null || irr === undefined) {
+function formatPercentage(value?: number | null) {
+  if (value === null || value === undefined || Number.isNaN(value)) {
     return "-";
   }
 
-  return `${irr.toFixed(2)}%`;
+  return `${value.toFixed(2)}%`;
 }
 
 function formatDate(value: string) {
@@ -121,6 +122,7 @@ export default function InvestorPositionsPage() {
                 <th className="px-4 py-3">Valor actual</th>
                 <th className="px-4 py-3">Moneda</th>
                 <th className="px-4 py-3">IRR</th>
+                <th className="px-4 py-3">TWR</th>
                 <th className="px-4 py-3">Actualizado</th>
               </tr>
             </thead>
@@ -136,7 +138,8 @@ export default function InvestorPositionsPage() {
                     {formatCurrency(position.currentValue, position.currency)}
                   </td>
                   <td className="px-4 py-3 uppercase">{position.currency}</td>
-                  <td className="px-4 py-3">{formatIrr(position.irr)}</td>
+                  <td className="px-4 py-3">{formatPercentage(position.irr)}</td>
+                  <td className="px-4 py-3">{formatPercentage(position.timeWeightedReturn)}</td>
                   <td className="px-4 py-3">{formatDate(position.updatedAt)}</td>
                 </tr>
               ))}

@@ -42,6 +42,10 @@ type InvestorSummaryResponse = {
     value: number;
     percentage: number;
   };
+  performance: {
+    irr: number | null;
+    timeWeightedReturn: number | null;
+  };
   upcomingCashflows: InvestorCashflow[];
   currency: string;
   portfolioEvolution?: PortfolioPoint[];
@@ -64,6 +68,14 @@ function formatCurrency(amount: number, currency: string) {
 
 function formatPercentage(value: number) {
   return `${value.toFixed(2)}%`;
+}
+
+function formatOptionalPercentage(value: number | null | undefined) {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "-";
+  }
+
+  return formatPercentage(value);
 }
 
 function formatDate(value: string) {
@@ -167,7 +179,7 @@ export default function InvestorDashboard({ orgId }: InvestorDashboardProps) {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
         <Card>
           <CardHeader>
             <CardTitle>Capital invertido</CardTitle>
@@ -190,6 +202,34 @@ export default function InvestorDashboard({ orgId }: InvestorDashboardProps) {
             </p>
             <p className="mt-2 text-sm text-lp-sec-3">
               {formatPercentage(summary.cumulativeReturn.percentage)} vs. capital invertido.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Tasa interna de retorno</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-semibold text-lp-primary-1">
+              {formatOptionalPercentage(summary.performance.irr)}
+            </p>
+            <p className="mt-2 text-sm text-lp-sec-3">
+              Calculada con base en tus aportes y retiros históricos.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Rentabilidad ponderada en el tiempo</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-semibold text-lp-primary-1">
+              {formatOptionalPercentage(summary.performance.timeWeightedReturn)}
+            </p>
+            <p className="mt-2 text-sm text-lp-sec-3">
+              Indica el rendimiento del portafolio descontando flujos externos.
             </p>
           </CardContent>
         </Card>
