@@ -266,14 +266,16 @@ export function InvestorSettingsClient() {
         }
 
         if (data) {
+          const raw = data as unknown as Record<string, unknown>;
+          const idValue = typeof raw.id === "string" ? raw.id : null;
           found = {
             config: candidate,
             row: {
-              id: (data as { id: string | null }).id ?? null,
-              email: Boolean((data as Record<string, unknown>)[candidate.emailColumn]),
-              sms: Boolean((data as Record<string, unknown>)[candidate.smsColumn]),
+              id: idValue,
+              email: Boolean(raw[candidate.emailColumn]),
+              sms: Boolean(raw[candidate.smsColumn]),
               frequency:
-                ((data as Record<string, unknown>)[candidate.frequencyColumn] as NotificationPreference["frequency"]) || "weekly",
+                (raw[candidate.frequencyColumn] as NotificationPreference["frequency"]) || "weekly",
             },
           };
         } else {
