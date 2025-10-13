@@ -1,5 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getInvestorSummary } from "@/lib/investors";
+import InvestorDashboard from "./client-dashboard";
 
 function formatCurrency(amount: number, currency: string) {
   return new Intl.NumberFormat("es-CO", {
@@ -25,24 +24,7 @@ export default async function InvestorDashboardPage({
   params,
 }: {
   params: Promise<{ orgId: string }>;
-}) {
-  const { orgId } = await params;
-  const summary = await getInvestorSummary(orgId);
-
-  return (
-    <div className="space-y-8">
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Capital invertido</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-semibold text-lp-primary-1">
-              {formatCurrency(summary.investedCapital, summary.currency)}
-            </p>
-            <p className="mt-2 text-sm text-lp-sec-3">Saldo comprometido actualmente en tus estrategias.</p>
-          </CardContent>
-        </Card>
+};
 
         <Card>
           <CardHeader>
@@ -88,32 +70,5 @@ export default async function InvestorDashboardPage({
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Próximos flujos de caja</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {summary.upcomingCashflows.length ? (
-            <div className="space-y-4">
-              {summary.upcomingCashflows.map((cashflow) => (
-                <div key={cashflow.id} className="flex items-center justify-between rounded-lg border border-lp-gray-100 p-4">
-                  <div>
-                    <p className="text-sm font-semibold text-lp-primary-1">{cashflow.description}</p>
-                    <p className="text-xs text-lp-sec-3">
-                      {new Intl.DateTimeFormat("es-CO", { dateStyle: "medium" }).format(new Date(cashflow.date))}
-                    </p>
-                  </div>
-                  <p className="text-sm font-semibold text-lp-primary-1">
-                    {formatCurrency(cashflow.amount, cashflow.currency)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-lp-sec-3">No hay flujos de caja planificados.</p>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
+  return <InvestorDashboard orgId={orgId} />;
 }
