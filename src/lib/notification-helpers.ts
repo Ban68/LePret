@@ -83,6 +83,12 @@ export function resolveNotificationLink(notification: NotificationItem): Notific
 
   const type = notification.type || "";
   const companyId = getDataString(data, "companyId") || getDataString(data, "company_id");
+  const orgId =
+    getDataString(data, "orgId") ||
+    getDataString(data, "org_id") ||
+    companyId ||
+    getDataString(data, "organizationId") ||
+    getDataString(data, "organization_id");
   const requestId = getDataString(data, "requestId") || getDataString(data, "request_id");
 
   if (type.startsWith("client_")) {
@@ -97,6 +103,15 @@ export function resolveNotificationLink(notification: NotificationItem): Notific
     }
   }
 
+  if (type.startsWith("investor_")) {
+    if (type === "investor_statement_generated" && orgId) {
+      return { href: `/i/${orgId}/estados`, label: "Ver estado de cuenta", isExternal: false };
+    }
+    if (orgId) {
+      return { href: `/i/${orgId}/transacciones`, label: "Ver movimientos", isExternal: false };
+    }
+  }
+
   if (type.startsWith("staff_")) {
     if (type === "staff_kyc_submitted" && companyId) {
       return { href: `/hq/kyc?company=${encodeURIComponent(companyId)}`, label: "Revisar KYC", isExternal: false };
@@ -104,8 +119,8 @@ export function resolveNotificationLink(notification: NotificationItem): Notific
     return { href: "/hq/operaciones", label: "Ir a operaciones", isExternal: false };
   }
 
-  if (companyId) {
-    return { href: `/c/${companyId}/dashboard`, label: "Ver detalles", isExternal: false };
+  if (orgId) {
+    return { href: `/c/${orgId}/dashboard`, label: "Ver detalles", isExternal: false };
   }
 
   return null;
@@ -117,6 +132,9 @@ const TYPE_LABELS: Record<string, string> = {
   request_created: "Nueva solicitud",
   staff_new_request: "Nueva solicitud (staff)",
   staff_kyc_submitted: "KYC enviado",
+  investor_deposit_requested: "Solicitud de aporte registrada",
+  investor_withdrawal_requested: "Solicitud de retiro registrada",
+  investor_statement_generated: "Estado de cuenta disponible",
 };
 
 export function formatNotificationType(type: string | null | undefined): string {

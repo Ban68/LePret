@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
 import { getSupabaseAdminClient } from "@/lib/supabase";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, notifyInvestorWithdrawalRequested } from "@/lib/notifications";
 
 type RouteContext = { params: Promise<{ orgId: string }> };
 
@@ -83,6 +83,21 @@ export async function POST(req: Request, { params }: RouteContext) {
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    try {
+      await notifyInvestorWithdrawalRequested({
+        orgId,
+        transactionId: data.id,
+        amount,
+        currency,
+        date,
+        description,
+        requestedByUserId: session.user.id,
+        requestedByEmail: session.user.email ?? null,
+      });
+    } catch (notifyError) {
+      console.error("Failed to notify investor about withdrawal request", notifyError);
     }
 
     notifyStaff({
