@@ -129,7 +129,7 @@ export async function getInvestorSummary(
   filters: InvestorSummaryFilters = {},
 ): Promise<InvestorSummary> {
   const { data: positionsData, error: positionsError } = await supabaseAdmin
-    .from<InvestorPositionRow>("investor_positions")
+    .from("investor_positions")
     .select(
       "id, name, strategy, invested_amount, current_value, currency, irr, updated_at",
     )
@@ -139,7 +139,7 @@ export async function getInvestorSummary(
     throw new Error(`Failed to load investor positions: ${positionsError.message}`);
   }
 
-  const positions = positionsData ?? [];
+  const positions = (positionsData ?? []) as InvestorPositionRow[];
 
   const investedCapital = sum(positions.map((position) => position.invested_amount));
   const currentValue = sum(positions.map((position) => position.current_value));
@@ -150,7 +150,7 @@ export async function getInvestorSummary(
   const upcomingTypes = filters.upcomingTypes;
   const nowIso = new Date().toISOString();
   let upcomingQuery = supabaseAdmin
-    .from<InvestorTransactionRow>("investor_transactions")
+    .from("investor_transactions")
     .select("id, amount, currency, description, type, date")
     .eq("org_id", orgId)
     .gte("date", filters.upcomingFromDate ?? nowIso)
@@ -168,7 +168,7 @@ export async function getInvestorSummary(
     throw new Error(`Failed to load upcoming transactions: ${transactionsError.message}`);
   }
 
-  const upcomingTransactions = upcomingTransactionsData ?? [];
+  const upcomingTransactions = (upcomingTransactionsData ?? []) as InvestorTransactionRow[];
 
   const upcomingCashflows: InvestorCashflow[] = upcomingTransactions.map((transaction) => ({
     id: transaction.id,
@@ -188,7 +188,7 @@ export async function getInvestorSummary(
 
 export async function getInvestorPositions(orgId: string): Promise<InvestorPosition[]> {
   const { data, error } = await supabaseAdmin
-    .from<InvestorPositionRow>("investor_positions")
+    .from("investor_positions")
     .select(
       "id, name, strategy, invested_amount, current_value, currency, irr, updated_at",
     )
@@ -199,7 +199,7 @@ export async function getInvestorPositions(orgId: string): Promise<InvestorPosit
     throw new Error(`Failed to load investor positions: ${error.message}`);
   }
 
-  const rows = data ?? [];
+  const rows = (data ?? []) as InvestorPositionRow[];
 
   return rows.map((position) => ({
     id: position.id,
@@ -223,7 +223,7 @@ export async function getInvestorTransactions(
   const to = from + pageSize - 1;
 
   let query = supabaseAdmin
-    .from<InvestorTransactionRow>("investor_transactions")
+    .from("investor_transactions")
     .select("id, type, amount, currency, date, description, position_id")
     .eq("org_id", orgId)
     .order("date", { ascending: false })
@@ -251,7 +251,7 @@ export async function getInvestorTransactions(
     throw new Error(`Failed to load investor transactions: ${error.message}`);
   }
 
-  const rows = data ?? [];
+  const rows = (data ?? []) as InvestorTransactionRow[];
 
   return rows.map((transaction) => ({
     id: transaction.id,
@@ -274,7 +274,7 @@ export async function getInvestorStatements(
   const to = from + pageSize - 1;
 
   let query = supabaseAdmin
-    .from<InvestorStatementRow>("investor_statements")
+    .from("investor_statements")
     .select("id, period, generated_at, download_url")
     .eq("org_id", orgId)
     .order("generated_at", { ascending: false })
@@ -294,7 +294,7 @@ export async function getInvestorStatements(
     throw new Error(`Failed to load investor statements: ${error.message}`);
   }
 
-  const rows = data ?? [];
+  const rows = (data ?? []) as InvestorStatementRow[];
 
   return rows.map((statement) => ({
     id: statement.id,
