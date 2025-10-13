@@ -577,9 +577,11 @@ export function InvestorSettingsClient() {
 
   if (!orgId) {
     return (
-      <InlineBanner variant="warning" title="Organización no encontrada">
-        No pudimos determinar la organización seleccionada. Vuelve a la lista e inténtalo de nuevo.
-      </InlineBanner>
+      <InlineBanner
+        tone="warning"
+        title="Organización no encontrada"
+        description="No pudimos determinar la organización seleccionada. Vuelve a la lista e inténtalo de nuevo."
+      />
     );
   }
 
@@ -612,7 +614,9 @@ export function InvestorSettingsClient() {
             </p>
           </div>
 
-          {bankError && <InlineBanner variant="error" title="No se pudieron cargar las cuentas">{bankError}</InlineBanner>}
+          {bankError && (
+            <InlineBanner tone="error" title="No se pudieron cargar las cuentas" description={bankError} />
+          )}
 
           <Card className="border-lp-gray-200/70">
             <CardHeader>
@@ -785,9 +789,11 @@ export function InvestorSettingsClient() {
           </div>
 
           {notificationError && (
-            <InlineBanner variant="error" title="No se pudieron cargar las preferencias">
-              {notificationError}
-            </InlineBanner>
+            <InlineBanner
+              tone="error"
+              title="No se pudieron cargar las preferencias"
+              description={notificationError}
+            />
           )}
 
           <Card className="border-lp-gray-200/70">
@@ -879,9 +885,11 @@ export function InvestorSettingsClient() {
           </div>
 
           {membersError && (
-            <InlineBanner variant="error" title="No se pudieron cargar los usuarios">
-              {membersError}
-            </InlineBanner>
+            <InlineBanner
+              tone="error"
+              title="No se pudieron cargar los usuarios"
+              description={membersError}
+            />
           )}
 
           <Card className="border-lp-gray-200/70">
@@ -954,9 +962,11 @@ export function InvestorSettingsClient() {
               </CardContent>
             </Card>
           ) : (
-            <InlineBanner variant="warning" title="No tienes permisos para editar">
-              Solicita a un administrador de la organización que te otorgue permisos para gestionar usuarios.
-            </InlineBanner>
+            <InlineBanner
+              tone="warning"
+              title="No tienes permisos para editar"
+              description="Solicita a un administrador de la organización que te otorgue permisos para gestionar usuarios."
+            />
           )}
         </section>
       )}
