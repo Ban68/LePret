@@ -35,5 +35,11 @@ export async function GET(request: Request, { params }: RouteContext) {
     upcomingToDate,
   });
 
-  return NextResponse.json(summary);
+  const { portfolioEvolution, strategyDistribution, ...rest } = summary;
+
+  return NextResponse.json({
+    ...rest,
+    portfolioEvolution,
+    strategyDistribution,
+  });
 }
