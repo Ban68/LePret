@@ -17,6 +17,7 @@ export function InvestorNavigation({ orgId }: InvestorNavigationProps) {
     { href: `${basePath}/dashboard`, label: "Dashboard" },
     { href: `${basePath}/posiciones`, label: "Posiciones" },
     { href: `${basePath}/transacciones`, label: "Transacciones" },
+    { href: `${basePath}/estados`, label: "Estados de cuenta" },
     { href: `${basePath}/configuracion`, label: "Configuración" },
   ];
 
