@@ -13,12 +13,20 @@ function formatPercentage(value: number) {
   return `${value.toFixed(2)}%`;
 }
 
+function formatPerformance(value: number | null | undefined) {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+
+  return `${(value * 100).toFixed(2)}%`;
+}
+
 export default async function InvestorDashboardPage({
   params,
 }: {
-  params: Promise<{ orgId: string }>;
+  params: { orgId: string };
 }) {
-  const { orgId } = await params;
+  const { orgId } = params;
   const summary = await getInvestorSummary(orgId);
 
   return (
@@ -45,6 +53,16 @@ export default async function InvestorDashboardPage({
               {formatCurrency(summary.cumulativeReturn.value, summary.currency)}
             </p>
             <p className="mt-2 text-sm text-lp-sec-3">{formatPercentage(summary.cumulativeReturn.percentage)} vs. capital invertido.</p>
+            <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-lp-sec-3">IRR</p>
+                <p className="text-lg font-semibold text-lp-primary-1">{formatPerformance(summary.performance.irr)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-lp-sec-3">TWR</p>
+                <p className="text-lg font-semibold text-lp-primary-1">{formatPerformance(summary.performance.twr)}</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

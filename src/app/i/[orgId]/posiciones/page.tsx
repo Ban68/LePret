@@ -10,7 +10,8 @@ interface InvestorPosition {
   investedAmount: number;
   currentValue: number;
   currency: string;
-  irr?: number;
+  irr: number | null;
+  twr: number | null;
   updatedAt: string;
 }
 
@@ -26,12 +27,20 @@ function formatCurrency(amount: number, currency: string) {
   }).format(amount);
 }
 
-function formatIrr(irr?: number) {
-  if (irr === null || irr === undefined) {
+function formatIrr(irr: number | null) {
+  if (irr === null) {
     return "-";
   }
 
-  return `${irr.toFixed(2)}%`;
+  return `${(irr * 100).toFixed(2)}%`;
+}
+
+function formatTwr(twr: number | null) {
+  if (twr === null) {
+    return "-";
+  }
+
+  return `${(twr * 100).toFixed(2)}%`;
 }
 
 function formatDate(value: string) {
@@ -121,6 +130,7 @@ export default function InvestorPositionsPage() {
                 <th className="px-4 py-3">Valor actual</th>
                 <th className="px-4 py-3">Moneda</th>
                 <th className="px-4 py-3">IRR</th>
+                <th className="px-4 py-3">TWR</th>
                 <th className="px-4 py-3">Actualizado</th>
               </tr>
             </thead>
@@ -137,6 +147,7 @@ export default function InvestorPositionsPage() {
                   </td>
                   <td className="px-4 py-3 uppercase">{position.currency}</td>
                   <td className="px-4 py-3">{formatIrr(position.irr)}</td>
+                  <td className="px-4 py-3">{formatTwr(position.twr)}</td>
                   <td className="px-4 py-3">{formatDate(position.updatedAt)}</td>
                 </tr>
               ))}
