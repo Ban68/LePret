@@ -1,3 +1,4 @@
+import { calculateInternalRateOfReturn, calculateTimeWeightedReturn } from "./performance";
 import { supabaseAdmin } from "./supabase";
 
 export interface InvestorCashflow {
@@ -14,6 +15,10 @@ export interface InvestorSummary {
     value: number;
     percentage: number;
   };
+  performance: {
+    irr: number | null;
+    timeWeightedReturn: number | null;
+  };
   upcomingCashflows: InvestorCashflow[];
   currency: string;
 }
@@ -25,7 +30,8 @@ export interface InvestorPosition {
   investedAmount: number;
   currentValue: number;
   currency: string;
-  irr: number;
+  irr: number | null;
+  timeWeightedReturn: number | null;
   updatedAt: string;
 }
 
@@ -111,6 +117,18 @@ function sum(values: Array<number | null | undefined>): number {
   return total;
 }
 
+function mapTransactionRow(row: InvestorTransactionRow): InvestorTransaction {
+  return {
+    id: row.id,
+    type: row.type,
+    amount: row.amount,
+    currency: row.currency,
+    date: row.date,
+    description: row.description ?? "",
+    positionId: row.position_id ?? undefined,
+  };
+}
+
 function calculateReturn(
   investedCapital: number,
   currentValue: number,
@@ -146,6 +164,27 @@ export async function getInvestorSummary(
   const cumulativeReturn = calculateReturn(investedCapital, currentValue);
   const currency = positions[0]?.currency ?? "COP";
 
+  const { data: transactionsData, error: transactionsError } = await supabaseAdmin
+    .from("investor_transactions")
+    .select("id, type, amount, currency, date, description, position_id")
+    .eq("org_id", orgId)
+    .order("date", { ascending: true });
+
+  if (transactionsError) {
+    throw new Error(`Failed to load investor transactions: ${transactionsError.message}`);
+  }
+
+  const allTransactions = (transactionsData ?? []) as InvestorTransactionRow[];
+  const mappedTransactions = allTransactions.map(mapTransactionRow);
+
+  const irr = calculateInternalRateOfReturn(mappedTransactions, {
+    endingValue: currentValue,
+  });
+
+  const twr = calculateTimeWeightedReturn(mappedTransactions, {
+    endingValue: currentValue,
+  });
+
   const upcomingLimit = filters.upcomingLimit ?? 3;
   const upcomingTypes = filters.upcomingTypes;
   const nowIso = new Date().toISOString();
@@ -162,10 +201,10 @@ export async function getInvestorSummary(
     upcomingQuery = upcomingQuery.in("type", upcomingTypes);
   }
 
-  const { data: upcomingTransactionsData, error: transactionsError } = await upcomingQuery;
+  const { data: upcomingTransactionsData, error: upcomingError } = await upcomingQuery;
 
-  if (transactionsError) {
-    throw new Error(`Failed to load upcoming transactions: ${transactionsError.message}`);
+  if (upcomingError) {
+    throw new Error(`Failed to load upcoming transactions: ${upcomingError.message}`);
   }
 
   const upcomingTransactions = (upcomingTransactionsData ?? []) as InvestorTransactionRow[];
@@ -181,6 +220,10 @@ export async function getInvestorSummary(
   return {
     investedCapital,
     cumulativeReturn,
+    performance: {
+      irr,
+      timeWeightedReturn: twr,
+    },
     upcomingCashflows,
     currency,
   };
@@ -201,16 +244,68 @@ export async function getInvestorPositions(orgId: string): Promise<InvestorPosit
 
   const rows = (data ?? []) as InvestorPositionRow[];
 
-  return rows.map((position) => ({
-    id: position.id,
-    name: position.name,
-    strategy: position.strategy,
-    investedAmount: position.invested_amount ?? 0,
-    currentValue: position.current_value ?? 0,
-    currency: position.currency,
-    irr: position.irr ?? 0,
-    updatedAt: position.updated_at,
-  }));
+  const positionIds = rows.map((position) => position.id).filter((id) => Boolean(id));
+
+  let transactionsByPosition: Record<string, InvestorTransaction[]> = {};
+
+  if (positionIds.length > 0) {
+    const { data: transactionsData, error: transactionsError } = await supabaseAdmin
+      .from("investor_transactions")
+      .select("id, type, amount, currency, date, description, position_id")
+      .eq("org_id", orgId)
+      .in("position_id", positionIds)
+      .order("date", { ascending: true });
+
+    if (transactionsError) {
+      throw new Error(`Failed to load position transactions: ${transactionsError.message}`);
+    }
+
+    const transactions = (transactionsData ?? []) as InvestorTransactionRow[];
+
+    transactionsByPosition = transactions.reduce<Record<string, InvestorTransaction[]>>(
+      (acc, row) => {
+        if (!row.position_id) {
+          return acc;
+        }
+
+        const mapped = mapTransactionRow(row);
+        if (!acc[row.position_id]) {
+          acc[row.position_id] = [];
+        }
+
+        acc[row.position_id]?.push(mapped);
+
+        return acc;
+      },
+      {},
+    );
+  }
+
+  return rows.map((position) => {
+    const investedAmount = position.invested_amount ?? 0;
+    const currentValue = position.current_value ?? 0;
+    const positionTransactions = transactionsByPosition[position.id] ?? [];
+
+    const computedIrr = calculateInternalRateOfReturn(positionTransactions, {
+      endingValue: currentValue,
+    });
+
+    const computedTwr = calculateTimeWeightedReturn(positionTransactions, {
+      endingValue: currentValue,
+    });
+
+    return {
+      id: position.id,
+      name: position.name,
+      strategy: position.strategy,
+      investedAmount,
+      currentValue,
+      currency: position.currency,
+      irr: computedIrr ?? position.irr ?? null,
+      timeWeightedReturn: computedTwr,
+      updatedAt: position.updated_at,
+    };
+  });
 }
 
 export async function getInvestorTransactions(
@@ -253,15 +348,7 @@ export async function getInvestorTransactions(
 
   const rows = (data ?? []) as InvestorTransactionRow[];
 
-  return rows.map((transaction) => ({
-    id: transaction.id,
-    type: transaction.type,
-    amount: transaction.amount,
-    currency: transaction.currency,
-    date: transaction.date,
-    description: transaction.description ?? "",
-    positionId: transaction.position_id ?? undefined,
-  }));
+  return rows.map(mapTransactionRow);
 }
 
 export async function getInvestorStatements(
