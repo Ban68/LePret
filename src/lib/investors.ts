@@ -21,6 +21,20 @@ export interface InvestorSummary {
   };
   upcomingCashflows: InvestorCashflow[];
   currency: string;
+  portfolioEvolution: PortfolioPoint[];
+  strategyDistribution: StrategyDistributionSlice[];
+}
+
+export interface PortfolioPoint {
+  date: string;
+  investedCapital: number;
+  portfolioValue: number;
+}
+
+export interface StrategyDistributionSlice {
+  strategy: string;
+  value: number;
+  percentage: number;
 }
 
 export interface InvestorPosition {
@@ -92,7 +106,8 @@ type InvestorTransactionRow = {
   type: InvestorTransaction["type"];
   amount: number;
   currency: string;
-  date: string;
+  date: string | null;
+  tx_date?: string | null;
   description: string | null;
   position_id: string | null;
 };
@@ -123,10 +138,40 @@ function mapTransactionRow(row: InvestorTransactionRow): InvestorTransaction {
     type: row.type,
     amount: row.amount,
     currency: row.currency,
-    date: row.date,
+    date: row.date ?? row.tx_date ?? new Date().toISOString(),
     description: row.description ?? "",
     positionId: row.position_id ?? undefined,
   };
+}
+
+function normalizeDate(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  const normalized = new Date(
+    Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()),
+  );
+
+  return normalized.toISOString();
+}
+
+function findLatestDate(values: Array<string | null | undefined>): string | null {
+  const normalizedValues = values
+    .map((value) => normalizeDate(value))
+    .filter((value): value is string => Boolean(value));
+
+  if (!normalizedValues.length) {
+    return null;
+  }
+
+  return normalizedValues.reduce((latest, value) => (value > latest ? value : latest));
 }
 
 function calculateReturn(
@@ -166,7 +211,7 @@ export async function getInvestorSummary(
 
   const { data: transactionsData, error: transactionsError } = await supabaseAdmin
     .from("investor_transactions")
-    .select("id, type, amount, currency, date, description, position_id")
+    .select("id, type, amount, currency, date, tx_date, description, position_id")
     .eq("org_id", orgId)
     .order("date", { ascending: true });
 
@@ -185,12 +230,17 @@ export async function getInvestorSummary(
     endingValue: currentValue,
   });
 
+  const [portfolioEvolution, strategyDistribution] = await Promise.all([
+    getPortfolioEvolution(orgId, { transactions: allTransactions, positions }),
+    getStrategyDistribution(orgId, { positions }),
+  ]);
+
   const upcomingLimit = filters.upcomingLimit ?? 3;
   const upcomingTypes = filters.upcomingTypes;
   const nowIso = new Date().toISOString();
   let upcomingQuery = supabaseAdmin
     .from("investor_transactions")
-    .select("id, amount, currency, description, type, date")
+    .select("id, amount, currency, description, type, date, tx_date")
     .eq("org_id", orgId)
     .gte("date", filters.upcomingFromDate ?? nowIso)
     .lte("date", filters.upcomingToDate ?? "9999-12-31T23:59:59.999Z")
@@ -211,7 +261,7 @@ export async function getInvestorSummary(
 
   const upcomingCashflows: InvestorCashflow[] = upcomingTransactions.map((transaction) => ({
     id: transaction.id,
-    date: transaction.date,
+    date: transaction.date ?? transaction.tx_date ?? nowIso,
     amount: transaction.amount,
     currency: transaction.currency,
     description: transaction.description ?? "",
@@ -226,7 +276,187 @@ export async function getInvestorSummary(
     },
     upcomingCashflows,
     currency,
+    portfolioEvolution,
+    strategyDistribution,
   };
+}
+
+export async function getPortfolioEvolution(
+  orgId: string,
+  options: {
+    transactions?: InvestorTransactionRow[];
+    positions?: InvestorPositionRow[];
+  } = {},
+): Promise<PortfolioPoint[]> {
+  let positions = options.positions;
+
+  if (!positions) {
+    const { data, error } = await supabaseAdmin
+      .from("investor_positions")
+      .select("id, name, strategy, invested_amount, current_value, currency, irr, updated_at")
+      .eq("org_id", orgId);
+
+    if (error) {
+      throw new Error(`Failed to load investor positions: ${error.message}`);
+    }
+
+    positions = (data ?? []) as InvestorPositionRow[];
+  }
+
+  let transactions = options.transactions;
+
+  if (!transactions) {
+    const { data, error } = await supabaseAdmin
+      .from("investor_transactions")
+      .select("id, type, amount, currency, date, tx_date, description, position_id")
+      .eq("org_id", orgId)
+      .order("date", { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to load investor transactions: ${error.message}`);
+    }
+
+    transactions = (data ?? []) as InvestorTransactionRow[];
+  }
+
+  const sortedTransactions = [...transactions].sort((a, b) => {
+    const aDate = normalizeDate(a.date ?? a.tx_date ?? undefined);
+    const bDate = normalizeDate(b.date ?? b.tx_date ?? undefined);
+
+    if (!aDate && !bDate) {
+      return 0;
+    }
+
+    if (!aDate) {
+      return -1;
+    }
+
+    if (!bDate) {
+      return 1;
+    }
+
+    return aDate.localeCompare(bDate);
+  });
+
+  let runningInvested = 0;
+  let runningValue = 0;
+  const pointsByDate = new Map<string, PortfolioPoint>();
+
+  for (const transaction of sortedTransactions) {
+    const transactionDate = normalizeDate(transaction.date ?? transaction.tx_date ?? undefined);
+
+    if (!transactionDate) {
+      continue;
+    }
+
+    switch (transaction.type) {
+      case "contribution": {
+        runningInvested += transaction.amount;
+        runningValue += transaction.amount;
+        break;
+      }
+      case "distribution": {
+        runningInvested -= transaction.amount;
+        runningValue -= transaction.amount;
+        break;
+      }
+      case "interest": {
+        runningValue += transaction.amount;
+        break;
+      }
+      case "fee": {
+        runningValue -= transaction.amount;
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+
+    runningInvested = Math.max(runningInvested, 0);
+
+    pointsByDate.set(transactionDate, {
+      date: transactionDate,
+      investedCapital: runningInvested,
+      portfolioValue: runningValue,
+    });
+  }
+
+  const points = Array.from(pointsByDate.values()).sort((a, b) =>
+    a.date.localeCompare(b.date),
+  );
+
+  const investedCapital = sum(positions.map((position) => position.invested_amount));
+  const currentValue = sum(positions.map((position) => position.current_value));
+
+  if (investedCapital === 0 && currentValue === 0) {
+    return points;
+  }
+
+  const latestPositionDate = findLatestDate(positions.map((position) => position.updated_at));
+  const latestTransactionDate = points.length > 0 ? points[points.length - 1].date : null;
+  const finalDate = latestPositionDate ?? latestTransactionDate ?? normalizeDate(new Date().toISOString());
+
+  if (!finalDate) {
+    return points;
+  }
+
+  const finalPoint: PortfolioPoint = {
+    date: finalDate,
+    investedCapital,
+    portfolioValue: currentValue,
+  };
+
+  if (points.length > 0 && points[points.length - 1].date === finalDate) {
+    points[points.length - 1] = finalPoint;
+  } else {
+    points.push(finalPoint);
+  }
+
+  return points;
+}
+
+export async function getStrategyDistribution(
+  orgId: string,
+  options: { positions?: InvestorPositionRow[] } = {},
+): Promise<StrategyDistributionSlice[]> {
+  let positions = options.positions;
+
+  if (!positions) {
+    const { data, error } = await supabaseAdmin
+      .from("investor_positions")
+      .select("id, name, strategy, invested_amount, current_value, currency, irr, updated_at")
+      .eq("org_id", orgId);
+
+    if (error) {
+      throw new Error(`Failed to load investor positions: ${error.message}`);
+    }
+
+    positions = (data ?? []) as InvestorPositionRow[];
+  }
+
+  const totalsByStrategy = positions.reduce<Record<string, number>>((acc, position) => {
+    const strategy = position.strategy || "Sin estrategia";
+    const value = position.current_value ?? 0;
+
+    if (!acc[strategy]) {
+      acc[strategy] = 0;
+    }
+
+    acc[strategy] += value;
+
+    return acc;
+  }, {});
+
+  const totalValue = Object.values(totalsByStrategy).reduce((acc, value) => acc + value, 0);
+
+  return Object.entries(totalsByStrategy)
+    .map(([strategy, value]) => ({
+      strategy,
+      value,
+      percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
+    }))
+    .sort((a, b) => b.value - a.value);
 }
 
 export async function getInvestorPositions(orgId: string): Promise<InvestorPosition[]> {
@@ -251,7 +481,7 @@ export async function getInvestorPositions(orgId: string): Promise<InvestorPosit
   if (positionIds.length > 0) {
     const { data: transactionsData, error: transactionsError } = await supabaseAdmin
       .from("investor_transactions")
-      .select("id, type, amount, currency, date, description, position_id")
+      .select("id, type, amount, currency, date, tx_date, description, position_id")
       .eq("org_id", orgId)
       .in("position_id", positionIds)
       .order("date", { ascending: true });
@@ -319,7 +549,7 @@ export async function getInvestorTransactions(
 
   let query = supabaseAdmin
     .from("investor_transactions")
-    .select("id, type, amount, currency, date, description, position_id")
+    .select("id, type, amount, currency, date, tx_date, description, position_id")
     .eq("org_id", orgId)
     .order("date", { ascending: false })
     .range(from, to);
