@@ -36,6 +36,19 @@ type StrategySlice = {
   percentage?: number;
 };
 
+type PortfolioEvolutionSummary = {
+  points: PortfolioPoint[];
+  dateRange?: {
+    start?: string;
+    end?: string;
+  };
+};
+
+type StrategyDistributionSummary = {
+  slices: StrategySlice[];
+  totalValue: number;
+};
+
 type InvestorSummaryResponse = {
   investedCapital: number;
   cumulativeReturn: {
@@ -48,8 +61,8 @@ type InvestorSummaryResponse = {
   };
   upcomingCashflows: InvestorCashflow[];
   currency: string;
-  portfolioEvolution?: PortfolioPoint[];
-  strategyDistribution?: StrategySlice[];
+  portfolioEvolution?: PortfolioEvolutionSummary;
+  strategyDistribution?: StrategyDistributionSummary;
 };
 
 type InvestorDashboardProps = {
@@ -125,18 +138,20 @@ export default function InvestorDashboard({ orgId }: InvestorDashboardProps) {
   }, [orgId]);
 
   const portfolioEvolution = useMemo<Array<PortfolioPoint & { formattedDate: string }>>(() => {
-    if (!summary?.portfolioEvolution?.length) {
+    const points = summary?.portfolioEvolution?.points ?? [];
+
+    if (!points.length) {
       return [];
     }
 
-    return summary.portfolioEvolution.map((point) => ({
+    return points.map((point) => ({
       ...point,
       formattedDate: formatDate(point.date),
     }));
-  }, [summary?.portfolioEvolution]);
+  }, [summary?.portfolioEvolution?.points]);
 
   const strategyDistribution = useMemo<Array<StrategySlice & { percentage: number }>>(() => {
-    const slices = summary?.strategyDistribution ?? [];
+    const slices = summary?.strategyDistribution?.slices ?? [];
 
     if (!slices.length) {
       return [];
@@ -155,7 +170,22 @@ export default function InvestorDashboard({ orgId }: InvestorDashboardProps) {
       ...slice,
       percentage: slice.percentage ?? Number(((slice.value ?? 0) / total) * 100),
     }));
-  }, [summary?.strategyDistribution]);
+  }, [summary?.strategyDistribution?.slices]);
+
+  const portfolioDateRange = useMemo(() => {
+    const range = summary?.portfolioEvolution?.dateRange;
+
+    if (!range?.start || !range?.end) {
+      return null;
+    }
+
+    return {
+      start: formatDate(range.start),
+      end: formatDate(range.end),
+    };
+  }, [summary?.portfolioEvolution?.dateRange?.end, summary?.portfolioEvolution?.dateRange?.start]);
+
+  const strategyTotalValue = summary?.strategyDistribution?.totalValue ?? 0;
 
   if (loading) {
     return (
@@ -266,32 +296,41 @@ export default function InvestorDashboard({ orgId }: InvestorDashboardProps) {
           </CardHeader>
           <CardContent className="h-80">
             {portfolioEvolution.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={portfolioEvolution} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6A4C93" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#6A4C93" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-lp-gray-100" />
-                  <XAxis dataKey="formattedDate" tickLine={false} axisLine={false} className="text-xs text-lp-sec-3" />
-                  <YAxis tickLine={false} axisLine={false} className="text-xs text-lp-sec-3" />
-                  <Tooltip
-                    formatter={(value: number | string) =>
-                      formatCurrency(typeof value === "number" ? value : Number(value), summary.currency)
-                    }
-                    labelFormatter={(label) => label}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="portfolioValue"
-                    stroke="#6A4C93"
-                    fill="url(#colorValue)"
-                    name="Valor del portafolio"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <div className="flex h-full flex-col">
+                {portfolioDateRange ? (
+                  <p className="mb-2 text-xs text-lp-sec-3">
+                    Rango: {portfolioDateRange.start} – {portfolioDateRange.end}
+                  </p>
+                ) : null}
+                <div className="flex-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={portfolioEvolution} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6A4C93" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#6A4C93" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-lp-gray-100" />
+                      <XAxis dataKey="formattedDate" tickLine={false} axisLine={false} className="text-xs text-lp-sec-3" />
+                      <YAxis tickLine={false} axisLine={false} className="text-xs text-lp-sec-3" />
+                      <Tooltip
+                        formatter={(value: number | string) =>
+                          formatCurrency(typeof value === "number" ? value : Number(value), summary.currency)
+                        }
+                        labelFormatter={(label) => label}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="portfolioValue"
+                        stroke="#6A4C93"
+                        fill="url(#colorValue)"
+                        name="Valor del portafolio"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             ) : (
               <p className="text-sm text-lp-sec-3">Aún no hay datos históricos suficientes para graficar.</p>
             )}
@@ -304,37 +343,44 @@ export default function InvestorDashboard({ orgId }: InvestorDashboardProps) {
           </CardHeader>
           <CardContent className="h-80">
             {strategyDistribution.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={strategyDistribution}
-                    dataKey="value"
-                    nameKey="strategy"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={120}
-                    innerRadius={60}
-                    paddingAngle={4}
-                  >
-                    {strategyDistribution.map((entry, index) => (
-                      <Cell key={entry.strategy} fill={STRATEGY_COLORS[index % STRATEGY_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number | string, _name, info) => {
-                      const slice = info?.payload as StrategySlice & { percentage?: number };
-                      const percentage = slice?.percentage ?? 0;
-                      const numericValue = typeof value === "number" ? value : Number(value);
+              <div className="flex h-full flex-col">
+                <p className="mb-2 text-xs text-lp-sec-3">
+                  Total invertido: {formatCurrency(strategyTotalValue, summary.currency)}
+                </p>
+                <div className="flex-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={strategyDistribution}
+                        dataKey="value"
+                        nameKey="strategy"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={120}
+                        innerRadius={60}
+                        paddingAngle={4}
+                      >
+                        {strategyDistribution.map((entry, index) => (
+                          <Cell key={entry.strategy} fill={STRATEGY_COLORS[index % STRATEGY_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number | string, _name, info) => {
+                          const slice = info?.payload as StrategySlice & { percentage?: number };
+                          const percentage = slice?.percentage ?? 0;
+                          const numericValue = typeof value === "number" ? value : Number(value);
 
-                      return [
-                        `${formatCurrency(numericValue, summary.currency)} (${percentage.toFixed(1)}%)`,
-                        slice?.strategy ?? "",
-                      ];
-                    }}
-                    labelFormatter={(label) => label as string}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+                          return [
+                            `${formatCurrency(numericValue, summary.currency)} (${percentage.toFixed(1)}%)`,
+                            slice?.strategy ?? "",
+                          ];
+                        }}
+                        labelFormatter={(label) => label as string}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             ) : (
               <p className="text-sm text-lp-sec-3">Aún no hay distribución disponible.</p>
             )}
