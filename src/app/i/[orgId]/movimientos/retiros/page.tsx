@@ -27,7 +27,11 @@ const DESTINATION_OPTIONS = [
     value: "other",
     label: "Otro destino (especificar)",
   },
-] as const;
+] satisfies ReadonlyArray<{
+  value: string;
+  label: string;
+  helper?: string;
+}>;
 
 const DEFAULT_CURRENCY = "COP";
 
