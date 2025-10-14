@@ -117,25 +117,29 @@ function SelectOrgInner() {
               </div>
             )}
             {orgs.map((o) => {
+              const normalizedType = (o.type ?? "").toUpperCase();
+              const isInvestor = normalizedType === "INVESTOR";
               const isActive = o.status === "ACTIVE" || !o.status;
               const isKycApproved = (o.kycStatus ?? "").toUpperCase() === "APPROVED";
+              const canEnter = isInvestor ? isActive : isActive && isKycApproved;
+              const portalPath = isInvestor ? `/i/${o.id}` : `/c/${o.id}`;
               return (
                 <div key={o.id} className="flex flex-col gap-3 rounded-md border border-lp-sec-4/60 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="font-semibold text-lp-primary-1">{o.name}</div>
                     <div className="text-sm text-lp-sec-3">
-                      {o.type} · Rol: {o.role} · Estado: {o.status || "ACTIVE"} · KYC: {formatKycStatus(o.kycStatus)}
+                      {normalizedType || "CLIENT"} · Rol: {o.role} · Estado: {o.status || "ACTIVE"} · KYC: {formatKycStatus(o.kycStatus)}
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    {isActive && isKycApproved ? (
+                    {canEnter ? (
                       <Link
-                        href={`/c/${o.id}`}
+                        href={portalPath}
                         className="rounded-md bg-lp-primary-1 px-4 py-2 text-sm font-medium text-lp-primary-2 hover:opacity-90"
                       >
                         Entrar
                       </Link>
-                    ) : isActive ? (
+                    ) : isActive && !isInvestor ? (
                       <Link
                         href={`/registro/datos-empresa?orgId=${o.id}`}
                         className="rounded-md border border-lp-primary-1 px-4 py-2 text-sm font-medium text-lp-primary-1 hover:bg-lp-primary-1/10"
