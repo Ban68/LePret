@@ -124,11 +124,30 @@ export function RequestsBoard() {
       if (endDate) params.set("end", endDate);
       const qs = params.toString();
       const response = await fetch(`/api/hq/requests${qs ? `?${qs}` : ""}`);
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.error || "Error obteniendo solicitudes");
+      const raw = await response.text();
+      let payload: unknown = null;
+
+      if (raw) {
+        try {
+          payload = JSON.parse(raw);
+        } catch (err) {
+          console.error("Failed to parse HQ requests response", err);
+          throw new Error("Respuesta inválida del servidor");
+        }
       }
-      const list = (payload.items || []) as RequestItem[];
+
+      if (!response.ok) {
+        const message =
+          payload && typeof payload === "object" && "error" in payload && typeof (payload as { error: unknown }).error === "string"
+            ? (payload as { error: string }).error
+            : "Error obteniendo solicitudes";
+        throw new Error(message);
+      }
+
+      const list =
+        payload && typeof payload === "object" && Array.isArray((payload as { items?: unknown }).items)
+          ? ((payload as { items: RequestItem[] }).items ?? [])
+          : [];
       setItems(list);
       setCompaniesIndex((prev) => {
         const next = { ...prev };
