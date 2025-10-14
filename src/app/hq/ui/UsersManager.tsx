@@ -19,6 +19,7 @@ const TYPE_LABEL: Record<string, string> = {
   all: "Todos",
   staff: "Backoffice",
   client: "Clientes",
+  investor: "Inversionistas",
 };
 
 const ROLE_LABELS: Record<MemberRole, string> = {
@@ -757,6 +758,16 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
   const [memberships, setMemberships] = useState<MembershipDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
+  const investorCompanies = useMemo(
+    () => companies.filter((company) => (company.type ?? "").toUpperCase() === "INVESTOR"),
+    [companies],
+  );
+  const investorCompanyIds = useMemo(
+    () => new Set(investorCompanies.map((company) => company.id)),
+    [investorCompanies],
+  );
+  const isInvestor = type === "investor";
+
   useEffect(() => {
     if (!open) {
       setEmail("");
@@ -773,13 +784,39 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
     }
   }, [type, memberships.length]);
 
+  useEffect(() => {
+    if (!isInvestor) {
+      return;
+    }
+    setMemberships((prev) => {
+      const filtered = prev
+        .filter((membership) => investorCompanyIds.has(membership.company_id))
+        .map((membership) => ({ ...membership, role: "VIEWER" }));
+      if (filtered.length > 0) {
+        return filtered;
+      }
+      const fallback = investorCompanies[0];
+      if (fallback) {
+        return [
+          {
+            company_id: fallback.id,
+            role: "VIEWER",
+            status: "INVITED",
+          },
+        ];
+      }
+      return filtered;
+    });
+  }, [isInvestor, investorCompanies, investorCompanyIds]);
+
   if (!open) {
     return null;
   }
 
   const addMembership = () => {
     const existing = new Set(memberships.map((membership) => membership.company_id));
-    const available = companies.find((company) => !existing.has(company.id));
+    const source = isInvestor ? investorCompanies : companies;
+    const available = source.find((company) => !existing.has(company.id));
     if (!available) {
       toast.error("No quedan organizaciones disponibles");
       return;
@@ -792,7 +829,15 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
 
   const updateMembership = (index: number, patch: Partial<MembershipDraft>) => {
     setMemberships((prev) =>
-      prev.map((membership, position) => (position === index ? { ...membership, ...patch } : membership)),
+      prev.map((membership, position) =>
+        position === index
+          ? {
+              ...membership,
+              ...patch,
+              role: isInvestor ? "VIEWER" : patch.role ?? membership.role,
+            }
+          : membership,
+      ),
     );
   };
 
@@ -806,6 +851,10 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
       toast.error("El correo es obligatorio");
       return;
     }
+    if (isInvestor && memberships.length === 0) {
+      toast.error("Debes asignar una organizacion de inversionistas");
+      return;
+    }
     setSubmitting(true);
     try {
       const response = await fetch("/api/hq/users", {
@@ -816,7 +865,13 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
           full_name: fullName.trim() || undefined,
           type,
           invite: true,
-          companies: type === "staff" ? [] : memberships,
+          companies:
+            type === "staff"
+              ? []
+              : memberships.map((membership) => ({
+                  ...membership,
+                  role: isInvestor ? "VIEWER" : membership.role,
+                })),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -868,7 +923,7 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
           </div>
           <div>
             <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Tipo de usuario</label>
-            <div className="mt-2 flex gap-4 text-sm">
+            <div className="mt-2 flex flex-wrap gap-4 text-sm">
               <label className="flex cursor-pointer items-center gap-2 text-lp-primary-1">
                 <input
                   type="radio"
@@ -889,6 +944,16 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
                 />
                 Backoffice
               </label>
+              <label className="flex cursor-pointer items-center gap-2 text-lp-primary-1">
+                <input
+                  type="radio"
+                  name="user-type"
+                  value="investor"
+                  checked={type === "investor"}
+                  onChange={(event) => setType(event.target.value)}
+                />
+                Inversionista
+              </label>
             </div>
           </div>
         </div>
@@ -906,10 +971,17 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
             <p className="text-xs text-lp-sec-3">
               Los usuarios backoffice no pueden tener organizaciones asignadas.
             </p>
+          ) : isInvestor && investorCompanies.length === 0 ? (
+            <p className="text-xs text-red-600">
+              Debes crear primero una organizacion tipo inversionista para invitar usuarios a su portal.
+            </p>
           ) : (
             <Fragment>
-              {memberships.length === 0 && (
+              {memberships.length === 0 && !isInvestor && (
                 <p className="text-xs text-lp-sec-3">Opcional. Puedes asignar organizaciones despues.</p>
+              )}
+              {memberships.length === 0 && isInvestor && investorCompanies.length > 0 && (
+                <p className="text-xs text-lp-sec-3">Selecciona el portal de inversionista que podra consultar.</p>
               )}
               <div className="space-y-3">
                 {memberships.map((membership, index) => (
@@ -922,27 +994,36 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
                           value={membership.company_id}
                           onChange={(event) => updateMembership(index, { company_id: event.target.value })}
                         >
-                          {companies.map((company) => (
+                          {(isInvestor ? investorCompanies : companies).map((company) => (
                             <option key={company.id} value={company.id}>
                               {company.name}
                             </option>
                           ))}
                         </select>
                       </div>
-                      <div>
-                        <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Rol</label>
-                        <select
-                          className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
-                          value={membership.role}
-                          onChange={(event) => updateMembership(index, { role: event.target.value })}
-                        >
-                          {ROLE_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      {isInvestor ? (
+                        <div>
+                          <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Rol</label>
+                          <div className="mt-1 w-full rounded-md border border-lp-sec-4/80 bg-lp-sec-4/20 px-2 py-2 text-sm text-lp-sec-3">
+                            Viewer (solo lectura)
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Rol</label>
+                          <select
+                            className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
+                            value={membership.role}
+                            onChange={(event) => updateMembership(index, { role: event.target.value })}
+                          >
+                            {ROLE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                       <div>
                         <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Estado</label>
                         <select
