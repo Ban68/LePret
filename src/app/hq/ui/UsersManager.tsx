@@ -788,26 +788,12 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
     if (!isInvestor) {
       return;
     }
-    setMemberships((prev) => {
-      const filtered = prev
+    setMemberships((prev) =>
+      prev
         .filter((membership) => investorCompanyIds.has(membership.company_id))
-        .map((membership) => ({ ...membership, role: "VIEWER" }));
-      if (filtered.length > 0) {
-        return filtered;
-      }
-      const fallback = investorCompanies[0];
-      if (fallback) {
-        return [
-          {
-            company_id: fallback.id,
-            role: "VIEWER",
-            status: "INVITED",
-          },
-        ];
-      }
-      return filtered;
-    });
-  }, [isInvestor, investorCompanies, investorCompanyIds]);
+        .map((membership) => ({ ...membership, role: "VIEWER" })),
+    );
+  }, [isInvestor, investorCompanyIds]);
 
   if (!open) {
     return null;
@@ -849,10 +835,6 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
     event.preventDefault();
     if (!email.trim()) {
       toast.error("El correo es obligatorio");
-      return;
-    }
-    if (isInvestor && memberships.length === 0) {
-      toast.error("Debes asignar una organizacion de inversionistas");
       return;
     }
     setSubmitting(true);
@@ -977,11 +959,10 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
             </p>
           ) : (
             <Fragment>
-              {memberships.length === 0 && !isInvestor && (
-                <p className="text-xs text-lp-sec-3">Opcional. Puedes asignar organizaciones despues.</p>
-              )}
-              {memberships.length === 0 && isInvestor && investorCompanies.length > 0 && (
-                <p className="text-xs text-lp-sec-3">Selecciona el portal de inversionista que podra consultar.</p>
+              {memberships.length === 0 && (
+                <p className="text-xs text-lp-sec-3">
+                  Opcional. Puedes asignar organizaciones despues.
+                </p>
               )}
               <div className="space-y-3">
                 {memberships.map((membership, index) => (
