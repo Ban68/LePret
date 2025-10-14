@@ -138,6 +138,7 @@ export function UsersManager({ companies }: UsersManagerProps) {
     try {
       const response = await fetch(`/api/hq/users${qs ? `?${qs}` : ""}`, {
         signal: controller.signal,
+        credentials: "include",
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -443,6 +444,7 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
       const response = await fetch("/api/hq/users", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ id: user.id, ...payload }),
       });
       const data = await response.json().catch(() => ({}));
@@ -528,6 +530,7 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
       const response = await fetch(`/api/hq/users?id=${user.id}&hard_delete=true`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
       });
       const data = (await response.json().catch(() => ({}))) as {
         deleted?: boolean;
@@ -948,6 +951,7 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
       const response = await fetch("/api/hq/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           email: email.trim(),
           full_name: fullName.trim() || undefined,
