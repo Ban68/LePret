@@ -43,7 +43,7 @@ export default async function PortalRedirect() {
     redirect(`/login?redirectTo=${encodeURIComponent("/portal")}`);
   }
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const lastOrgCookie = parseLastOrgCookie(cookieStore.get("last_org")?.value);
   if (lastOrgCookie) {
     const destination = lastOrgCookie.type === "investor" ? `/i/${lastOrgCookie.id}` : `/c/${lastOrgCookie.id}`;
