@@ -107,7 +107,6 @@ export function LoginForm({ audience = "auto" }: LoginFormProps) {
   const [checkingSession, setCheckingSession] = useState(true);
   const validEmail = useMemo(() => /.+@.+\..+/.test(email), [email]);
   const backofficeAccessRef = useRef<boolean | null>(null);
-  const defaultPortalRef = useRef<string | null>(null);
 
   const verifyBackofficeAccess = useCallback(async () => {
     if (audience === "customer") {
@@ -144,10 +143,6 @@ export function LoginForm({ audience = "auto" }: LoginFormProps) {
       return config.defaultRedirect;
     }
 
-    if (defaultPortalRef.current) {
-      return defaultPortalRef.current;
-    }
-
     try {
       const response = await fetch("/api/orgs", { cache: "no-store" });
       if (!response.ok) {
@@ -167,16 +162,13 @@ export function LoginForm({ audience = "auto" }: LoginFormProps) {
         }
         const type = String(org.type ?? "").toUpperCase();
         if (type === "INVESTOR") {
-          const investorPath = `/i/${orgId}`;
-          defaultPortalRef.current = investorPath;
-          return investorPath;
+          return `/i/${orgId}`;
         }
       }
     } catch (err) {
       console.error("Failed to resolve default portal", err);
     }
 
-    defaultPortalRef.current = config.defaultRedirect;
     return config.defaultRedirect;
   }, [audience, config.defaultRedirect]);
 
@@ -226,10 +218,6 @@ export function LoginForm({ audience = "auto" }: LoginFormProps) {
   useEffect(() => {
     backofficeAccessRef.current = null;
   }, [audience]);
-
-  useEffect(() => {
-    defaultPortalRef.current = null;
-  }, [config.defaultRedirect, audience]);
 
   useEffect(() => {
     const supabase = createClientComponentClient();
