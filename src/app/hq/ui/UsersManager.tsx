@@ -45,15 +45,52 @@ const STATUS_OPTIONS = MEMBER_STATUS_VALUES.map((value) => ({
   label: STATUS_LABELS[value],
 }));
 
+type InvestorKindOption = "INDIVIDUAL" | "LEGAL_ENTITY";
+
+const INVESTOR_KIND_LABEL: Record<InvestorKindOption, string> = {
+  INDIVIDUAL: "Persona natural",
+  LEGAL_ENTITY: "Persona jurídica",
+};
+
+function getInvestorKindLabel(kind: string | null | undefined): string | null {
+  if (!kind) {
+    return null;
+  }
+  const normalized = kind.toString().trim().toUpperCase();
+  if (normalized === "INDIVIDUAL") {
+    return INVESTOR_KIND_LABEL.INDIVIDUAL;
+  }
+  if (normalized === "LEGAL_ENTITY") {
+    return INVESTOR_KIND_LABEL.LEGAL_ENTITY;
+  }
+  return null;
+}
+
+function normalizeInvestorKindValue(kind: unknown): InvestorKindOption | null {
+  if (typeof kind !== "string") {
+    return null;
+  }
+  const normalized = kind.trim().toUpperCase();
+  if (normalized === "INDIVIDUAL") {
+    return "INDIVIDUAL";
+  }
+  if (normalized === "LEGAL_ENTITY") {
+    return "LEGAL_ENTITY";
+  }
+  return null;
+}
+
 type CompanyOption = {
   id: string;
   name: string;
   type: string;
+  investor_kind?: InvestorKindOption | null;
 };
 
 type MembershipInfo = {
   company_id: string;
   company_name: string | null;
+  investor_kind: InvestorKindOption | null;
   role: MemberRole;
   status: MemberStatus;
 };
@@ -107,10 +144,19 @@ export function UsersManager({ companies }: UsersManagerProps) {
         throw new Error(payload?.error || "No se pudieron obtener los usuarios");
       }
       const list = (payload?.users || []) as UserEntry[];
-      setItems(list);
+      const normalizedList = list.map((user) => ({
+        ...user,
+        companies: Array.isArray(user.companies)
+          ? user.companies.map((membership) => ({
+              ...membership,
+              investor_kind: normalizeInvestorKindValue(membership.investor_kind),
+            }))
+          : [],
+      }));
+      setItems(normalizedList);
       setSelected((prev) => {
         if (!prev) return prev;
-        const updated = list.find((user) => user.id === prev.id) || null;
+        const updated = normalizedList.find((user) => user.id === prev.id) || null;
         if (!updated) {
           setDrawerOpen(false);
         }
@@ -138,8 +184,13 @@ export function UsersManager({ companies }: UsersManagerProps) {
   const summary = useMemo(() => {
     const total = items.length;
     const backoffice = items.filter((item) => item.is_staff).length;
-    const clients = total - backoffice;
-    return { total, backoffice, clients };
+    const investors = items.filter(
+      (item) =>
+        !item.is_staff &&
+        item.companies.some((membership) => Boolean(getInvestorKindLabel(membership.investor_kind))),
+    ).length;
+    const clients = total - backoffice - investors;
+    return { total, backoffice, investors, clients };
   }, [items]);
 
   const handleManage = (user: UserEntry) => {
@@ -174,6 +225,10 @@ export function UsersManager({ companies }: UsersManagerProps) {
             <div className="rounded-md border border-lp-sec-4/60 px-3 py-2">
               <div className="text-lp-sec-3">Backoffice</div>
               <div className="text-base font-semibold text-lp-primary-1">{summary.backoffice}</div>
+            </div>
+            <div className="rounded-md border border-lp-sec-4/60 px-3 py-2">
+              <div className="text-lp-sec-3">Inversionistas</div>
+              <div className="text-base font-semibold text-lp-primary-1">{summary.investors}</div>
             </div>
             <div className="rounded-md border border-lp-sec-4/60 px-3 py-2">
               <div className="text-lp-sec-3">Clientes</div>
@@ -251,52 +306,65 @@ export function UsersManager({ companies }: UsersManagerProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-lp-sec-4/80">
-              {items.map((user) => (
-                <tr key={user.id} className="bg-white">
-                  <td className="px-3 py-2 align-top">
-                    <div className="font-medium text-lp-primary-1">{user.full_name || "Sin nombre"}</div>
-                    <div className="text-xs text-lp-sec-3">ID: {truncateId(user.id)}</div>
-                  </td>
-                  <td className="px-3 py-2 align-top text-lp-primary-1">{user.email || "-"}</td>
-                  <td className="px-3 py-2 align-top">
-                    <span
-                      className={cn(
-                        "rounded-full px-2 py-1 text-xs font-medium",
-                        user.is_staff ? "bg-lp-primary-1/10 text-lp-primary-1" : "bg-amber-50 text-amber-700",
+              {items.map((user) => {
+                const hasInvestorOrg = user.companies.some((membership) =>
+                  Boolean(getInvestorKindLabel(membership.investor_kind)),
+                );
+                const badgeLabel = user.is_staff ? "Backoffice" : hasInvestorOrg ? "Inversionista" : "Cliente";
+                const badgeClasses = user.is_staff
+                  ? "bg-lp-primary-1/10 text-lp-primary-1"
+                  : hasInvestorOrg
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-amber-50 text-amber-700";
+
+                return (
+                  <tr key={user.id} className="bg-white">
+                    <td className="px-3 py-2 align-top">
+                      <div className="font-medium text-lp-primary-1">{user.full_name || "Sin nombre"}</div>
+                      <div className="text-xs text-lp-sec-3">ID: {truncateId(user.id)}</div>
+                    </td>
+                    <td className="px-3 py-2 align-top text-lp-primary-1">{user.email || "-"}</td>
+                    <td className="px-3 py-2 align-top">
+                      <span className={cn("rounded-full px-2 py-1 text-xs font-medium", badgeClasses)}>
+                        {badgeLabel}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      {user.companies.length === 0 ? (
+                        <span className="text-xs text-lp-sec-3">Sin asignacion</span>
+                      ) : (
+                        <ul className="space-y-1 text-xs text-lp-primary-1">
+                          {user.companies.map((membership) => {
+                            const investorKindLabel = getInvestorKindLabel(membership.investor_kind);
+                            return (
+                              <li key={`${user.id}-${membership.company_id}`}>
+                                <span className="font-medium">
+                                  {membership.company_name || membership.company_id}
+                                </span>
+                                {investorKindLabel && (
+                                  <span className="ml-1 text-lp-sec-3">({investorKindLabel})</span>
+                                )}
+                                <span className="text-lp-sec-3">
+                                  {" "}
+                                  | {membership.role.toLowerCase()} ({membership.status.toLowerCase()})
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       )}
-                    >
-                      {user.is_staff ? "Backoffice" : "Cliente"}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 align-top">
-                    {user.companies.length === 0 ? (
-                      <span className="text-xs text-lp-sec-3">Sin asignacion</span>
-                    ) : (
-                      <ul className="space-y-1 text-xs text-lp-primary-1">
-                        {user.companies.map((membership) => (
-                          <li key={`${user.id}-${membership.company_id}`}>
-                            <span className="font-medium">{membership.company_name || membership.company_id}</span>
-                            <span className="text-lp-sec-3"> | {membership.role.toLowerCase()} ({membership.status.toLowerCase()})</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 align-top text-xs text-lp-sec-3">
-                    {formatDateTime(user.last_sign_in_at) || formatDateTime(user.created_at) || "-"}
-                  </td>
-                  <td className="px-3 py-2 align-top">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleManage(user)}
-                    >
-                      Gestionar
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-3 py-2 align-top text-xs text-lp-sec-3">
+                      {formatDateTime(user.last_sign_in_at) || formatDateTime(user.created_at) || "-"}
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      <Button type="button" size="sm" variant="outline" onClick={() => handleManage(user)}>
+                        Gestionar
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -595,60 +663,68 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
                   <p className="text-xs text-lp-sec-3">Sin asignacion activa.</p>
                 )}
 
-                {user.companies.map((membership) => (
-                  <div key={membership.company_id} className="rounded-md border border-lp-sec-4/60 p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="font-medium text-lp-primary-1">
-                        {membership.company_name || membership.company_id}
+                {user.companies.map((membership) => {
+                  const investorLabel = getInvestorKindLabel(membership.investor_kind);
+                  return (
+                    <div key={membership.company_id} className="rounded-md border border-lp-sec-4/60 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="font-medium text-lp-primary-1">
+                          {membership.company_name || membership.company_id}
+                          {investorLabel && (
+                            <span className="ml-2 rounded-full bg-lp-sec-4/30 px-2 py-0.5 text-xs font-normal text-lp-sec-3">
+                              {investorLabel}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700"
+                            disabled={busy?.startsWith("remove-")}
+                            onClick={() => handleMembershipRemove(membership.company_id)}
+                          >
+                            Quitar
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-red-600 hover:text-red-700"
-                          disabled={busy?.startsWith("remove-")}
-                          onClick={() => handleMembershipRemove(membership.company_id)}
-                        >
-                          Quitar
-                        </Button>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Rol</label>
+                          <select
+                            className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
+                            value={membership.role}
+                            onChange={(event) =>
+                              handleMembershipUpdate(membership, { role: event.target.value as MemberRole })
+                            }
+                          >
+                            {ROLE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Estado</label>
+                          <select
+                            className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
+                            value={membership.status}
+                            onChange={(event) =>
+                              handleMembershipUpdate(membership, { status: event.target.value as MemberStatus })
+                            }
+                          >
+                            {STATUS_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     </div>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Rol</label>
-                        <select
-                          className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
-                          value={membership.role}
-                          onChange={(event) =>
-                            handleMembershipUpdate(membership, { role: event.target.value as MemberRole })
-                          }
-                        >
-                          {ROLE_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Estado</label>
-                        <select
-                          className="mt-1 w-full rounded-md border border-lp-sec-4/80 px-2 py-2 text-sm"
-                          value={membership.status}
-                          onChange={(event) =>
-                            handleMembershipUpdate(membership, { status: event.target.value as MemberStatus })
-                          }
-                        >
-                          {STATUS_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {showAdd && newMembership && (
                   <div className="rounded-md border border-dashed border-lp-sec-4/60 p-3">
@@ -665,11 +741,15 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
                           }
                         >
                           {availableCompanies.length === 0 && <option value="">Sin opciones</option>}
-                          {availableCompanies.map((company) => (
-                            <option key={company.id} value={company.id}>
-                              {company.name}
-                            </option>
-                          ))}
+                          {availableCompanies.map((company) => {
+                            const investorLabel = getInvestorKindLabel(company.investor_kind);
+                            return (
+                              <option key={company.id} value={company.id}>
+                                {company.name}
+                                {investorLabel ? ` · ${investorLabel}` : ""}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
                       <div>
@@ -755,6 +835,7 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [type, setType] = useState("client");
+  const [investorKind, setInvestorKind] = useState<InvestorKindOption>("INDIVIDUAL");
   const [memberships, setMemberships] = useState<MembershipDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -773,6 +854,7 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
       setEmail("");
       setFullName("");
       setType("client");
+      setInvestorKind("INDIVIDUAL");
       setMemberships([]);
       setSubmitting(false);
     }
@@ -846,6 +928,7 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
           email: email.trim(),
           full_name: fullName.trim() || undefined,
           type,
+          investor_kind: isInvestor ? investorKind : undefined,
           invite: true,
           companies:
             type === "staff"
@@ -938,6 +1021,38 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
               </label>
             </div>
           </div>
+          {isInvestor && (
+            <div>
+              <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">
+                Tipo de inversionista
+              </label>
+              <div className="mt-2 flex flex-wrap gap-4 text-sm">
+                <label className="flex cursor-pointer items-center gap-2 text-lp-primary-1">
+                  <input
+                    type="radio"
+                    name="investor-kind"
+                    value="INDIVIDUAL"
+                    checked={investorKind === "INDIVIDUAL"}
+                    onChange={() => setInvestorKind("INDIVIDUAL")}
+                  />
+                  Persona natural
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-lp-primary-1">
+                  <input
+                    type="radio"
+                    name="investor-kind"
+                    value="LEGAL_ENTITY"
+                    checked={investorKind === "LEGAL_ENTITY"}
+                    onChange={() => setInvestorKind("LEGAL_ENTITY")}
+                  />
+                  Persona jurídica
+                </label>
+              </div>
+              <p className="mt-2 text-xs text-lp-sec-3">
+                Crearemos un portal básico para que el inversionista complete su información en su primer ingreso.
+              </p>
+            </div>
+          )}
         </div>
 
         <section className="space-y-3">
@@ -948,22 +1063,33 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
                 Anadir organizacion
               </Button>
             )}
-          </div>
+        </div>
           {type === "staff" ? (
             <p className="text-xs text-lp-sec-3">
               Los usuarios backoffice no pueden tener organizaciones asignadas.
             </p>
-          ) : isInvestor && investorCompanies.length === 0 ? (
-            <p className="text-xs text-red-600">
-              Debes crear primero una organizacion tipo inversionista para invitar usuarios a su portal.
-            </p>
           ) : (
             <Fragment>
-              {memberships.length === 0 && (
+              {isInvestor ? (
+                <p
+                  className={cn(
+                    "text-xs",
+                    memberships.length === 0 && investorCompanies.length === 0
+                      ? "text-amber-700"
+                      : "text-lp-sec-3",
+                  )}
+                >
+                  {memberships.length === 0
+                    ? investorCompanies.length === 0
+                      ? "No hay organizaciones de inversionista registradas. Crearemos una automáticamente para este usuario y podrá completarla al ingresar."
+                      : "Puedes asignar una organización existente o dejar este espacio vacío para generar un nuevo portal de inversionista."
+                    : "El inversionista tendrá acceso a las organizaciones seleccionadas. Puedes modificarlas luego."}
+                </p>
+              ) : memberships.length === 0 ? (
                 <p className="text-xs text-lp-sec-3">
                   Opcional. Puedes asignar organizaciones despues.
                 </p>
-              )}
+              ) : null}
               <div className="space-y-3">
                 {memberships.map((membership, index) => (
                   <div key={membership.company_id + index} className="rounded-md border border-lp-sec-4/60 p-3">
@@ -975,11 +1101,15 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
                           value={membership.company_id}
                           onChange={(event) => updateMembership(index, { company_id: event.target.value })}
                         >
-                          {(isInvestor ? investorCompanies : companies).map((company) => (
-                            <option key={company.id} value={company.id}>
-                              {company.name}
-                            </option>
-                          ))}
+                          {(isInvestor ? investorCompanies : companies).map((company) => {
+                            const kindLabel = isInvestor ? getInvestorKindLabel(company.investor_kind) : null;
+                            return (
+                              <option key={company.id} value={company.id}>
+                                {company.name}
+                                {kindLabel ? ` · ${kindLabel}` : ""}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
                       {isInvestor ? (

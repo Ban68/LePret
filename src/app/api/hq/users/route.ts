@@ -64,12 +64,17 @@ type AuthUserRow = {
   last_sign_in_at: string | null;
 };
 
+type InvestorKind = "INDIVIDUAL" | "LEGAL_ENTITY";
+
 type RawMembershipRow = {
   user_id: string;
   company_id: string;
   role: string;
   status: string;
-  companies?: { name?: string | null } | Array<{ name?: string | null }> | null;
+  companies?:
+    | { name?: string | null; investor_kind?: string | null }
+    | Array<{ name?: string | null; investor_kind?: string | null }>
+    | null;
 };
 
 type UserSummary = {
@@ -82,6 +87,7 @@ type UserSummary = {
   companies: Array<{
     company_id: string;
     company_name: string | null;
+    investor_kind: InvestorKind | null;
     role: MemberRole;
     status: MemberStatus;
   }>;
@@ -249,17 +255,24 @@ export async function POST(req: Request) {
 
   const fullName = toOptionalString(payload.full_name) ?? null;
 
+  const typeRaw = typeof payload.type === "string" ? payload.type.trim().toLowerCase() : "";
+  let normalizedType: "client" | "staff" | "investor" = "client";
+  if (["investor", "inversionista"].includes(typeRaw)) {
+    normalizedType = "investor";
+  } else if (["staff", "backoffice", "internal"].includes(typeRaw)) {
+    normalizedType = "staff";
+  } else if (["client", "customer", "external", "cliente"].includes(typeRaw)) {
+    normalizedType = "client";
+  }
+
   let isStaff = false;
   if (typeof payload.is_staff !== "undefined") {
     isStaff = coerceBoolean(payload.is_staff, false);
-  } else if (typeof payload.type === "string") {
-    const typeValue = payload.type.trim().toLowerCase();
-    if (["staff", "backoffice", "internal"].includes(typeValue)) {
-      isStaff = true;
-    } else if (["client", "customer", "external"].includes(typeValue)) {
-      isStaff = false;
-    }
+  } else {
+    isStaff = normalizedType === "staff";
   }
+  const isInvestor = normalizedType === "investor";
+  const investorKind = isInvestor ? normalizeInvestorKind(payload.investor_kind) : null;
 
   const assignmentsInput = normalizeCompanyAssignments(payload.companies);
   if (isStaff && assignmentsInput.length) {
@@ -276,6 +289,8 @@ export async function POST(req: Request) {
 
 
   try {
+    let createdInvestorCompany: { id: string; name: string | null } | null = null;
+
     const adminAuth = (supabaseAdmin.auth as unknown as { admin?: AdminAuthClient }).admin;
     if (!adminAuth || typeof adminAuth.createUser !== "function") {
       throw new Error("Supabase admin client unavailable");
@@ -299,6 +314,63 @@ export async function POST(req: Request) {
     const userId = createdUser?.user?.id;
     if (!userId) {
       throw new Error("Failed to create user");
+    }
+
+    if (isInvestor && membershipRows.length === 0) {
+      const fallbackName = fullName ?? emailRaw;
+      const { data: investorCompany, error: investorCompanyError } = await supabaseAdmin
+        .from("companies")
+        .insert({
+          name: fallbackName || emailRaw,
+          type: "INVESTOR",
+          investor_kind: investorKind ?? "INDIVIDUAL",
+          contact_email: emailRaw,
+        })
+        .select("id, name")
+        .single<{ id: string; name: string | null }>();
+
+      if (investorCompanyError) {
+        throw investorCompanyError;
+      }
+
+      createdInvestorCompany = investorCompany;
+      membershipRows.push({
+        user_id: "",
+        company_id: investorCompany.id,
+        role: DEFAULT_MEMBER_ROLE,
+        status: DEFAULT_MEMBER_STATUS,
+      });
+
+      if (investorKind) {
+        try {
+          const { error: investorKindUpdateError } = await supabaseAdmin
+            .from("companies")
+            .update({ investor_kind: investorKind })
+            .in("id", [investorCompany.id])
+            .is("investor_kind", null);
+          if (investorKindUpdateError) {
+            console.warn("Failed to persist investor kind for new company", investorKindUpdateError);
+          }
+        } catch (updateError) {
+          console.warn("Failed to persist investor kind for new company", updateError);
+        }
+      }
+    }
+
+    if (isInvestor && investorKind && membershipRows.length > 0) {
+      const companyIds = Array.from(new Set(membershipRows.map((row) => row.company_id)));
+      try {
+        const { error: investorKindPatchError } = await supabaseAdmin
+          .from("companies")
+          .update({ investor_kind: investorKind })
+          .in("id", companyIds)
+          .is("investor_kind", null);
+        if (investorKindPatchError) {
+          console.warn("Failed to tag investor companies", investorKindPatchError);
+        }
+      } catch (updateError) {
+        console.warn("Failed to tag investor companies", updateError);
+      }
     }
 
     const inviteFlag = typeof payload.invite === "undefined" ? true : coerceBoolean(payload.invite, true);
@@ -342,6 +414,8 @@ export async function POST(req: Request) {
     }
 
     const summary = await getUserSummaryById(userId);
+    const resolvedInvestorKind: InvestorKind | null =
+      isInvestor ? investorKind ?? (createdInvestorCompany ? "INDIVIDUAL" : null) : null;
 
     return NextResponse.json({
       ok: true,
@@ -354,7 +428,11 @@ export async function POST(req: Request) {
         last_sign_in_at: null,
         companies: membershipRows.map((row) => ({
           company_id: row.company_id,
-          company_name: null,
+          company_name:
+            createdInvestorCompany && row.company_id === createdInvestorCompany.id
+              ? createdInvestorCompany.name ?? null
+              : null,
+          investor_kind: resolvedInvestorKind,
           role: row.role,
           status: row.status,
         })),
@@ -743,6 +821,7 @@ type CreateUserPayload = {
   full_name?: unknown;
   is_staff?: unknown;
   type?: unknown;
+  investor_kind?: unknown;
   companies?: unknown;
   invite?: unknown;
 };
@@ -842,6 +921,40 @@ function normalizeCompanyAssignments(input: unknown): CompanyAssignmentInput[] {
   }, []);
 }
 
+const INVESTOR_KIND_VALUES: InvestorKind[] = ["INDIVIDUAL", "LEGAL_ENTITY"];
+const INVESTOR_KIND_SET = new Set<InvestorKind>(INVESTOR_KIND_VALUES);
+const INVESTOR_KIND_ALIASES: Record<string, InvestorKind> = {
+  individual: "INDIVIDUAL",
+  person: "INDIVIDUAL",
+  natural: "INDIVIDUAL",
+  "persona_natural": "INDIVIDUAL",
+  "natural_person": "INDIVIDUAL",
+  company: "LEGAL_ENTITY",
+  legal: "LEGAL_ENTITY",
+  corporate: "LEGAL_ENTITY",
+  "persona_juridica": "LEGAL_ENTITY",
+  juridica: "LEGAL_ENTITY",
+  juridico: "LEGAL_ENTITY",
+  business: "LEGAL_ENTITY",
+  enterprise: "LEGAL_ENTITY",
+};
+
+function normalizeInvestorKind(value: unknown): InvestorKind | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const upper = trimmed.toUpperCase();
+  if (INVESTOR_KIND_SET.has(upper as InvestorKind)) {
+    return upper as InvestorKind;
+  }
+  const lower = trimmed.toLowerCase();
+  return INVESTOR_KIND_ALIASES[lower] ?? null;
+}
+
 function extractCompanyName(value: RawMembershipRow["companies"]): string | null {
   if (!value) {
     return null;
@@ -861,15 +974,43 @@ function extractCompanyName(value: RawMembershipRow["companies"]): string | null
   return null;
 }
 
+function extractCompanyInvestorKind(value: RawMembershipRow["companies"]): InvestorKind | null {
+  if (!value) {
+    return null;
+  }
+
+  const resolve = (source: unknown): InvestorKind | null => {
+    if (!source || typeof source !== "object") {
+      return null;
+    }
+    const raw = (source as { investor_kind?: unknown }).investor_kind;
+    return normalizeInvestorKind(raw ?? null);
+  };
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const normalized = resolve(entry);
+      if (normalized) {
+        return normalized;
+      }
+    }
+    return null;
+  }
+
+  return resolve(value);
+}
+
 function mapMembershipRows(rows: RawMembershipRow[]): Array<{
   company_id: string;
   company_name: string | null;
+  investor_kind: InvestorKind | null;
   role: MemberRole;
   status: MemberStatus;
 }> {
   return rows.map((row) => ({
     company_id: row.company_id,
     company_name: extractCompanyName(row.companies),
+    investor_kind: extractCompanyInvestorKind(row.companies),
     role: normalizeMemberRole(row.role) ?? DEFAULT_MEMBER_ROLE,
     status: normalizeMemberStatus(row.status) ?? DEFAULT_MEMBER_STATUS,
   }));
@@ -955,7 +1096,7 @@ async function getUserSummariesByIds(userIds: string[]): Promise<UserSummary[]> 
       .in('user_id', userIds),
     supabaseAdmin
       .from('memberships')
-      .select('user_id, company_id, role, status, companies(name)')
+      .select('user_id, company_id, role, status, companies(name, investor_kind)')
       .in('user_id', userIds),
   ]);
 

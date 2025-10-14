@@ -77,6 +77,7 @@ create table if not exists companies (
   notification_sms boolean default false,
   notification_whatsapp boolean default false,
   type text not null default 'CLIENT' check (type in ('CLIENT','INVESTOR')),
+  investor_kind text check (investor_kind in ('INDIVIDUAL','LEGAL_ENTITY')),
   created_at timestamptz not null default now(),
   updated_at timestamptz default now()
 );
@@ -90,6 +91,7 @@ alter table companies add column if not exists notification_email boolean defaul
 alter table companies add column if not exists notification_sms boolean default false;
 alter table companies add column if not exists notification_whatsapp boolean default false;
 alter table companies add column if not exists updated_at timestamptz default now();
+alter table companies add column if not exists investor_kind text check (investor_kind in ('INDIVIDUAL','LEGAL_ENTITY'));
 
 create table if not exists bank_accounts (
   id uuid primary key default gen_random_uuid(),
