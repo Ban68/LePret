@@ -410,6 +410,10 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
   const [newMembership, setNewMembership] = useState<{ company_id: string; role: MemberRole; status: MemberStatus } | null>(
     null
   );
+  const hasIndividualPortal = useMemo(
+    () => user?.companies.some((membership) => membership.investor_kind === "INDIVIDUAL") ?? false,
+    [user],
+  );
 
   useEffect(() => {
     if (user) {
@@ -430,6 +434,8 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
   if (!open || !user) {
     return null;
   }
+
+  const allowAddMembership = !user.is_staff && !showAdd && availableCompanies.length > 0 && !hasIndividualPortal;
 
   const runPatch = async (payload: Record<string, unknown>, actionKey: string): Promise<boolean> => {
     setBusy(actionKey);
@@ -635,7 +641,7 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-semibold text-lp-primary-1">Organizaciones</h4>
-              {!user.is_staff && !showAdd && availableCompanies.length > 0 && (
+              {allowAddMembership && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -665,6 +671,7 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
 
                 {user.companies.map((membership) => {
                   const investorLabel = getInvestorKindLabel(membership.investor_kind);
+                  const canRemove = membership.investor_kind !== "INDIVIDUAL";
                   return (
                     <div key={membership.company_id} className="rounded-md border border-lp-sec-4/60 p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -677,17 +684,26 @@ function ManageUserDrawer({ open, user, companies, onClose, onUpdated, onRemoved
                           )}
                         </div>
                         <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-600 hover:text-red-700"
-                            disabled={busy?.startsWith("remove-")}
-                            onClick={() => handleMembershipRemove(membership.company_id)}
-                          >
-                            Quitar
-                          </Button>
+                          {canRemove ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:text-red-700"
+                              disabled={busy?.startsWith("remove-")}
+                              onClick={() => handleMembershipRemove(membership.company_id)}
+                            >
+                              Quitar
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-lp-sec-3">Portal personal</span>
+                          )}
                         </div>
                       </div>
+                      {membership.investor_kind === "INDIVIDUAL" && (
+                        <p className="mt-2 text-xs text-lp-sec-3">
+                          Esta organizacion representa al inversionista como persona natural.
+                        </p>
+                      )}
                       <div className="mt-3 grid gap-3 sm:grid-cols-2">
                         <div>
                           <label className="text-xs font-medium uppercase tracking-wide text-lp-sec-3">Rol</label>
@@ -848,6 +864,7 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
     [investorCompanies],
   );
   const isInvestor = type === "investor";
+  const isIndividualInvestor = isInvestor && investorKind === "INDIVIDUAL";
 
   useEffect(() => {
     if (!open) {
@@ -870,18 +887,25 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
     if (!isInvestor) {
       return;
     }
+    if (isIndividualInvestor) {
+      setMemberships([]);
+      return;
+    }
     setMemberships((prev) =>
       prev
         .filter((membership) => investorCompanyIds.has(membership.company_id))
         .map((membership) => ({ ...membership, role: "VIEWER" })),
     );
-  }, [isInvestor, investorCompanyIds]);
+  }, [isInvestor, investorCompanyIds, isIndividualInvestor]);
 
   if (!open) {
     return null;
   }
 
   const addMembership = () => {
+    if (isIndividualInvestor) {
+      return;
+    }
     const existing = new Set(memberships.map((membership) => membership.company_id));
     const source = isInvestor ? investorCompanies : companies;
     const available = source.find((company) => !existing.has(company.id));
@@ -933,10 +957,12 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
           companies:
             type === "staff"
               ? []
-              : memberships.map((membership) => ({
-                  ...membership,
-                  role: isInvestor ? "VIEWER" : membership.role,
-                })),
+              : isIndividualInvestor
+                ? []
+                : memberships.map((membership) => ({
+                    ...membership,
+                    role: isInvestor ? "VIEWER" : membership.role,
+                  })),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -1058,15 +1084,19 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold text-lp-primary-1">Organizaciones</h4>
-            {type !== "staff" && (
+            {type !== "staff" && !isIndividualInvestor && (
               <Button type="button" size="sm" variant="outline" onClick={addMembership}>
                 Anadir organizacion
               </Button>
             )}
-        </div>
+          </div>
           {type === "staff" ? (
             <p className="text-xs text-lp-sec-3">
               Los usuarios backoffice no pueden tener organizaciones asignadas.
+            </p>
+          ) : isIndividualInvestor ? (
+            <p className="text-xs text-lp-sec-3">
+              Crearemos una organización personal con el nombre del inversionista para habilitar su portal.
             </p>
           ) : (
             <Fragment>
@@ -1081,9 +1111,9 @@ function CreateUserDialog({ open, companies, onClose, onCreated }: CreateUserDia
                 >
                   {memberships.length === 0
                     ? investorCompanies.length === 0
-                      ? "No hay organizaciones de inversionista registradas. Crearemos una automáticamente para este usuario y podrá completarla al ingresar."
-                      : "Puedes asignar una organización existente o dejar este espacio vacío para generar un nuevo portal de inversionista."
-                    : "El inversionista tendrá acceso a las organizaciones seleccionadas. Puedes modificarlas luego."}
+                      ? "No hay organizaciones de inversionista registradas. Crearemos una automaticamente para este usuario y podra completarla al ingresar."
+                      : "Puedes asignar una organizacion existente o dejar este espacio vacio para generar un nuevo portal de inversionista."
+                    : "El inversionista tendra acceso a las organizaciones seleccionadas. Puedes modificarlas despues."}
                 </p>
               ) : memberships.length === 0 ? (
                 <p className="text-xs text-lp-sec-3">

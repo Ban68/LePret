@@ -275,12 +275,15 @@ export async function POST(req: Request) {
   const investorKind = isInvestor ? normalizeInvestorKind(payload.investor_kind) : null;
 
   const assignmentsInput = normalizeCompanyAssignments(payload.companies);
-  if (isStaff && assignmentsInput.length) {
+  const effectiveAssignments =
+    isInvestor && investorKind === "INDIVIDUAL" ? [] : assignmentsInput;
+
+  if (isStaff && effectiveAssignments.length) {
     return NextResponse.json({ ok: false, error: "Los usuarios de backoffice no pueden pertenecer a organizaciones" }, { status: 400 });
   }
   const membershipRows = isStaff
     ? []
-    : assignmentsInput.map((assignment) => ({
+    : effectiveAssignments.map((assignment) => ({
         user_id: "",
         company_id: assignment.company_id,
         role: assignment.role ?? DEFAULT_MEMBER_ROLE,
