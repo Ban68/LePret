@@ -172,18 +172,14 @@ export default function InvestorDashboard({ orgId }: InvestorDashboardProps) {
     }));
   }, [summary?.strategyDistribution?.slices]);
 
-  const portfolioDateRange = useMemo(() => {
-    const range = summary?.portfolioEvolution?.dateRange;
-
-    if (!range?.start || !range?.end) {
-      return null;
-    }
-
-    return {
-      start: formatDate(range.start),
-      end: formatDate(range.end),
-    };
-  }, [summary?.portfolioEvolution?.dateRange?.end, summary?.portfolioEvolution?.dateRange?.start]);
+  const dateRange = summary?.portfolioEvolution?.dateRange;
+  const portfolioDateRange =
+    dateRange?.start && dateRange?.end
+      ? {
+          start: formatDate(dateRange.start),
+          end: formatDate(dateRange.end),
+        }
+      : null;
 
   const strategyTotalValue = summary?.strategyDistribution?.totalValue ?? 0;
 

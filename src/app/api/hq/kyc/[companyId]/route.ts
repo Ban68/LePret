@@ -106,7 +106,7 @@ export async function GET(_req: Request, context: RouteParams) {
 
     const { data: company, error: companyError } = await supabaseAdmin
       .from("companies")
-      .select(
+      .select<CompanyRow>(
         "id, name, type, legal_name, tax_id, contact_email, contact_phone, billing_email, bank_account, kyc_status, kyc_submitted_at, kyc_approved_at, created_at, updated_at"
       )
       .eq("id", companyId)
