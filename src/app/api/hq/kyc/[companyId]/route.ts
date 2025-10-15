@@ -106,7 +106,7 @@ export async function GET(_req: Request, context: RouteParams) {
 
     const { data: company, error: companyError } = await supabaseAdmin
       .from("companies")
-      .select<CompanyRow>(
+      .select(
         "id, name, type, legal_name, tax_id, contact_email, contact_phone, billing_email, bank_account, kyc_status, kyc_submitted_at, kyc_approved_at, created_at, updated_at"
       )
       .eq("id", companyId)
@@ -115,7 +115,8 @@ export async function GET(_req: Request, context: RouteParams) {
       console.error("hq kyc company fetch error", companyError);
       return NextResponse.json({ ok: false, error: "company_fetch_failed" }, { status: 500 });
     }
-    if (!company) {
+    const companyRow = company as CompanyRow | null;
+    if (!companyRow) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
 
@@ -186,26 +187,26 @@ export async function GET(_req: Request, context: RouteParams) {
       );
     }
 
-    const normalizedStatus = normalizeKycStatus(company.kyc_status);
+    const normalizedStatus = normalizeKycStatus(companyRow.kyc_status);
 
     return NextResponse.json({
       ok: true,
       company: {
-        id: company.id,
-        name: extractString(company.name),
-        type: extractString(company.type),
-        legalName: extractString(company.legal_name),
-        taxId: extractString(company.tax_id),
-        contactEmail: extractString(company.contact_email),
-        contactPhone: extractString(company.contact_phone),
-        billingEmail: extractString(company.billing_email),
-        bankAccount: extractString(company.bank_account),
+        id: companyRow.id,
+        name: extractString(companyRow.name),
+        type: extractString(companyRow.type),
+        legalName: extractString(companyRow.legal_name),
+        taxId: extractString(companyRow.tax_id),
+        contactEmail: extractString(companyRow.contact_email),
+        contactPhone: extractString(companyRow.contact_phone),
+        billingEmail: extractString(companyRow.billing_email),
+        bankAccount: extractString(companyRow.bank_account),
         status: normalizedStatus,
-        rawStatus: company.kyc_status,
-        submittedAt: company.kyc_submitted_at,
-        approvedAt: company.kyc_approved_at,
-        createdAt: company.created_at,
-        updatedAt: company.updated_at,
+        rawStatus: companyRow.kyc_status,
+        submittedAt: companyRow.kyc_submitted_at,
+        approvedAt: companyRow.kyc_approved_at,
+        createdAt: companyRow.created_at,
+        updatedAt: companyRow.updated_at,
       },
       address: primaryAddress
         ? {
