@@ -5,6 +5,16 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { getHqSettings } from "@/lib/hq-settings";
 
+type InvoiceAmountFields = {
+  amount?: unknown;
+  net_amount?: unknown;
+  gross_amount?: unknown;
+  face_value?: unknown;
+  total?: unknown;
+  total_amount?: unknown;
+  financed_amount?: unknown;
+};
+
 export const dynamic = "force-dynamic";
 
 async function getSession() {
@@ -158,7 +168,7 @@ export async function GET() {
 
       const invoiceWithAmounts = associatedInvoices.map((invoice) => ({
         raw: invoice,
-        amount: resolveInvoiceAmount(invoice),
+        amount: resolveInvoiceAmount(invoice as InvoiceAmountFields),
       }));
       const totalInvoiceAmount = invoiceWithAmounts.reduce((sum, item) => sum + item.amount, 0);
 
@@ -246,15 +256,7 @@ export async function GET() {
   }
 }
 
-function resolveInvoiceAmount(invoice: {
-  amount?: unknown;
-  net_amount?: unknown;
-  gross_amount?: unknown;
-  face_value?: unknown;
-  total?: unknown;
-  total_amount?: unknown;
-  financed_amount?: unknown;
-}): number {
+function resolveInvoiceAmount(invoice: InvoiceAmountFields): number {
   const fields = [
     invoice.net_amount,
     invoice.amount,
