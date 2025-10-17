@@ -48,7 +48,7 @@ export async function GET() {
       supabaseAdmin.from('payers').select('id, name, risk_rating, credit_limit'),
       supabaseAdmin
         .from('invoices')
-        .select('payer, amount, net_amount, gross_amount, status')
+        .select('payer, amount, gross_amount, status')
         .gte('created_at', ninetyDaysAgo.toISOString()),
       getHqSettings(),
     ]);
@@ -150,7 +150,7 @@ export async function GET() {
 }
 
 function resolveInvoiceAmount(invoice: { amount?: unknown; net_amount?: unknown; gross_amount?: unknown }): number {
-  const fields = [invoice.amount, invoice.net_amount, invoice.gross_amount];
+  const fields = [invoice.net_amount, invoice.amount, invoice.gross_amount];
   for (const field of fields) {
     const numeric = Number(field ?? 0);
     if (Number.isFinite(numeric) && numeric > 0) {
