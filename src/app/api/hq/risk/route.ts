@@ -40,25 +40,22 @@ export async function GET() {
     const ninetyDaysAgo = new Date(now.getTime());
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-    const fundedInvoiceStatuses = ['funded'];
-
-    const [paymentsRes, payersRes, invoicesRes, hqSettingsResult] = await Promise.all([
+    const [paymentsRes, payersRes, fundedRequestsRes, hqSettingsResult] = await Promise.all([
       supabaseAdmin
         .from('payments')
         .select('status, amount, direction, due_date, company_id')
         .gte('created_at', ninetyDaysAgo.toISOString()),
       supabaseAdmin.from('payers').select('id, name, risk_rating, credit_limit'),
       supabaseAdmin
-        .from('invoices')
-        .select('payer, amount, status')
-        .gte('created_at', ninetyDaysAgo.toISOString())
-        .in('status', fundedInvoiceStatuses),
+        .from('funding_requests')
+        .select('id, requested_amount, disbursed_at, created_at, invoice_id, company_id')
+        .eq('status', 'funded'),
       getHqSettings(),
     ]);
 
     if (paymentsRes.error) throw new Error(paymentsRes.error.message);
     if (payersRes.error) throw new Error(payersRes.error.message);
-    if (invoicesRes.error) throw new Error(invoicesRes.error.message);
+    if (fundedRequestsRes.error) throw new Error(fundedRequestsRes.error.message);
 
     const settings = hqSettingsResult.settings;
 
@@ -85,16 +82,103 @@ export async function GET() {
       });
     }
 
-    const fundedInvoices = (invoicesRes.data || []).filter((invoice) => {
-      const status = typeof invoice.status === 'string' ? invoice.status.toLowerCase() : '';
-      return fundedInvoiceStatuses.includes(status);
-    });
+    const fundedRequests = fundedRequestsRes.data || [];
+    const requestIds = fundedRequests.map((request) => request.id).filter(Boolean);
+
+    const requestInvoiceLinksRes = requestIds.length
+      ? await supabaseAdmin
+          .from('funding_request_invoices')
+          .select('request_id, invoice_id')
+          .in('request_id', requestIds)
+      : { data: [] as Array<{ request_id: string; invoice_id: string }>, error: null };
+
+    if (requestInvoiceLinksRes.error) {
+      throw new Error(requestInvoiceLinksRes.error.message);
+    }
+
+    const invoiceIdSet = new Set<string>();
+    for (const request of fundedRequests) {
+      if (request.invoice_id) {
+        invoiceIdSet.add(request.invoice_id);
+      }
+    }
+    for (const relation of requestInvoiceLinksRes.data || []) {
+      if (relation.invoice_id) {
+        invoiceIdSet.add(relation.invoice_id);
+      }
+    }
+
+    const invoicesRes = invoiceIdSet.size
+      ? await supabaseAdmin
+          .from('invoices')
+          .select('id, payer, amount, net_amount, gross_amount, face_value, total, total_amount, financed_amount')
+          .in('id', Array.from(invoiceIdSet))
+      : { data: [] as Array<Record<string, unknown>>, error: null };
+
+    if (invoicesRes.error) {
+      throw new Error(invoicesRes.error.message);
+    }
+
+    const requestInvoiceMap = new Map<string, Set<string>>();
+    for (const relation of requestInvoiceLinksRes.data || []) {
+      if (!relation.request_id || !relation.invoice_id) continue;
+      const collection = requestInvoiceMap.get(relation.request_id) ?? new Set<string>();
+      collection.add(relation.invoice_id);
+      requestInvoiceMap.set(relation.request_id, collection);
+    }
+    for (const request of fundedRequests) {
+      if (!request.id || !request.invoice_id) continue;
+      const collection = requestInvoiceMap.get(request.id) ?? new Set<string>();
+      collection.add(request.invoice_id);
+      requestInvoiceMap.set(request.id, collection);
+    }
+
+    const invoiceMap = new Map(
+      (invoicesRes.data || []).map((invoice) => {
+        const id = typeof invoice.id === 'string' ? invoice.id : '';
+        return [id, invoice];
+      }),
+    );
 
     const totalsByPayer = new Map<string, number>();
-    for (const invoice of fundedInvoices) {
-      const key = typeof invoice.payer === 'string' && invoice.payer.trim().length ? invoice.payer.trim() : 'Sin pagador';
-      const amount = resolveInvoiceAmount(invoice);
-      totalsByPayer.set(key, (totalsByPayer.get(key) ?? 0) + amount);
+    for (const request of fundedRequests) {
+      const associatedInvoiceIds = request.id ? Array.from(requestInvoiceMap.get(request.id) ?? []) : [];
+      const associatedInvoices = associatedInvoiceIds
+        .map((invoiceId) => invoiceMap.get(invoiceId))
+        .filter((invoice): invoice is Record<string, unknown> & { payer?: unknown } => Boolean(invoice));
+
+      if (!associatedInvoices.length) {
+        const fallbackAmount = Number(request.requested_amount ?? 0);
+        if (fallbackAmount > 0) {
+          const key = 'Sin pagador';
+          totalsByPayer.set(key, (totalsByPayer.get(key) ?? 0) + fallbackAmount);
+        }
+        continue;
+      }
+
+      const invoiceWithAmounts = associatedInvoices.map((invoice) => ({
+        raw: invoice,
+        amount: resolveInvoiceAmount(invoice),
+      }));
+      const totalInvoiceAmount = invoiceWithAmounts.reduce((sum, item) => sum + item.amount, 0);
+
+      if (totalInvoiceAmount > 0) {
+        for (const { raw, amount } of invoiceWithAmounts) {
+          const key =
+            typeof raw.payer === 'string' && raw.payer.trim().length ? raw.payer.trim() : 'Sin pagador';
+          totalsByPayer.set(key, (totalsByPayer.get(key) ?? 0) + amount);
+        }
+      } else {
+        const fallbackAmount = Number(request.requested_amount ?? 0);
+        if (fallbackAmount > 0) {
+          const share = fallbackAmount / invoiceWithAmounts.length;
+          for (const { raw } of invoiceWithAmounts) {
+            const key =
+              typeof raw.payer === 'string' && raw.payer.trim().length ? raw.payer.trim() : 'Sin pagador';
+            totalsByPayer.set(key, (totalsByPayer.get(key) ?? 0) + share);
+          }
+        }
+      }
     }
 
     const totalExposure = Array.from(totalsByPayer.values()).reduce((sum, value) => sum + value, 0);
@@ -112,7 +196,10 @@ export async function GET() {
       };
     });
 
-    const riskRatings = Array.from(totalsByPayer.keys()).reduce<Record<string, number>>((acc, payerName) => {
+    const riskRatings = Array.from(totalsByPayer.entries()).reduce<Record<string, number>>((acc, [payerName, exposure]) => {
+      if (exposure <= 0) {
+        return acc;
+      }
       const normalizedKey = payerName.trim().toLowerCase();
       const profile = payerProfiles.get(normalizedKey);
       const rating = typeof profile?.risk_rating === 'string' && profile.risk_rating.trim().length
