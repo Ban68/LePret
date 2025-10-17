@@ -3,11 +3,11 @@
 @theme inline {
   /* LePrêt color variables */
   --color-lp-primary-1: #18240f; /* VERDE OSCURO (Color Principal 1) */
-  --color-lp-primary-2: #fffffa; /* CREMA (Color Principal 2) */
-  --color-lp-sec-1: #afb6a6;     /* Gris verdoso */
-  --color-lp-sec-2: #afb6a6;     /* Gris verdoso */
-  --color-lp-sec-3: #5d3f3c;     /* Vino/Marrón */
-  --color-lp-sec-4: #f2ede1;     /* Beige */
+  --color-lp-primary-2: #fefbf4; /* CREMA (Color Principal 2) */
+  --color-lp-sec-1: #2f3f22;     /* Dark olive for headers */
+  --color-lp-sec-2: #44532d;     /* Medium olive accents */
+  --color-lp-sec-3: #2e211c;     /* Deep brown secondary text */
+  --color-lp-sec-4: #6f665b;     /* Warm neutral for borders */
   --color-destructive: #b91c1c;     /* Danger background */
   --color-destructive-foreground: #ffffff; /* Danger text */
 
@@ -35,4 +35,8 @@ header.sticky { overflow: hidden; }
 /* Contenedor estándar */
 .section { @apply px-4 sm:px-6 lg:px-8; }
 .section-inner { @apply mx-auto w-full max-w-6xl; }
+
+
+
+
 
