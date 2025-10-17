@@ -121,7 +121,7 @@ export async function GET() {
     const invoicesRes = invoiceIdSet.size
       ? await supabaseAdmin
           .from('invoices')
-          .select('id, payer, amount, net_amount, gross_amount, face_value, total, total_amount, financed_amount')
+          .select('id, payer, amount')
           .in('id', Array.from(invoiceIdSet))
       : { data: [] as Array<Record<string, unknown>>, error: null };
 
