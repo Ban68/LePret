@@ -163,9 +163,9 @@ export async function GET(req: Request) {
   const userIds = profileRows.map((profile) => profile.user_id);
 
   const { data: membershipData, error: membershipFetchError } = await supabaseAdmin
-    .from('memberships')
-    .select('user_id, company_id, role, status, companies(name)')
-    .in('user_id', userIds);
+    .from("memberships")
+    .select("user_id, company_id, role, status, companies(name, investor_kind)")
+    .in("user_id", userIds);
 
   if (membershipFetchError) {
     return NextResponse.json({ ok: false, error: membershipFetchError.message }, { status: 500 });
