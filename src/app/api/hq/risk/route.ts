@@ -40,6 +40,8 @@ export async function GET() {
     const ninetyDaysAgo = new Date(now.getTime());
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
+    const fundedInvoiceStatuses = ['funded'];
+
     const [paymentsRes, payersRes, invoicesRes, hqSettingsResult] = await Promise.all([
       supabaseAdmin
         .from('payments')
@@ -49,7 +51,8 @@ export async function GET() {
       supabaseAdmin
         .from('invoices')
         .select('payer, amount, status')
-        .gte('created_at', ninetyDaysAgo.toISOString()),
+        .gte('created_at', ninetyDaysAgo.toISOString())
+        .in('status', fundedInvoiceStatuses),
       getHqSettings(),
     ]);
 
@@ -82,8 +85,13 @@ export async function GET() {
       });
     }
 
+    const fundedInvoices = (invoicesRes.data || []).filter((invoice) => {
+      const status = typeof invoice.status === 'string' ? invoice.status.toLowerCase() : '';
+      return fundedInvoiceStatuses.includes(status);
+    });
+
     const totalsByPayer = new Map<string, number>();
-    for (const invoice of invoicesRes.data || []) {
+    for (const invoice of fundedInvoices) {
       const key = typeof invoice.payer === 'string' && invoice.payer.trim().length ? invoice.payer.trim() : 'Sin pagador';
       const amount = resolveInvoiceAmount(invoice);
       totalsByPayer.set(key, (totalsByPayer.get(key) ?? 0) + amount);
@@ -104,8 +112,10 @@ export async function GET() {
       };
     });
 
-    const riskRatings = Array.from(payerProfiles.values()).reduce<Record<string, number>>((acc, profile) => {
-      const rating = typeof profile.risk_rating === 'string' && profile.risk_rating.trim().length
+    const riskRatings = Array.from(totalsByPayer.keys()).reduce<Record<string, number>>((acc, payerName) => {
+      const normalizedKey = payerName.trim().toLowerCase();
+      const profile = payerProfiles.get(normalizedKey);
+      const rating = typeof profile?.risk_rating === 'string' && profile.risk_rating.trim().length
         ? profile.risk_rating.trim().toLowerCase()
         : 'sin rating';
       acc[rating] = (acc[rating] || 0) + 1;
