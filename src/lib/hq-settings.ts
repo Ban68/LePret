@@ -121,7 +121,17 @@ export async function getHqSettings(): Promise<{ record: HqSettingsRecord | null
     .maybeSingle();
 
   if (error) {
-    if (error.code === "PGRST116" || error.code === "PGRST103" || error.code === "PGRST204") {
+    const message = typeof error.message === "string" ? error.message.toLowerCase() : "";
+    const details = typeof error.details === "string" ? error.details.toLowerCase() : "";
+    if (
+      error.code === "PGRST116" ||
+      error.code === "PGRST103" ||
+      error.code === "PGRST204" ||
+      message.includes("schema cache") ||
+      message.includes("does not exist") ||
+      details.includes("schema cache") ||
+      details.includes("does not exist")
+    ) {
       return { record: null, settings: DEFAULT_HQ_SETTINGS };
     }
     throw new Error(error.message);
