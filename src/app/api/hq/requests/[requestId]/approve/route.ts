@@ -104,9 +104,9 @@ export async function POST(
     const { data: invoices, error: invoicesError } = invoiceIds.size
       ? await supabaseAdmin
           .from('invoices')
-          .select('id, due_date, amount, gross_amount')
+          .select('id, due_date, amount')
           .in('id', Array.from(invoiceIds))
-      : { data: [] as Array<{ due_date?: string | null; amount?: unknown; gross_amount?: unknown }>, error: null };
+      : { data: [] as Array<{ due_date?: string | null; amount?: unknown }>, error: null };
     if (invoicesError) throw new Error(invoicesError.message);
 
     const now = Date.now();
