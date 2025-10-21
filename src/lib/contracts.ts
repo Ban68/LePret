@@ -157,7 +157,34 @@ export async function generateContractForRequest(
     .single();
 
   if (insertError || !documentRow) {
-    throw insertError || new Error("Failed to persist contract document");
+    const errorMessage =
+      insertError && typeof insertError === "object" && "message" in insertError && typeof insertError.message === "string"
+        ? insertError.message
+        : "Failed to persist contract document";
+    const details =
+      insertError && typeof insertError === "object" && "details" in insertError && typeof insertError.details === "string"
+        ? insertError.details
+        : null;
+    const supabaseCode =
+      insertError && typeof insertError === "object" && "code" in insertError && typeof insertError.code === "string"
+        ? insertError.code
+        : null;
+    let code = supabaseCode ? `supabase_${supabaseCode}` : "contract_persist_failed";
+    let message = details ? `${errorMessage} (${details})` : errorMessage;
+
+    if (supabaseCode === "23505") {
+      code = "contract_already_exists";
+      message = "Ya existe un contrato generado para esta solicitud.";
+    }
+
+    await logIntegrationWarning({
+      company_id: orgId,
+      actor_id: actorId ?? null,
+      provider: "pandadoc",
+      message,
+      meta: { request_id: requestId, code },
+    });
+    throw new ContractGenerationError(code, message);
   }
 
   try {

@@ -30,22 +30,47 @@ export async function POST(
         requestId,
         actorId: session.user.id,
         fallbackEmail: session.user.email,
+        skipIfExists: true,
       });
 
-      return NextResponse.json({ ok: true, envelope: result.envelope, document: result.document });
+      return NextResponse.json({
+        ok: true,
+        envelope: result.envelope,
+        document: result.document,
+        skipped: Boolean(result.skipped),
+        skipReason: result.skipReason ?? null,
+      });
     } catch (error) {
       if (error instanceof ContractGenerationError) {
-        return NextResponse.json({ ok: false, error: error.code }, { status: error.status });
+        return NextResponse.json(
+          { ok: false, error: error.message, code: error.code },
+          { status: error.status },
+        );
       }
       throw error;
     }
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg =
+      e instanceof Error
+        ? e.message
+        : typeof e === "string"
+          ? e
+          : (() => {
+              try {
+                return JSON.stringify(e);
+              } catch {
+                return String(e);
+              }
+            })();
+    const code =
+      e instanceof Error && "code" in e && typeof (e as { code?: unknown }).code === "string"
+        ? (e as { code: string }).code
+        : "contract_generation_unexpected_error";
     await logIntegrationWarning({
       company_id: orgId,
       provider: "pandadoc",
       message: msg,
     });
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    return NextResponse.json({ ok: false, error: msg, code }, { status: 500 });
   }
 }
