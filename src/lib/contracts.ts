@@ -46,6 +46,22 @@ type ContractGenerationResult = {
   skipReason?: string;
 };
 
+function normalizeDocumentStatus(status?: string | null): "created" | "uploaded" | "signed" {
+  if (!status) return "created";
+  const normalized = status
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[\s._-]+/g, " ");
+  if (normalized.includes("sign") || normalized.includes("complete")) {
+    return "signed";
+  }
+  if (normalized.includes("upload") || normalized.includes("sent")) {
+    return "uploaded";
+  }
+  return "created";
+}
+
 export async function generateContractForRequest(
   options: GenerateContractOptions,
 ): Promise<ContractGenerationResult> {
@@ -148,7 +164,7 @@ export async function generateContractForRequest(
       company_id: orgId,
       request_id: requestId,
       type: "CONTRATO_MARCO",
-      status: envelope.status || "created",
+      status: normalizeDocumentStatus(envelope.status),
       provider: "PANDADOC",
       provider_envelope_id: envelope.envelopeId,
       uploaded_by: actorId,
