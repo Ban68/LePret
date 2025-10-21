@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 
 import { createRequestWithInvoices } from "./helpers";
 import { logAudit, logStatusChange, logValidationFailure } from "@/lib/audit";
+import { applyRequestDefaults } from "@/lib/request-defaults";
 
 type FundingRequestRow = {
   id: string;
@@ -343,7 +344,8 @@ export async function POST(
     return NextResponse.json(payload, { status: result.status });
   }
 
-  const requestId = (result.request as { id: string }).id;
+  const requestRow = result.request as { id: string; company_id?: string };
+  const requestId = requestRow.id;
 
   try {
     const { notifyStaffNewRequest } = await import("@/lib/notifications");
@@ -371,7 +373,31 @@ export async function POST(
     to_status: (result.request as { status?: string }).status ?? "review",
   });
 
-  return NextResponse.json({ ok: true, created: result.request, total: result.total, count: result.count }, { status: 201 });
+  const responsePayload: Record<string, unknown> = {
+    ok: true,
+    created: result.request,
+    total: result.total,
+    count: result.count,
+  };
+
+  try {
+    if (requestRow.company_id) {
+      const defaults = await applyRequestDefaults({
+        requestId,
+        companyId: requestRow.company_id,
+      });
+      responsePayload.defaults = {
+        discountRate: defaults.discountRate,
+        operationDays: defaults.operationDays,
+        advancePct: defaults.advancePct,
+        source: defaults.source,
+      };
+    }
+  } catch (error) {
+    console.error("[request-defaults] failed to apply overrides", error);
+  }
+
+  return NextResponse.json(responsePayload, { status: 201 });
 }
 
 

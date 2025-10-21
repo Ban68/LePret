@@ -25,6 +25,10 @@ type FundingRequestRow = {
   invoice_id?: string | null;
   currency?: string | null;
   archived_at?: string | null;
+  default_discount_rate?: number | null;
+  default_operation_days?: number | null;
+  default_advance_pct?: number | null;
+  default_settings_source?: string | null;
 };
 
 type DocumentRow = {
@@ -92,6 +96,12 @@ type RequestResponseItem = {
     exposureRatio: number | null;
     tenorDays: number | null;
   };
+  defaults: {
+    discountRate: number | null;
+    operationDays: number | null;
+    advancePct: number | null;
+    source: string | null;
+  };
 };
 
 export async function GET(req: Request) {
@@ -126,7 +136,10 @@ export async function GET(req: Request) {
 
   let query = supabaseAdmin
     .from('funding_requests')
-    .select('id, company_id, requested_amount, status, created_at, file_path, created_by, invoice_id, currency, archived_at', { count: 'exact' });
+    .select(
+      'id, company_id, requested_amount, status, created_at, file_path, created_by, invoice_id, currency, archived_at, default_discount_rate, default_operation_days, default_advance_pct, default_settings_source',
+      { count: 'exact' },
+    );
 
   if (!includeArchived) {
     query = query.is('archived_at', null);
@@ -369,6 +382,12 @@ export async function GET(req: Request) {
       archived_at: request.archived_at ?? null,
       force_sign_enabled: allowForceSign,
       risk,
+      defaults: {
+        discountRate: normalizeNumber(request.default_discount_rate, 2),
+        operationDays: normalizeInteger(request.default_operation_days),
+        advancePct: normalizeNumber(request.default_advance_pct, 2),
+        source: typeof request.default_settings_source === 'string' ? request.default_settings_source : null,
+      },
       offer: activeOffer
         ? {
             id: activeOffer.id,
@@ -674,6 +693,24 @@ function computeNextAction(status: string | null | undefined, summary: { missing
     pendingDocuments: [...summary.missing, ...summary.unsigned],
   };
 }
+function normalizeNumber(value: unknown, precision: number): number | null {
+  const numeric = Number(value ?? 0);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  const factor = Math.pow(10, Math.max(0, Math.min(precision, 6)));
+  return Math.round(numeric * factor) / factor;
+}
+
+function normalizeInteger(value: unknown): number | null {
+  const numeric = Number(value ?? 0);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  const int = Math.round(numeric);
+  return int >= 0 ? int : null;
+}
+
 function formatOffer(offer: OfferRow): string {
   const parts: string[] = [];
   if (typeof offer.annual_rate === 'number') {

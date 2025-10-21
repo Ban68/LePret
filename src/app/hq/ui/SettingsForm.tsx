@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CompanyOverridesManager } from "./CompanyOverridesManager";
 
 const SEGMENTS = [
   { key: "default", label: "General" },
@@ -159,7 +160,8 @@ export function SettingsForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <div className="space-y-12">
+      <form onSubmit={handleSubmit} className="space-y-8">
       <section className="rounded-lg border border-lp-sec-4/60 bg-white p-6 shadow-sm">
         <header className="mb-4">
           <h3 className="text-lg font-semibold text-lp-primary-1">Tasa de descuento objetivo</h3>
@@ -239,6 +241,8 @@ export function SettingsForm() {
           </Button>
         </div>
       </footer>
-    </form>
+      </form>
+      <CompanyOverridesManager />
+    </div>
   );
 }

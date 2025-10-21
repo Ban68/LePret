@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
 import { createRequestWithInvoices } from "../helpers";
+import { applyRequestDefaults } from "@/lib/request-defaults";
 
 export async function POST(
   req: Request,
@@ -40,12 +41,32 @@ export async function POST(
       return NextResponse.json(payload, { status: result.status });
     }
 
-    return NextResponse.json({
+    const responsePayload = {
       ok: true,
       request: result.request,
       total: result.total,
       count: result.count,
-    });
+    } as Record<string, unknown>;
+
+    try {
+      const requestRow = result.request as { id?: string; company_id?: string };
+      if (requestRow?.id && requestRow?.company_id) {
+        const defaults = await applyRequestDefaults({
+          requestId: requestRow.id,
+          companyId: requestRow.company_id,
+        });
+        responsePayload.defaults = {
+          discountRate: defaults.discountRate,
+          operationDays: defaults.operationDays,
+          advancePct: defaults.advancePct,
+          source: defaults.source,
+        };
+      }
+    } catch (error) {
+      console.error("[request-defaults] failed to apply overrides", error);
+    }
+
+    return NextResponse.json(responsePayload);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

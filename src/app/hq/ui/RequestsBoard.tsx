@@ -69,6 +69,12 @@ type RequestItem = {
     exposureRatio: number | null;
     tenorDays: number | null;
   };
+  defaults: {
+    discountRate: number | null;
+    operationDays: number | null;
+    advancePct: number | null;
+    source: string | null;
+  };
 };
 
 type GroupValue = "needs" | "client" | "payer" | "status" | "month" | "none";
@@ -877,6 +883,13 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
     request.risk.exposureRatio != null ? `${Math.round(request.risk.exposureRatio * 100)}% del límite` : 'Sin límite definido';
   const riskTenor =
     typeof request.risk.tenorDays === 'number' ? `${request.risk.tenorDays} días estimados` : 'Plazo no disponible';
+  const defaultsSourceLabel = resolveDefaultsSourceLabel(request.defaults.source);
+  const formattedDiscount =
+    typeof request.defaults.discountRate === 'number' ? `${request.defaults.discountRate.toFixed(2)}% EA` : 'Sin definir';
+  const formattedAdvance =
+    typeof request.defaults.advancePct === 'number' ? `${request.defaults.advancePct.toFixed(0)}%` : 'Sin definir';
+  const formattedOperation =
+    typeof request.defaults.operationDays === 'number' ? `${request.defaults.operationDays} días` : 'Sin definir';
 
   const handleOfferWizardOpen = () => {
     if (!canGenerateOffer || actionLoading === 'offer') {
@@ -950,6 +963,28 @@ function RequestDetailDrawer({ open, request, onClose, onAction, actionLoading }
                   Archivada {request.archived_at ? formatDate(request.archived_at) : 'Sin fecha'}
                 </div>
               )}
+            </div>
+          </section>
+
+          <section>
+            <div className="text-xs uppercase text-lp-sec-3">Parámetros predeterminados</div>
+            <div className="mt-2 grid grid-cols-2 gap-3 text-sm text-lp-primary-1">
+              <div>
+                <div className="text-xs uppercase text-lp-sec-3">Tasa objetivo</div>
+                <div className="font-medium">{formattedDiscount}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase text-lp-sec-3">% desembolso</div>
+                <div className="font-medium">{formattedAdvance}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase text-lp-sec-3">Duración estimada</div>
+                <div className="font-medium">{formattedOperation}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase text-lp-sec-3">Fuente</div>
+                <div className="font-medium text-lp-sec-3">{defaultsSourceLabel}</div>
+              </div>
             </div>
           </section>
 
@@ -1156,12 +1191,20 @@ function OfferWizard({ request, onClose, onAuto, onSubmit, loading }: OfferWizar
     ],
     []
   );
+  const defaultAnnualRate = useMemo(
+    () => (typeof request.defaults.discountRate === 'number' ? request.defaults.discountRate : 30),
+    [request.defaults.discountRate]
+  );
+  const defaultAdvancePct = useMemo(
+    () => (typeof request.defaults.advancePct === 'number' ? request.defaults.advancePct : 85),
+    [request.defaults.advancePct]
+  );
   const [stepIndex, setStepIndex] = useState(0);
   const [inputTouched, setInputTouched] = useState(false);
   const [flowLoading, setFlowLoading] = useState<null | 'auto' | 'manual'>(null);
   const [formValues, setFormValues] = useState<OfferWizardFormState>(() => ({
-    annualRate: '30',
-    advancePct: '85',
+    annualRate: String(defaultAnnualRate),
+    advancePct: String(defaultAdvancePct),
     processingFee: String(defaultProcessing),
     wireFee: '5000',
     validForDays: '7',
@@ -1171,13 +1214,13 @@ function OfferWizard({ request, onClose, onAuto, onSubmit, loading }: OfferWizar
     setStepIndex(0);
     setInputTouched(false);
     setFormValues({
-      annualRate: '30',
-      advancePct: '85',
+      annualRate: String(defaultAnnualRate),
+      advancePct: String(defaultAdvancePct),
       processingFee: String(defaultProcessing),
       wireFee: '5000',
       validForDays: '7',
     });
-  }, [request.id, defaultProcessing]);
+  }, [request.id, defaultProcessing, defaultAnnualRate, defaultAdvancePct]);
 
   useEffect(() => {
     if (!loading) {
@@ -1203,8 +1246,8 @@ function OfferWizard({ request, onClose, onAuto, onSubmit, loading }: OfferWizar
     const wireFee = parseNumber(formValues.wireFee);
     const validForDays = parseNumber(formValues.validForDays);
 
-    const normalizedAnnual = Number.isFinite(annualRate) ? Math.max(0, Math.min(200, annualRate)) : 30;
-    const normalizedAdvance = Number.isFinite(advancePct) ? Math.max(0, Math.min(100, advancePct)) : 85;
+    const normalizedAnnual = Number.isFinite(annualRate) ? Math.max(0, Math.min(200, annualRate)) : defaultAnnualRate;
+    const normalizedAdvance = Number.isFinite(advancePct) ? Math.max(0, Math.min(100, advancePct)) : defaultAdvancePct;
     const normalizedProcessing = Number.isFinite(processingFee) ? Math.max(0, Math.round(processingFee)) : defaultProcessing;
     const normalizedWire = Number.isFinite(wireFee) ? Math.max(0, Math.round(wireFee)) : 5000;
     const normalizedValid = Number.isFinite(validForDays) ? Math.max(1, Math.min(90, Math.round(validForDays))) : 7;
@@ -1216,7 +1259,7 @@ function OfferWizard({ request, onClose, onAuto, onSubmit, loading }: OfferWizar
       wireFee: normalizedWire,
       validForDays: normalizedValid,
     };
-  }, [defaultProcessing, formValues, parseNumber]);
+  }, [defaultAdvancePct, defaultAnnualRate, defaultProcessing, formValues, parseNumber]);
 
   const summary = useMemo(() => {
     const advanceAmount = requestedAmount * (resolvedValues.advancePct / 100);
@@ -1448,6 +1491,13 @@ function SummaryItem({ label, value, highlight }: SummaryItemProps) {
       <div className="mt-2 text-lg font-semibold">{value}</div>
     </div>
   );
+}
+
+function resolveDefaultsSourceLabel(source: string | null): string {
+  if (source === 'company_override') return 'Config. por cliente';
+  if (source === 'segment_default') return 'Segmento';
+  if (source === 'global_default') return 'Global';
+  return 'Global';
 }
 
 

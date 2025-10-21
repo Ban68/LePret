@@ -3,19 +3,10 @@ import { NextResponse } from "next/server";
 import { isBackofficeAllowed } from "@/lib/hq-auth";
 import { supabaseServer } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { getHqSettings } from "@/lib/hq-settings";
+import { resolveCompanyDefaults, resolveCompanySegment } from "@/lib/hq-company-parameters";
 import { logStatusChange } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
-
-function resolveSegment(companyType: string | null | undefined): string {
-  if (!companyType) return "default";
-  const normalized = companyType.toLowerCase();
-  if (normalized.includes("corp")) return "corporativo";
-  if (normalized.includes("start")) return "startup";
-  if (normalized.includes("pyme") || normalized.includes("sme")) return "pyme";
-  return "default";
-}
 
 function ensureNumber(value: unknown): number {
   const numeric = Number(value ?? 0);
@@ -42,8 +33,6 @@ export async function POST(
   }
 
   try {
-    const { settings } = await getHqSettings();
-
     const { data: requestRow, error: requestError } = await supabaseAdmin
       .from('funding_requests')
       .select('id, company_id, requested_amount, status, created_at, currency, invoice_id')
@@ -66,9 +55,14 @@ export async function POST(
       .maybeSingle();
     if (companyError) throw new Error(companyError.message);
 
-    const segmentKey = resolveSegment(companyRow?.type ?? null);
+    const resolvedDefaults = await resolveCompanyDefaults({
+      companyId: requestRow.company_id,
+      companyType: companyRow?.type ?? null,
+    });
+    const settings = resolvedDefaults.settings;
+    const segmentKey = resolveCompanySegment(companyRow?.type ?? null);
     const creditLimit = settings.creditLimits[segmentKey] ?? settings.creditLimits.default ?? 0;
-    const tenorLimit = settings.terms[segmentKey] ?? settings.terms.default ?? 90;
+    const tenorLimit = resolvedDefaults.operationDays;
     const exposureMultiplier = settings.autoApproval?.maxExposureRatio ?? 1;
     const tenorBuffer = settings.autoApproval?.maxTenorBufferDays ?? 0;
 
@@ -129,9 +123,9 @@ export async function POST(
     }
 
     const requestedAmount = ensureNumber(requestRow.requested_amount);
-    const discountRate = Math.min(Math.max(settings.discountRate ?? 24, 0), 200);
+    const discountRate = Math.min(Math.max(resolvedDefaults.discountRate ?? 24, 0), 200);
     const annualRate = discountRate / 100;
-    const advancePct = Math.min(95, Math.max(60, 100 - discountRate / 2));
+    const advancePct = Math.max(0, Math.min(100, resolvedDefaults.advancePct ?? 85));
     const processingFee = Math.max(50000, Math.min(250000, Math.round(requestedAmount * 0.005)));
     const wireFee = 5000;
     const advanceAmount = requestedAmount * (advancePct / 100);
