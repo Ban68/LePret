@@ -28,7 +28,7 @@ function clampNumber(value: unknown, { min, max }: { min?: number; max?: number 
 
 export async function getCompanyParameterOverride(companyId: string): Promise<CompanyParameterOverrides | null> {
   const { data, error } = await supabaseAdmin
-    .from<CompanyParameterOverrides>("hq_company_parameters")
+    .from("hq_company_parameters")
     .select("*")
     .eq("company_id", companyId)
     .maybeSingle();
