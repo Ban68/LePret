@@ -53,7 +53,7 @@ export async function GET() {
     const [paymentsRes, payersRes, fundedRequestsRes, hqSettingsResult] = await Promise.all([
       supabaseAdmin
         .from('payments')
-        .select('status, amount, direction, due_date, company_id')
+        .select('status, amount, direction, due_date, company_id, request_id')
         .gte('created_at', ninetyDaysAgo.toISOString()),
       supabaseAdmin.from('payers').select('id, name, risk_rating, credit_limit'),
       supabaseAdmin
@@ -73,14 +73,22 @@ export async function GET() {
     const activeStatuses = new Set(['pending', 'in_collection', 'overdue']);
     const delinquentStatuses = new Set(['overdue', 'in_collection']);
 
-    const outstandingAmount = inboundPayments
+    let outstandingAmount = inboundPayments
       .filter((payment) => activeStatuses.has(String(payment.status)))
       .reduce((sum, payment) => sum + toNumber(payment.amount), 0);
     const delinquentAmount = inboundPayments
       .filter((payment) => delinquentStatuses.has(String(payment.status)))
       .reduce((sum, payment) => sum + toNumber(payment.amount), 0);
     const paymentsInArrears = inboundPayments.filter((payment) => delinquentStatuses.has(String(payment.status))).length;
-    const delinquencyRate = outstandingAmount > 0 ? Number(((delinquentAmount / outstandingAmount) * 100).toFixed(2)) : 0;
+    let delinquencyRate = outstandingAmount > 0 ? Number(((delinquentAmount / outstandingAmount) * 100).toFixed(2)) : 0;
+
+    const inboundRequestIds = new Set<string>();
+    for (const payment of inboundPayments) {
+      const requestId = typeof payment.request_id === 'string' ? payment.request_id : null;
+      if (requestId) {
+        inboundRequestIds.add(requestId);
+      }
+    }
 
     const payerProfiles = new Map<string, { risk_rating?: string | null; credit_limit?: number | null }>();
     for (const payer of payersRes.data || []) {
@@ -93,6 +101,24 @@ export async function GET() {
     }
 
     const fundedRequests = fundedRequestsRes.data || [];
+
+    const fallbackOutstanding = fundedRequests.reduce((sum, request) => {
+      const requestId = typeof request.id === 'string' ? request.id : null;
+      if (!requestId || inboundRequestIds.has(requestId)) {
+        return sum;
+      }
+      const amount = toNumber(request.requested_amount);
+      return amount > 0 ? sum + amount : sum;
+    }, 0);
+
+    if (fallbackOutstanding > 0) {
+      outstandingAmount += fallbackOutstanding;
+      delinquencyRate =
+        outstandingAmount > 0
+          ? Number(((delinquentAmount / outstandingAmount) * 100).toFixed(2))
+          : 0;
+    }
+
     const requestIds = fundedRequests.map((request) => request.id).filter(Boolean);
 
     const requestInvoiceLinksRes = requestIds.length
