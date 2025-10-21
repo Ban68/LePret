@@ -36,24 +36,25 @@ export async function GET(req: Request) {
   try {
     if (withOverridesOnly) {
       const { data: overrides, error: overridesError } = await supabaseAdmin
-        .from<OverrideRow>("hq_company_parameters")
+        .from("hq_company_parameters")
         .select("company_id, discount_rate, operation_days, advance_pct, updated_at, updated_by")
         .order("updated_at", { ascending: false })
         .limit(limit);
       if (overridesError) throw new Error(overridesError.message);
 
-      const companyIds = overrides?.map((row) => row.company_id) ?? [];
+      const rows = (overrides ?? []) as OverrideRow[];
+      const companyIds = rows.map((row) => row.company_id);
       const [companiesRes, profilesRes] = await Promise.all([
         companyIds.length
           ? supabaseAdmin.from("companies").select("id, name, type").in("id", companyIds)
           : Promise.resolve({ data: [] as Array<{ id: string; name: string; type: string | null }>, error: null }),
-        overrides?.length
+        rows.length
           ? supabaseAdmin
               .from("profiles")
               .select("user_id, full_name")
               .in(
                 "user_id",
-                overrides
+                rows
                   .map((row) => row.updated_by)
                   .filter((value): value is string => typeof value === "string" && value.length > 0),
               )
@@ -66,7 +67,7 @@ export async function GET(req: Request) {
       const companyMap = new Map(companiesRes.data?.map((company) => [company.id, company]));
       const profileMap = new Map(profilesRes.data?.map((profile) => [profile.user_id, profile.full_name ?? null]));
 
-      const result = (overrides ?? []).map((row) => ({
+      const result = rows.map((row) => ({
         id: row.company_id,
         name: companyMap.get(row.company_id)?.name ?? "Sin nombre",
         type: companyMap.get(row.company_id)?.type ?? null,
@@ -106,12 +107,13 @@ export async function GET(req: Request) {
     const companyIds = companies?.map((company) => company.id) ?? [];
     const { data: overrides } = companyIds.length
       ? await supabaseAdmin
-          .from<OverrideRow>("hq_company_parameters")
+          .from("hq_company_parameters")
           .select("company_id, discount_rate, operation_days, advance_pct, updated_at, updated_by")
           .in("company_id", companyIds)
       : { data: [] as OverrideRow[] };
 
-    const overridesMap = new Map(overrides?.map((row) => [row.company_id, row]));
+    const rows = (overrides ?? []) as OverrideRow[];
+    const overridesMap = new Map(rows.map((row) => [row.company_id, row]));
 
     const result = (companies ?? []).map((company) => {
       const override = overridesMap.get(company.id);
