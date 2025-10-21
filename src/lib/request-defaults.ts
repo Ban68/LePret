@@ -36,7 +36,7 @@ async function resolveCompanyType(companyId: string, provided?: string | null) {
   }
 
   const { data, error } = await supabaseAdmin
-    .from<{ type: string | null }>("companies")
+    .from("companies")
     .select("type")
     .eq("id", companyId)
     .maybeSingle();
