@@ -1,4 +1,4 @@
-""use client"";
+'use client';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -9,36 +9,37 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
+type NumericOverrides = {
+  discountRate: number | null;
+  operationDays: number | null;
+  advancePct: number | null;
+};
+
 type OverrideSummary = {
   id: string;
   name: string;
   type: string | null;
-  overrides: {
-    discountRate: number | null;
-    operationDays: number | null;
-    advancePct: number | null;
-  } | null;
+  overrides: NumericOverrides | null;
   updatedAt: string | null;
-  updatedBy: string | null;
+  updatedBy: string | null | { id: string | null; name: string | null };
 };
 
 type CompanyDetail = {
   id: string;
   name: string;
   type: string | null;
-  overrides: {
-    discountRate: number | null;
-    operationDays: number | null;
-    advancePct: number | null;
-    updatedAt: string | null;
-    updatedBy: string | null;
-  } | null;
+  overrides: (NumericOverrides & { updatedAt: string | null; updatedBy: string | null }) | null;
 };
 
 type FormState = {
   discountRate: string;
   operationDays: string;
   advancePct: string;
+};
+
+type SanitizedNumberResult = {
+  value: number | null;
+  error: string | null;
 };
 
 const INITIAL_FORM: FormState = {
@@ -66,7 +67,8 @@ export function CompanyOverridesManager() {
         const error = payload?.error || "No se pudieron cargar las personalizaciones";
         throw new Error(error);
       }
-      setOverrides(Array.isArray(payload.companies) ? payload.companies : []);
+      const items: OverrideSummary[] = Array.isArray(payload.companies) ? payload.companies : [];
+      setOverrides(items);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error inesperado";
       toast.error(message);
@@ -87,18 +89,21 @@ export function CompanyOverridesManager() {
     }
 
     const controller = new AbortController();
-    const timeout = window.setTimeout(async () => {
+    const handle = window.setTimeout(async () => {
       setSearching(true);
       try {
-        const response = await fetch(/api/hq/settings/companies?search=&limit=10, {
-          signal: controller.signal,
-        });
+        const query = new URLSearchParams({
+          search: searchTerm.trim(),
+          limit: "10",
+        }).toString();
+        const response = await fetch(`/api/hq/settings/companies?${query}`, { signal: controller.signal });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
           const error = payload?.error || "No se pudieron buscar clientes";
           throw new Error(error);
         }
-        setSearchResults(Array.isArray(payload.companies) ? payload.companies : []);
+        const items: OverrideSummary[] = Array.isArray(payload.companies) ? payload.companies : [];
+        setSearchResults(items);
       } catch (error) {
         if (controller.signal.aborted) return;
         const message = error instanceof Error ? error.message : "Error inesperado";
@@ -111,24 +116,26 @@ export function CompanyOverridesManager() {
 
     return () => {
       controller.abort();
-      window.clearTimeout(timeout);
+      window.clearTimeout(handle);
     };
   }, [searchTerm]);
 
   const loadCompanyDetail = useCallback(async (companyId: string) => {
     try {
-      const response = await fetch(/api/hq/settings/companies/);
+      const response = await fetch(`/api/hq/settings/companies/${companyId}`);
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         const error = payload?.error || "No se pudo cargar el cliente";
         throw new Error(error);
       }
+
       const detail: CompanyDetail = {
         id: payload.company.id,
         name: payload.company.name,
         type: payload.company.type ?? null,
         overrides: payload.overrides ?? null,
       };
+
       setSelected(detail);
       setForm({
         discountRate: detail.overrides?.discountRate != null ? String(detail.overrides.discountRate) : "",
@@ -146,16 +153,53 @@ export function CompanyOverridesManager() {
     setForm(INITIAL_FORM);
   }, []);
 
+  const parsedForm = useMemo(() => {
+    return {
+      discountRate: sanitizeDecimal(form.discountRate, 0, 200),
+      operationDays: sanitizeInteger(form.operationDays, 1, 720),
+      advancePct: sanitizeDecimal(form.advancePct, 0, 100),
+    };
+  }, [form]);
+
+  const hasChanges = useMemo(() => {
+    if (!selected) return false;
+    const current = selected.overrides;
+    return (
+      parsedForm.discountRate.value !== (current?.discountRate ?? null) ||
+      parsedForm.operationDays.value !== (current?.operationDays ?? null) ||
+      parsedForm.advancePct.value !== (current?.advancePct ?? null)
+    );
+  }, [parsedForm, selected]);
+
+  const validateForm = useCallback(() => {
+    const fields = [
+      parsedForm.discountRate,
+      parsedForm.operationDays,
+      parsedForm.advancePct,
+    ] as const;
+
+    for (const field of fields) {
+      if (field.error) {
+        toast.error(field.error);
+        return false;
+      }
+    }
+    return true;
+  }, [parsedForm]);
+
   const handleSave = useCallback(async () => {
     if (!selected) return;
+    if (!validateForm()) return;
+
     setSaving(true);
     try {
-      const body: Record<string, unknown> = {};
-      if (form.discountRate.trim().length > 0) body.discountRate = Number(form.discountRate);
-      if (form.operationDays.trim().length > 0) body.operationDays = Number(form.operationDays);
-      if (form.advancePct.trim().length > 0) body.advancePct = Number(form.advancePct);
+      const body = {
+        discountRate: parsedForm.discountRate.value,
+        operationDays: parsedForm.operationDays.value,
+        advancePct: parsedForm.advancePct.value,
+      };
 
-      const response = await fetch(/api/hq/settings/companies/, {
+      const response = await fetch(`/api/hq/settings/companies/${selected.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -165,7 +209,8 @@ export function CompanyOverridesManager() {
         const error = payload?.error || "No se pudieron guardar los cambios";
         throw new Error(error);
       }
-      toast.success("Par·metros personalizados actualizados");
+
+      toast.success("Par√°metros personalizados actualizados");
       await Promise.all([loadOverrides(), loadCompanyDetail(selected.id)]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error inesperado";
@@ -173,22 +218,24 @@ export function CompanyOverridesManager() {
     } finally {
       setSaving(false);
     }
-  }, [form, loadCompanyDetail, loadOverrides, selected]);
+  }, [loadCompanyDetail, loadOverrides, parsedForm, selected, validateForm]);
 
   const handleClear = useCallback(async () => {
     if (!selected) return;
+
     setSaving(true);
     try {
-      const response = await fetch(/api/hq/settings/companies/, {
+      const response = await fetch(`/api/hq/settings/companies/${selected.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clear: true }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const error = payload?.error || "No se pudo eliminar la personalizaciÛn";
+        const error = payload?.error || "No se pudo eliminar la personalizaci√≥n";
         throw new Error(error);
       }
+
       toast.success("Se restablecieron los valores predeterminados");
       resetSelection();
       await loadOverrides();
@@ -200,22 +247,12 @@ export function CompanyOverridesManager() {
     }
   }, [loadOverrides, resetSelection, selected]);
 
-  const hasChanges = useMemo(() => {
-    if (!selected) return false;
-    const current = selected.overrides;
-    return (
-      (form.discountRate.trim().length > 0 ? Number(form.discountRate) : null) !== (current?.discountRate ?? null) ||
-      (form.operationDays.trim().length > 0 ? Number(form.operationDays) : null) !== (current?.operationDays ?? null) ||
-      (form.advancePct.trim().length > 0 ? Number(form.advancePct) : null) !== (current?.advancePct ?? null)
-    );
-  }, [form, selected]);
-
   return (
     <section className="space-y-6">
       <header>
-        <h3 className="text-lg font-semibold text-lp-primary-1">PersonalizaciÛn por cliente</h3>
+        <h3 className="text-lg font-semibold text-lp-primary-1">Personalizaci√≥n por cliente</h3>
         <p className="text-sm text-lp-sec-3">
-          Define valores predeterminados para clientes especÌficos. Se aplican al crear nuevas solicitudes en el portal.
+          Define valores predeterminados para clientes espec√≠ficos. Se aplican al crear nuevas solicitudes en el portal.
         </p>
       </header>
 
@@ -248,9 +285,7 @@ export function CompanyOverridesManager() {
                           onClick={() => loadCompanyDetail(company.id)}
                         >
                           <span className="font-medium text-lp-primary-1">{company.name}</span>
-                          {company.overrides ? (
-                            <span className="text-xs text-lp-sec-3">Personalizado</span>
-                          ) : null}
+                          {company.overrides ? <span className="text-xs text-lp-sec-3">Personalizado</span> : null}
                         </button>
                       </li>
                     ))}
@@ -281,7 +316,7 @@ export function CompanyOverridesManager() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="override-days">DuraciÛn (dÌas)</Label>
+                  <Label htmlFor="override-days">Duraci√≥n (d√≠as)</Label>
                   <Input
                     id="override-days"
                     type="number"
@@ -311,7 +346,7 @@ export function CompanyOverridesManager() {
                   {saving ? "Guardando..." : "Guardar"}
                 </Button>
                 <Button type="button" variant="secondary" disabled={!selected || saving} onClick={handleClear}>
-                  Borrar personalizaciÛn
+                  Borrar personalizaci√≥n
                 </Button>
                 <Button type="button" variant="secondary" disabled={saving} onClick={resetSelection}>
                   Cerrar
@@ -319,7 +354,7 @@ export function CompanyOverridesManager() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-lp-sec-3">Selecciona un cliente para editar sus par·metros.</p>
+            <p className="text-sm text-lp-sec-3">Selecciona un cliente para editar sus par√°metros.</p>
           )}
         </div>
 
@@ -332,7 +367,7 @@ export function CompanyOverridesManager() {
               <Skeleton className="h-4 w-2/3" />
             </div>
           ) : overrides.length === 0 ? (
-            <p className="text-sm text-lp-sec-3">A˙n no hay personalizaciones registradas.</p>
+            <p className="text-sm text-lp-sec-3">A√∫n no hay personalizaciones registradas.</p>
           ) : (
             <ul className="space-y-2 text-sm">
               {overrides.map((company) => (
@@ -354,15 +389,15 @@ export function CompanyOverridesManager() {
                     <dl className="mt-2 grid grid-cols-2 gap-2 text-xs text-lp-sec-3">
                       <div>
                         <dt>Tasa</dt>
-                        <dd>{company.overrides.discountRate != null ? ${company.overrides.discountRate}% : "-"}</dd>
+                        <dd>{company.overrides.discountRate != null ? `${company.overrides.discountRate}%` : "-"}</dd>
                       </div>
                       <div>
-                        <dt>DÌas</dt>
+                        <dt>D√≠as</dt>
                         <dd>{company.overrides.operationDays ?? "-"}</dd>
                       </div>
                       <div>
                         <dt>% desembolso</dt>
-                        <dd>{company.overrides.advancePct != null ? ${company.overrides.advancePct}% : "-"}</dd>
+                        <dd>{company.overrides.advancePct != null ? `${company.overrides.advancePct}%` : "-"}</dd>
                       </div>
                       <div>
                         <dt>Actualizado</dt>
@@ -378,4 +413,30 @@ export function CompanyOverridesManager() {
       </div>
     </section>
   );
+}
+
+function sanitizeDecimal(input: string, min: number, max: number): SanitizedNumberResult {
+  const trimmed = input.trim();
+  if (!trimmed) return { value: null, error: null };
+  const normalized = Number(trimmed.replace(",", "."));
+  if (!Number.isFinite(normalized)) {
+    return { value: null, error: "Ingresa un n√∫mero v√°lido." };
+  }
+  if (normalized < min || normalized > max) {
+    return { value: null, error: `El valor debe estar entre ${min} y ${max}.` };
+  }
+  return { value: normalized, error: null };
+}
+
+function sanitizeInteger(input: string, min: number, max: number): SanitizedNumberResult {
+  const trimmed = input.trim();
+  if (!trimmed) return { value: null, error: null };
+  const normalized = Number(trimmed);
+  if (!Number.isFinite(normalized) || !Number.isInteger(normalized)) {
+    return { value: null, error: "Ingresa un n√∫mero entero v√°lido." };
+  }
+  if (normalized < min || normalized > max) {
+    return { value: null, error: `El valor debe estar entre ${min} y ${max}.` };
+  }
+  return { value: normalized, error: null };
 }
