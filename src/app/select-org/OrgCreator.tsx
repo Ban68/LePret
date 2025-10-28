@@ -44,8 +44,15 @@ export function OrgCreator() {
         console.error("Create org error:", data);
         return;
       }
-      const data = await res.json();
-      window.location.href = `/c/${data.org.id}`;
+      const payload = await res.json();
+      const orgId = typeof payload?.org?.id === "string" ? payload.org.id : null;
+      if (!orgId) {
+        setError("La organización se creó pero no pudimos redirigirte automáticamente. Actualiza la página e inténtalo de nuevo.");
+        return;
+      }
+      const orgType = typeof payload.org?.type === "string" ? payload.org.type.toUpperCase() : "";
+      const destination = orgType === "INVESTOR" ? `/i/${orgId}` : `/c/${orgId}`;
+      window.location.href = destination;
     } catch (err) {
       console.error(err);
       setError("No se pudo conectar con el servidor. Revisa tu conexión.");
