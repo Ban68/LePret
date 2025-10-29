@@ -128,6 +128,11 @@ type PortfolioPayload = {
     transactions?: boolean;
     statements?: boolean;
   };
+  delete?: {
+    positions?: string[];
+    transactions?: string[];
+    statements?: string[];
+  };
 };
 
 function normalizePositions(orgId: string, items: PositionInput[]): Record<string, unknown>[] {
@@ -229,6 +234,23 @@ function normalizeStatements(orgId: string, items: StatementInput[]): Record<str
   });
 }
 
+function sanitizeIdList(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const unique = new Set<string>();
+  for (const raw of input) {
+    const normalized =
+      typeof raw === "string"
+        ? sanitizeString(raw)
+        : raw === null || raw === undefined
+          ? null
+          : sanitizeString(String(raw));
+    if (normalized) {
+      unique.add(normalized);
+    }
+  }
+  return Array.from(unique);
+}
+
 export async function GET(_req: Request, { params }: RouteContext) {
   try {
     await ensureStaffAccess();
@@ -258,6 +280,10 @@ export async function POST(req: Request, { params }: RouteContext) {
     const positionsInput = Array.isArray(body.positions) ? body.positions : undefined;
     const transactionsInput = Array.isArray(body.transactions) ? body.transactions : undefined;
     const statementsInput = Array.isArray(body.statements) ? body.statements : undefined;
+    const deleteFlags = body.delete ?? {};
+    const positionsToDelete = sanitizeIdList(deleteFlags.positions);
+    const transactionsToDelete = sanitizeIdList(deleteFlags.transactions);
+    const statementsToDelete = sanitizeIdList(deleteFlags.statements);
 
     if (
       !positionsInput?.length &&
@@ -265,7 +291,10 @@ export async function POST(req: Request, { params }: RouteContext) {
       !statementsInput?.length &&
       !replaceFlags.positions &&
       !replaceFlags.transactions &&
-      !replaceFlags.statements
+      !replaceFlags.statements &&
+      positionsToDelete.length === 0 &&
+      transactionsToDelete.length === 0 &&
+      statementsToDelete.length === 0
     ) {
       return NextResponse.json(
         { ok: false, error: "No se recibieron datos para procesar." },
@@ -279,6 +308,13 @@ export async function POST(req: Request, { params }: RouteContext) {
         .delete()
         .eq("org_id", orgId);
       if (error) throw new Error(`Eliminar posiciones: ${error.message}`);
+    } else if (positionsToDelete.length > 0) {
+      const { error } = await supabaseAdmin
+        .from("investor_positions")
+        .delete()
+        .eq("org_id", orgId)
+        .in("id", positionsToDelete);
+      if (error) throw new Error(`Eliminar posiciones: ${error.message}`);
     }
 
     if (replaceFlags.transactions) {
@@ -287,6 +323,13 @@ export async function POST(req: Request, { params }: RouteContext) {
         .delete()
         .eq("org_id", orgId);
       if (error) throw new Error(`Eliminar transacciones: ${error.message}`);
+    } else if (transactionsToDelete.length > 0) {
+      const { error } = await supabaseAdmin
+        .from("investor_transactions")
+        .delete()
+        .eq("org_id", orgId)
+        .in("id", transactionsToDelete);
+      if (error) throw new Error(`Eliminar transacciones: ${error.message}`);
     }
 
     if (replaceFlags.statements) {
@@ -294,6 +337,13 @@ export async function POST(req: Request, { params }: RouteContext) {
         .from("investor_statements")
         .delete()
         .eq("org_id", orgId);
+      if (error) throw new Error(`Eliminar estados: ${error.message}`);
+    } else if (statementsToDelete.length > 0) {
+      const { error } = await supabaseAdmin
+        .from("investor_statements")
+        .delete()
+        .eq("org_id", orgId)
+        .in("id", statementsToDelete);
       if (error) throw new Error(`Eliminar estados: ${error.message}`);
     }
 

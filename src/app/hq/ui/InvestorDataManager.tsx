@@ -63,35 +63,141 @@ type ReplaceFlags = {
   statements: boolean;
 };
 
-const EMPTY_JSON = "[]";
+type PositionDraft = {
+  key: string;
+  id?: string;
+  name: string;
+  strategy: string;
+  investedAmount: string;
+  currentValue: string;
+  currency: string;
+  irr: string;
+  timeWeightedReturn: string;
+};
 
-function stringify(data: unknown): string {
-  try {
-    return JSON.stringify(data ?? [], null, 2);
-  } catch {
-    return EMPTY_JSON;
-  }
+type TransactionDraft = {
+  key: string;
+  id?: string;
+  type: string;
+  status: string;
+  amount: string;
+  currency: string;
+  date: string;
+  description: string;
+  positionId: string;
+};
+
+type StatementDraft = {
+  key: string;
+  id?: string;
+  period: string;
+  periodLabel: string;
+  generatedAt: string;
+  downloadUrl: string;
+};
+
+type DeletionFlags = {
+  positions: string[];
+  transactions: string[];
+  statements: string[];
+};
+
+function createDraftKey() {
+  return Math.random().toString(36).slice(2);
 }
 
-function isMeaningful(text: string): boolean {
-  return text.trim().length > 0;
+function toPositionDraft(position: PositionPreview): PositionDraft {
+  return {
+    key: createDraftKey(),
+    id: position.id,
+    name: position.name ?? "",
+    strategy: position.strategy ?? "",
+    investedAmount: position.investedAmount !== null ? String(position.investedAmount) : "",
+    currentValue: position.currentValue !== null ? String(position.currentValue) : "",
+    currency: position.currency ?? "COP",
+    irr: position.irr !== null && position.irr !== undefined ? String(position.irr) : "",
+    timeWeightedReturn:
+      position.timeWeightedReturn !== null && position.timeWeightedReturn !== undefined
+        ? String(position.timeWeightedReturn)
+        : "",
+  };
 }
 
-function parseArrayFromTextarea(value: string, label: string): unknown[] | undefined {
-  if (!isMeaningful(value)) {
-    return undefined;
-  }
+function toTransactionDraft(transaction: TransactionPreview): TransactionDraft {
+  return {
+    key: createDraftKey(),
+    id: transaction.id,
+    type: transaction.type ?? "contribution",
+    status: transaction.status ?? "pending",
+    amount: transaction.amount !== null ? String(transaction.amount) : "",
+    currency: transaction.currency ?? "COP",
+    date: transaction.date ? transaction.date.slice(0, 10) : "",
+    description: transaction.description ?? "",
+    positionId: transaction.positionId ?? "",
+  };
+}
 
-  try {
-    const parsed = JSON.parse(value);
-    if (!Array.isArray(parsed)) {
-      throw new Error(`El campo ${label} debe ser un arreglo JSON (por ejemplo []).`);
-    }
-    return parsed;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "JSON inválido";
-    throw new Error(`Error al procesar ${label}: ${message}`);
+function toStatementDraft(statement: StatementPreview): StatementDraft {
+  return {
+    key: createDraftKey(),
+    id: statement.id,
+    period: statement.period ?? "",
+    periodLabel: statement.periodLabel ?? "",
+    generatedAt: statement.generatedAt ? statement.generatedAt.slice(0, 10) : "",
+    downloadUrl: statement.downloadUrl ?? "",
+  };
+}
+
+function createEmptyPositionDraft(): PositionDraft {
+  return {
+    key: createDraftKey(),
+    name: "",
+    strategy: "",
+    investedAmount: "",
+    currentValue: "",
+    currency: "COP",
+    irr: "",
+    timeWeightedReturn: "",
+  };
+}
+
+function createEmptyTransactionDraft(): TransactionDraft {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    key: createDraftKey(),
+    type: "contribution",
+    status: "settled",
+    amount: "",
+    currency: "COP",
+    date: today,
+    description: "",
+    positionId: "",
+  };
+}
+
+function createEmptyStatementDraft(): StatementDraft {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    key: createDraftKey(),
+    period: "",
+    periodLabel: "",
+    generatedAt: today,
+    downloadUrl: "",
+  };
+}
+
+function normalizeNumberInput(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const cleaned = trimmed.replace(/[^0-9,.-]/g, "").replace(",", ".");
+  if (!cleaned) return null;
+  const [head, ...rest] = cleaned.split(".");
+  const normalized = rest.length > 0 ? `${head}.${rest.join("")}` : head;
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric)) {
+    return null;
   }
+  return numeric;
 }
 
 function formatNumber(value: number | null): string {
@@ -115,9 +221,14 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
     transactions: TransactionPreview[];
     statements: StatementPreview[];
   } | null>(null);
-  const [positionsJson, setPositionsJson] = useState(EMPTY_JSON);
-  const [transactionsJson, setTransactionsJson] = useState(EMPTY_JSON);
-  const [statementsJson, setStatementsJson] = useState(EMPTY_JSON);
+  const [positions, setPositions] = useState<PositionDraft[]>([]);
+  const [transactions, setTransactions] = useState<TransactionDraft[]>([]);
+  const [statements, setStatements] = useState<StatementDraft[]>([]);
+  const [deletedIds, setDeletedIds] = useState<DeletionFlags>({
+    positions: [],
+    transactions: [],
+    statements: [],
+  });
   const [include, setInclude] = useState<{ positions: boolean; transactions: boolean; statements: boolean }>(() => ({
     positions: true,
     transactions: true,
@@ -189,9 +300,10 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
         const statements = payload.statements ?? [];
 
         setPortfolio({ positions, transactions, statements });
-        setPositionsJson(stringify(positions));
-        setTransactionsJson(stringify(transactions));
-        setStatementsJson(stringify(statements));
+        setPositions(positions.map(toPositionDraft));
+        setTransactions(transactions.map(toTransactionDraft));
+        setStatements(statements.map(toStatementDraft));
+        setDeletedIds({ positions: [], transactions: [], statements: [] });
         setInclude({
           positions: positions.length > 0,
           transactions: transactions.length > 0,
@@ -238,30 +350,120 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
           replace,
         };
 
+        const deletions: DeletionFlags = {
+          positions: Array.from(new Set(deletedIds.positions)),
+          transactions: Array.from(new Set(deletedIds.transactions)),
+          statements: Array.from(new Set(deletedIds.statements)),
+        };
+
         if (include.positions) {
-          const parsed = parseArrayFromTextarea(positionsJson, "posiciones");
-          if (parsed) payload.positions = parsed as PositionInput[];
+          const normalized: PositionInput[] = positions.map((item, index) => {
+            const name = item.name.trim();
+            if (!name) {
+              throw new Error(`La posición #${index + 1} debe tener nombre.`);
+            }
+
+            const investedAmount = normalizeNumberInput(item.investedAmount);
+            if (investedAmount === null) {
+              throw new Error(`La posición #${index + 1} requiere un monto invertido válido.`);
+            }
+
+            const currentValue = normalizeNumberInput(item.currentValue);
+            if (currentValue === null) {
+              throw new Error(`La posición #${index + 1} requiere un valor actual válido.`);
+            }
+
+            const irr = normalizeNumberInput(item.irr);
+            const twr = normalizeNumberInput(item.timeWeightedReturn);
+
+            return {
+              id: item.id,
+              name,
+              strategy: item.strategy.trim() || null,
+              investedAmount,
+              currentValue,
+              currency: item.currency || "COP",
+              irr,
+              timeWeightedReturn: twr,
+            };
+          });
+
+          if (normalized.length > 0) {
+            payload.positions = normalized;
+          }
         }
 
         if (include.transactions) {
-          const parsed = parseArrayFromTextarea(transactionsJson, "transacciones");
-          if (parsed) payload.transactions = parsed as TransactionInput[];
+          const normalized: TransactionInput[] = transactions.map((item, index) => {
+            const type = item.type.trim();
+            if (!type) {
+              throw new Error(`La transacción #${index + 1} debe indicar un tipo.`);
+            }
+
+            const amount = normalizeNumberInput(item.amount);
+            if (amount === null || amount <= 0) {
+              throw new Error(`La transacción #${index + 1} requiere un monto mayor a cero.`);
+            }
+
+            return {
+              id: item.id,
+              type,
+              status: item.status.trim() || "pending",
+              amount,
+              currency: item.currency || "COP",
+              date: item.date || null,
+              description: item.description.trim() || null,
+              positionId: item.positionId.trim() || null,
+            };
+          });
+
+          if (normalized.length > 0) {
+            payload.transactions = normalized;
+          }
         }
 
         if (include.statements) {
-          const parsed = parseArrayFromTextarea(statementsJson, "estados de cuenta");
-          if (parsed) payload.statements = parsed as StatementInput[];
+          const normalized: StatementInput[] = statements.map((item, index) => {
+            if (!item.period.trim() && !item.periodLabel.trim()) {
+              throw new Error(`El estado de cuenta #${index + 1} debe tener periodo o etiqueta.`);
+            }
+
+            return {
+              id: item.id,
+              period: item.period.trim() || null,
+              periodLabel: item.periodLabel.trim() || null,
+              generatedAt: item.generatedAt || null,
+              downloadUrl: item.downloadUrl.trim() || null,
+            };
+          });
+
+          if (normalized.length > 0) {
+            payload.statements = normalized;
+          }
         }
 
-        if (
-          !payload.positions?.length &&
-          !payload.transactions?.length &&
-          !payload.statements?.length &&
-          !payload.replace?.positions &&
-          !payload.replace?.transactions &&
-          !payload.replace?.statements
-        ) {
-          toast.error("No hay datos para sincronizar. Incluye al menos un bloque o marca reemplazo.");
+        if (deletions.positions.length || deletions.transactions.length || deletions.statements.length) {
+          payload.delete = {};
+          if (deletions.positions.length) payload.delete.positions = deletions.positions;
+          if (deletions.transactions.length) payload.delete.transactions = deletions.transactions;
+          if (deletions.statements.length) payload.delete.statements = deletions.statements;
+        }
+
+        const hasPayload =
+          (payload.positions?.length ?? 0) > 0 ||
+          (payload.transactions?.length ?? 0) > 0 ||
+          (payload.statements?.length ?? 0) > 0;
+        const hasReplace =
+          Boolean(payload.replace?.positions) ||
+          Boolean(payload.replace?.transactions) ||
+          Boolean(payload.replace?.statements);
+        const hasDeletions =
+          (payload.delete?.positions?.length ?? 0) > 0 ||
+          (payload.delete?.transactions?.length ?? 0) > 0 ||
+          (payload.delete?.statements?.length ?? 0) > 0;
+
+        if (!hasPayload && !hasReplace && !hasDeletions) {
+          toast.error("No hay datos para sincronizar. Agrega cambios o marca una opción de reemplazo.");
           return;
         }
 
@@ -276,18 +478,19 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
           throw new Error(result.error || "No se pudo sincronizar la información del portafolio.");
         }
 
-        const positions = result.positions ?? [];
-        const transactions = result.transactions ?? [];
-        const statements = result.statements ?? [];
+        const updatedPositions = result.positions ?? [];
+        const updatedTransactions = result.transactions ?? [];
+        const updatedStatements = result.statements ?? [];
 
-        setPortfolio({ positions, transactions, statements });
-        setPositionsJson(stringify(positions));
-        setTransactionsJson(stringify(transactions));
-        setStatementsJson(stringify(statements));
+        setPortfolio({ positions: updatedPositions, transactions: updatedTransactions, statements: updatedStatements });
+        setPositions(updatedPositions.map(toPositionDraft));
+        setTransactions(updatedTransactions.map(toTransactionDraft));
+        setStatements(updatedStatements.map(toStatementDraft));
+        setDeletedIds({ positions: [], transactions: [], statements: [] });
         setInclude({
-          positions: positions.length > 0,
-          transactions: transactions.length > 0,
-          statements: statements.length > 0,
+          positions: updatedPositions.length > 0,
+          transactions: updatedTransactions.length > 0,
+          statements: updatedStatements.length > 0,
         });
         toast.success("Portafolio actualizado correctamente.");
       } catch (error) {
@@ -297,7 +500,7 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
         setSubmitting(false);
       }
     },
-    [include, positionsJson, transactionsJson, statementsJson, selectedOrg, replace],
+    [include, positions, transactions, statements, selectedOrg, replace, deletedIds],
   );
 
 
@@ -363,6 +566,90 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
       loadPortfolio,
       resetManualForm,
     ],
+  );
+
+  const upsertDeletedId = useCallback((category: keyof DeletionFlags, id: string) => {
+    setDeletedIds((prev) => {
+      if (!id) return prev;
+      const list = prev[category];
+      if (list.includes(id)) return prev;
+      return {
+        ...prev,
+        [category]: [...list, id],
+      };
+    });
+  }, []);
+
+  const handleAddPosition = useCallback(() => {
+    setPositions((prev) => [...prev, createEmptyPositionDraft()]);
+    setInclude((prev) => ({ ...prev, positions: true }));
+  }, []);
+
+  const handleUpdatePosition = useCallback((key: string, patch: Partial<PositionDraft>) => {
+    setPositions((prev) =>
+      prev.map((item) => (item.key === key ? { ...item, ...patch } : item)),
+    );
+  }, []);
+
+  const handleRemovePosition = useCallback(
+    (key: string) => {
+      setPositions((prev) => {
+        const target = prev.find((item) => item.key === key);
+        if (target?.id) {
+          upsertDeletedId("positions", target.id);
+        }
+        return prev.filter((item) => item.key !== key);
+      });
+    },
+    [upsertDeletedId],
+  );
+
+  const handleAddTransaction = useCallback(() => {
+    setTransactions((prev) => [...prev, createEmptyTransactionDraft()]);
+    setInclude((prev) => ({ ...prev, transactions: true }));
+  }, []);
+
+  const handleUpdateTransaction = useCallback((key: string, patch: Partial<TransactionDraft>) => {
+    setTransactions((prev) =>
+      prev.map((item) => (item.key === key ? { ...item, ...patch } : item)),
+    );
+  }, []);
+
+  const handleRemoveTransaction = useCallback(
+    (key: string) => {
+      setTransactions((prev) => {
+        const target = prev.find((item) => item.key === key);
+        if (target?.id) {
+          upsertDeletedId("transactions", target.id);
+        }
+        return prev.filter((item) => item.key !== key);
+      });
+    },
+    [upsertDeletedId],
+  );
+
+  const handleAddStatement = useCallback(() => {
+    setStatements((prev) => [...prev, createEmptyStatementDraft()]);
+    setInclude((prev) => ({ ...prev, statements: true }));
+  }, []);
+
+  const handleUpdateStatement = useCallback((key: string, patch: Partial<StatementDraft>) => {
+    setStatements((prev) =>
+      prev.map((item) => (item.key === key ? { ...item, ...patch } : item)),
+    );
+  }, []);
+
+  const handleRemoveStatement = useCallback(
+    (key: string) => {
+      setStatements((prev) => {
+        const target = prev.find((item) => item.key === key);
+        if (target?.id) {
+          upsertDeletedId("statements", target.id);
+        }
+        return prev.filter((item) => item.key !== key);
+      });
+    },
+    [upsertDeletedId],
   );
 
   if (companies.length === 0) {
@@ -665,18 +952,145 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
               Define las posiciones actuales del inversionista (nombre, estrategia, montos). Puedes dejar el campo vacío si no deseas enviar cambios.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Textarea
-              className="h-64 font-mono text-xs"
-              value={positionsJson}
-              onChange={(event) => setPositionsJson(event.target.value)}
-              disabled={submitting}
-            />
-            <p className="mt-2 text-xs text-lp-sec-4">
-              Cada objeto debe incluir al menos <code className="font-mono">name</code>, <code className="font-mono">investedAmount</code> y <code className="font-mono">currentValue</code>.
-              Si proporcionas <code className="font-mono">id</code>, actualizaremos la posición existente; de lo contrario, se generará un identificador nuevo.
-            </p>
+          <CardContent className="space-y-4">
+            {positions.length === 0 ? (
+              <p className="text-sm text-lp-sec-4">
+                No hay posiciones registradas. Agrega una nueva posición para sincronizarla con el portafolio.
+              </p>
+            ) : null}
+            {positions.map((position, index) => (
+              <div
+                key={position.key}
+                className="space-y-4 rounded-md border border-lp-sec-5/60 bg-lp-sec-6/5 p-4"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-lp-primary-1">Posición #{index + 1}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemovePosition(position.key)}
+                    disabled={submitting}
+                  >
+                    Eliminar
+                  </Button>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label htmlFor={`position-name-${position.key}`}>Nombre</Label>
+                    <Input
+                      id={`position-name-${position.key}`}
+                      value={position.name}
+                      onChange={(event) =>
+                        handleUpdatePosition(position.key, { name: event.target.value })
+                      }
+                      disabled={submitting}
+                      placeholder="Ej. Factoring mensual"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`position-strategy-${position.key}`}>Estrategia</Label>
+                    <Input
+                      id={`position-strategy-${position.key}`}
+                      value={position.strategy}
+                      onChange={(event) =>
+                        handleUpdatePosition(position.key, { strategy: event.target.value })
+                      }
+                      disabled={submitting}
+                      placeholder="Opcional"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label htmlFor={`position-invested-${position.key}`}>Monto invertido</Label>
+                    <Input
+                      id={`position-invested-${position.key}`}
+                      inputMode="decimal"
+                      value={position.investedAmount}
+                      onChange={(event) =>
+                        handleUpdatePosition(position.key, { investedAmount: event.target.value })
+                      }
+                      disabled={submitting}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`position-value-${position.key}`}>Valor actual</Label>
+                    <Input
+                      id={`position-value-${position.key}`}
+                      inputMode="decimal"
+                      value={position.currentValue}
+                      onChange={(event) =>
+                        handleUpdatePosition(position.key, { currentValue: event.target.value })
+                      }
+                      disabled={submitting}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`position-currency-${position.key}`}>Moneda</Label>
+                    <select
+                      id={`position-currency-${position.key}`}
+                      className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm"
+                      value={position.currency}
+                      onChange={(event) =>
+                        handleUpdatePosition(position.key, { currency: event.target.value })
+                      }
+                      disabled={submitting}
+                    >
+                      <option value="COP">COP</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label htmlFor={`position-irr-${position.key}`}>IRR (%)</Label>
+                    <Input
+                      id={`position-irr-${position.key}`}
+                      inputMode="decimal"
+                      value={position.irr}
+                      onChange={(event) =>
+                        handleUpdatePosition(position.key, { irr: event.target.value })
+                      }
+                      disabled={submitting}
+                      placeholder="Opcional"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`position-twr-${position.key}`}>TWR (%)</Label>
+                    <Input
+                      id={`position-twr-${position.key}`}
+                      inputMode="decimal"
+                      value={position.timeWeightedReturn}
+                      onChange={(event) =>
+                        handleUpdatePosition(position.key, { timeWeightedReturn: event.target.value })
+                      }
+                      disabled={submitting}
+                      placeholder="Opcional"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+            {deletedIds.positions.length > 0 ? (
+              <p className="text-xs text-red-600">
+                Se eliminarán {deletedIds.positions.length} posición(es) al sincronizar.
+              </p>
+            ) : null}
           </CardContent>
+          <CardFooter className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleAddPosition}
+              disabled={submitting}
+            >
+              Agregar posición
+            </Button>
+          </CardFooter>
         </Card>
 
         <Card className="border-lp-sec-5/40">
@@ -708,18 +1122,159 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
               Registra aportes, retiros, intereses u honorarios. Los tipos válidos son <code className="font-mono">contribution</code>, <code className="font-mono">distribution</code>, <code className="font-mono">interest</code> y <code className="font-mono">fee</code>.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Textarea
-              className="h-64 font-mono text-xs"
-              value={transactionsJson}
-              onChange={(event) => setTransactionsJson(event.target.value)}
-              disabled={submitting}
-            />
-            <p className="mt-2 text-xs text-lp-sec-4">
-              Incluye <code className="font-mono">amount</code>, <code className="font-mono">type</code> y opcionalmente <code className="font-mono">date</code>, <code className="font-mono">description</code> y <code className="font-mono">positionId</code>.
-              El estado por defecto es <code className="font-mono">pending</code>; puedes usar <code className="font-mono">processing</code>, <code className="font-mono">settled</code>, <code className="font-mono">cancelled</code> o <code className="font-mono">scheduled</code>.
-            </p>
+          <CardContent className="space-y-4">
+            {transactions.length === 0 ? (
+              <p className="text-sm text-lp-sec-4">
+                No hay transacciones seleccionadas para sincronizar. Agrega una nueva o usa el formulario de movimientos manuales.
+              </p>
+            ) : null}
+            {transactions.map((transaction, index) => (
+              <div
+                key={transaction.key}
+                className="space-y-4 rounded-md border border-lp-sec-5/60 bg-lp-sec-6/5 p-4"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-lp-primary-1">Transacción #{index + 1}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveTransaction(transaction.key)}
+                    disabled={submitting}
+                  >
+                    Eliminar
+                  </Button>
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label htmlFor={`transaction-type-${transaction.key}`}>Tipo</Label>
+                    <select
+                      id={`transaction-type-${transaction.key}`}
+                      className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm"
+                      value={transaction.type}
+                      onChange={(event) =>
+                        handleUpdateTransaction(transaction.key, { type: event.target.value })
+                      }
+                      disabled={submitting}
+                    >
+                      <option value="contribution">Aporte</option>
+                      <option value="distribution">Retiro</option>
+                      <option value="interest">Interés</option>
+                      <option value="fee">Fee</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`transaction-status-${transaction.key}`}>Estado</Label>
+                    <select
+                      id={`transaction-status-${transaction.key}`}
+                      className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm"
+                      value={transaction.status}
+                      onChange={(event) =>
+                        handleUpdateTransaction(transaction.key, { status: event.target.value })
+                      }
+                      disabled={submitting}
+                    >
+                      {statusOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`transaction-date-${transaction.key}`}>Fecha</Label>
+                    <Input
+                      id={`transaction-date-${transaction.key}`}
+                      type="date"
+                      value={transaction.date}
+                      onChange={(event) =>
+                        handleUpdateTransaction(transaction.key, { date: event.target.value })
+                      }
+                      disabled={submitting}
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label htmlFor={`transaction-amount-${transaction.key}`}>Monto</Label>
+                    <Input
+                      id={`transaction-amount-${transaction.key}`}
+                      inputMode="decimal"
+                      value={transaction.amount}
+                      onChange={(event) =>
+                        handleUpdateTransaction(transaction.key, { amount: event.target.value })
+                      }
+                      disabled={submitting}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`transaction-currency-${transaction.key}`}>Moneda</Label>
+                    <select
+                      id={`transaction-currency-${transaction.key}`}
+                      className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm"
+                      value={transaction.currency}
+                      onChange={(event) =>
+                        handleUpdateTransaction(transaction.key, { currency: event.target.value })
+                      }
+                      disabled={submitting}
+                    >
+                      <option value="COP">COP</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`transaction-position-${transaction.key}`}>Asociar posición</Label>
+                    <select
+                      id={`transaction-position-${transaction.key}`}
+                      className="w-full rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm"
+                      value={transaction.positionId}
+                      onChange={(event) =>
+                        handleUpdateTransaction(transaction.key, { positionId: event.target.value })
+                      }
+                      disabled={submitting || availablePositions.length === 0}
+                    >
+                      <option value="">Portafolio general</option>
+                      {availablePositions.map((position) => (
+                        <option key={position.id} value={position.id}>
+                          {position.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`transaction-description-${transaction.key}`}>Descripción</Label>
+                  <Textarea
+                    id={`transaction-description-${transaction.key}`}
+                    rows={2}
+                    value={transaction.description}
+                    onChange={(event) =>
+                      handleUpdateTransaction(transaction.key, { description: event.target.value })
+                    }
+                    disabled={submitting}
+                    placeholder="Detalle opcional"
+                  />
+                </div>
+              </div>
+            ))}
+            {deletedIds.transactions.length > 0 ? (
+              <p className="text-xs text-red-600">
+                Se eliminarán {deletedIds.transactions.length} transacción(es) al sincronizar.
+              </p>
+            ) : null}
           </CardContent>
+          <CardFooter className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleAddTransaction}
+              disabled={submitting}
+            >
+              Agregar transacción
+            </Button>
+          </CardFooter>
         </Card>
 
         <Card className="border-lp-sec-5/40">
@@ -751,17 +1306,99 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
               Control de reportes para inversionistas. Puedes incluir <code className="font-mono">downloadUrl</code> para enlazar al documento firmado.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Textarea
-              className="h-48 font-mono text-xs"
-              value={statementsJson}
-              onChange={(event) => setStatementsJson(event.target.value)}
-              disabled={submitting}
-            />
-            <p className="mt-2 text-xs text-lp-sec-4">
-              Provee <code className="font-mono">period</code>, <code className="font-mono">periodLabel</code>, <code className="font-mono">generatedAt</code> y <code className="font-mono">downloadUrl</code>. Si dejas el bloque vacío, no se enviarán cambios.
-            </p>
+          <CardContent className="space-y-4">
+            {statements.length === 0 ? (
+              <p className="text-sm text-lp-sec-4">
+                No hay estados de cuenta listos para sincronizar. Agrega un registro para compartirlo con el inversionista.
+              </p>
+            ) : null}
+            {statements.map((statement, index) => (
+              <div
+                key={statement.key}
+                className="space-y-4 rounded-md border border-lp-sec-5/60 bg-lp-sec-6/5 p-4"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-lp-primary-1">Estado #{index + 1}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveStatement(statement.key)}
+                    disabled={submitting}
+                  >
+                    Eliminar
+                  </Button>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label htmlFor={`statement-period-${statement.key}`}>Periodo</Label>
+                    <Input
+                      id={`statement-period-${statement.key}`}
+                      value={statement.period}
+                      onChange={(event) =>
+                        handleUpdateStatement(statement.key, { period: event.target.value })
+                      }
+                      disabled={submitting}
+                      placeholder="Ej. 2024-Q1"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`statement-periodLabel-${statement.key}`}>Etiqueta visible</Label>
+                    <Input
+                      id={`statement-periodLabel-${statement.key}`}
+                      value={statement.periodLabel}
+                      onChange={(event) =>
+                        handleUpdateStatement(statement.key, { periodLabel: event.target.value })
+                      }
+                      disabled={submitting}
+                      placeholder="Ej. Primer trimestre 2024"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label htmlFor={`statement-date-${statement.key}`}>Fecha de emisión</Label>
+                    <Input
+                      id={`statement-date-${statement.key}`}
+                      type="date"
+                      value={statement.generatedAt}
+                      onChange={(event) =>
+                        handleUpdateStatement(statement.key, { generatedAt: event.target.value })
+                      }
+                      disabled={submitting}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`statement-url-${statement.key}`}>Enlace de descarga</Label>
+                    <Input
+                      id={`statement-url-${statement.key}`}
+                      value={statement.downloadUrl}
+                      onChange={(event) =>
+                        handleUpdateStatement(statement.key, { downloadUrl: event.target.value })
+                      }
+                      disabled={submitting}
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+            {deletedIds.statements.length > 0 ? (
+              <p className="text-xs text-red-600">
+                Se eliminarán {deletedIds.statements.length} estado(s) de cuenta al sincronizar.
+              </p>
+            ) : null}
           </CardContent>
+          <CardFooter className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleAddStatement}
+              disabled={submitting}
+            >
+              Agregar estado de cuenta
+            </Button>
+          </CardFooter>
         </Card>
 
         <div className="flex flex-wrap items-center justify-end gap-3">
@@ -785,6 +1422,7 @@ type PortfolioPayload = {
   transactions?: TransactionInput[];
   statements?: StatementInput[];
   replace?: ReplaceFlags;
+  delete?: Partial<DeletionFlags>;
 };
 
 
