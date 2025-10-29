@@ -135,6 +135,16 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
   const [manualPositionId, setManualPositionId] = useState("");
   const [manualBusy, setManualBusy] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
+  const manualAmountDisplay = useMemo(() => {
+    if (!manualAmount) return "";
+    const numeric = Number(manualAmount);
+    if (!Number.isFinite(numeric)) return manualAmount;
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: manualCurrency || "COP",
+      minimumFractionDigits: 2,
+    }).format(numeric);
+  }, [manualAmount, manualCurrency]);
   const resetManualForm = useCallback(() => {
     setManualType("contribution");
     setManualAmount("");
@@ -508,19 +518,33 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
               </div>
               <div className="space-y-2">
                 <Label htmlFor="manual-amount">Monto</Label>
-                <Input
-                  id="manual-amount"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={manualAmount}
-                  onChange={(event) => {
-                    setManualAmount(event.target.value);
-                    if (manualError) setManualError(null);
-                  }}
-                  disabled={manualBusy}
-                  placeholder="0.00"
-                />
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-lp-sec-4">
+                    $
+                  </span>
+                  <Input
+                    id="manual-amount"
+                    type="text"
+                    inputMode="decimal"
+                    className="pl-7"
+                    value={manualAmount ? manualAmountDisplay : ""}
+                    onChange={(event) => {
+                      const cleaned = event.target.value.replace(/[^\d.,]/g, "");
+                      const normalized = cleaned.replace(",", ".");
+                      setManualAmount(normalized);
+                      if (manualError) setManualError(null);
+                    }}
+                    disabled={manualBusy}
+                    placeholder="0.00"
+                  />
+                </div>
+                {manualAmount ? (
+                  <p className="text-xs text-lp-sec-4">
+                    {manualAmountDisplay}
+                  </p>
+                ) : (
+                  <p className="text-xs text-lp-sec-4">Ingresa el valor en la moneda seleccionada.</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="manual-currency">Moneda</Label>
