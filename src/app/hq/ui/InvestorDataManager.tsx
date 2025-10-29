@@ -129,6 +129,16 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
   const [manualType, setManualType] = useState<"contribution" | "distribution">("contribution");
   const [manualAmount, setManualAmount] = useState("");
   const [manualCurrency, setManualCurrency] = useState("COP");
+  const manualAmountDisplay = useMemo(() => {
+    if (!manualAmount) return "";
+    const numeric = Number(manualAmount);
+    if (!Number.isFinite(numeric)) return manualAmount;
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: manualCurrency || "COP",
+      minimumFractionDigits: 2,
+    }).format(numeric);
+  }, [manualAmount, manualCurrency]);
   const [manualDate, setManualDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [manualStatus, setManualStatus] = useState("settled");
   const [manualDescription, setManualDescription] = useState("");
@@ -527,10 +537,13 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
                     type="text"
                     inputMode="decimal"
                     className="pl-7"
-                    value={manualAmount ? manualAmountDisplay : ""}
+                    value={manualAmount}
                     onChange={(event) => {
                       const cleaned = event.target.value.replace(/[^\d.,]/g, "");
-                      const normalized = cleaned.replace(",", ".");
+                      const withDot = cleaned.replace(",", ".");
+                      const [head, ...rest] = withDot.split(".");
+                      const normalized =
+                        rest.length > 0 ? `${head}.${rest.join("")}` : head;
                       setManualAmount(normalized);
                       if (manualError) setManualError(null);
                     }}
@@ -538,13 +551,9 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
                     placeholder="0.00"
                   />
                 </div>
-                {manualAmount ? (
-                  <p className="text-xs text-lp-sec-4">
-                    {manualAmountDisplay}
-                  </p>
-                ) : (
-                  <p className="text-xs text-lp-sec-4">Ingresa el valor en la moneda seleccionada.</p>
-                )}
+                <p className="text-xs text-lp-sec-4">
+                  {manualAmount ? manualAmountDisplay : "Ingresa el valor en la moneda seleccionada."}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="manual-currency">Moneda</Label>
