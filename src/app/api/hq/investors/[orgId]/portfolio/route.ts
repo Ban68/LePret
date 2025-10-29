@@ -134,9 +134,15 @@ async function fetchPortfolio(orgId: string) {
       .order("generated_at", { ascending: false }),
   ]);
 
-  if (positionsRes.error) throw positionsRes.error;
-  if (transactionsRes.error) throw transactionsRes.error;
-  if (statementsRes.error) throw statementsRes.error;
+  if (positionsRes.error) {
+    throw new Error(`Posiciones: ${positionsRes.error.message}`);
+  }
+  if (transactionsRes.error) {
+    throw new Error(`Transacciones: ${transactionsRes.error.message}`);
+  }
+  if (statementsRes.error) {
+    throw new Error(`Estados de cuenta: ${statementsRes.error.message}`);
+  }
 
   return {
     positions: (positionsRes.data ?? []).map(mapPosition),
@@ -334,7 +340,7 @@ export async function POST(req: Request, { params }: RouteContext) {
         .from("investor_positions")
         .delete()
         .eq("org_id", orgId);
-      if (error) throw error;
+      if (error) throw new Error(`Eliminar posiciones: ${error.message}`);
     }
 
     if (replaceFlags.transactions) {
@@ -342,7 +348,7 @@ export async function POST(req: Request, { params }: RouteContext) {
         .from("investor_transactions")
         .delete()
         .eq("org_id", orgId);
-      if (error) throw error;
+      if (error) throw new Error(`Eliminar transacciones: ${error.message}`);
     }
 
     if (replaceFlags.statements) {
@@ -350,7 +356,7 @@ export async function POST(req: Request, { params }: RouteContext) {
         .from("investor_statements")
         .delete()
         .eq("org_id", orgId);
-      if (error) throw error;
+      if (error) throw new Error(`Eliminar estados: ${error.message}`);
     }
 
     if (positionsInput?.length) {
@@ -358,7 +364,7 @@ export async function POST(req: Request, { params }: RouteContext) {
       const { error } = await supabaseAdmin
         .from("investor_positions")
         .upsert(payload, { onConflict: "id" });
-      if (error) throw error;
+      if (error) throw new Error(`Upsert posiciones: ${error.message}`);
     }
 
     if (transactionsInput?.length) {
@@ -366,7 +372,7 @@ export async function POST(req: Request, { params }: RouteContext) {
       const { error } = await supabaseAdmin
         .from("investor_transactions")
         .upsert(payload, { onConflict: "id" });
-      if (error) throw error;
+      if (error) throw new Error(`Upsert transacciones: ${error.message}`);
     }
 
     if (statementsInput?.length) {
@@ -374,7 +380,7 @@ export async function POST(req: Request, { params }: RouteContext) {
       const { error } = await supabaseAdmin
         .from("investor_statements")
         .upsert(payload, { onConflict: "id" });
-      if (error) throw error;
+      if (error) throw new Error(`Upsert estados: ${error.message}`);
     }
 
     const payload = await fetchPortfolio(orgId);
@@ -385,4 +391,3 @@ export async function POST(req: Request, { params }: RouteContext) {
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
-
