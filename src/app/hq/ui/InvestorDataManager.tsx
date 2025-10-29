@@ -145,16 +145,6 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
   const [manualPositionId, setManualPositionId] = useState("");
   const [manualBusy, setManualBusy] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
-  const manualAmountDisplay = useMemo(() => {
-    if (!manualAmount) return "";
-    const numeric = Number(manualAmount);
-    if (!Number.isFinite(numeric)) return manualAmount;
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: manualCurrency || "COP",
-      minimumFractionDigits: 2,
-    }).format(numeric);
-  }, [manualAmount, manualCurrency]);
   const resetManualForm = useCallback(() => {
     setManualType("contribution");
     setManualAmount("");
