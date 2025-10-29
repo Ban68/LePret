@@ -10,8 +10,9 @@ const links = [
   { href: "/hq/operaciones", label: "Operaciones" },
   { href: "/hq/riesgo", label: "Riesgo" },
   { href: "/hq/kpi", label: "KPIs" },
-  { href: "/hq/configuracion", label: "Configuración" },
+  { href: "/hq/configuracion", label: "Configuracion" },
   { href: "/hq/kyc", label: "Verificaciones KYC" },
+  { href: "/hq/inversionistas", label: "Inversionistas" },
   { href: "/hq/usuarios", label: "Usuarios" },
 ];
 
@@ -33,7 +34,7 @@ export function HqNavigation() {
                   "inline-flex items-center border-b-2 border-transparent pb-2 transition-colors",
                   isActive
                     ? "border-lp-primary-1 text-lp-primary-1"
-                    : "hover:border-lp-sec-5 hover:text-lp-sec-2"
+                    : "hover:border-lp-sec-5 hover:text-lp-sec-2",
                 )}
               >
                 {link.label}

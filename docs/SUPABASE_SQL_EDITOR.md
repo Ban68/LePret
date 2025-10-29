@@ -1,12 +1,11 @@
 # Script para el SQL Editor de Supabase
 
-Para preparar la base de datos antes del primer despliegue, copia y pega el siguiente script en el SQL Editor de tu proyecto de Supabase. Es exactamente el mismo contenido que el archivo `docs/supabase-schema.sql` dentro del repositorio.
+Para preparar la base de datos antes del primer despliegue, copia y pega el siguiente script en el SQL Editor de tu proyecto de Supabase. Es exactamente el mismo contenido que el archivo docs/supabase-schema.sql dentro del repositorio.
 
 <details>
 <summary>Ver script completo</summary>
 
-```sql
-create extension if not exists pgcrypto;
+`sqlcreate extension if not exists pgcrypto;
 
 create table if not exists contacts (
   id uuid primary key default gen_random_uuid(),
@@ -112,6 +111,74 @@ create index if not exists bank_accounts_default_idx on bank_accounts (company_i
 
 alter table bank_accounts enable row level security;
 
+drop policy if exists "bank_accounts_select" on bank_accounts;
+create policy "bank_accounts_select" on bank_accounts
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = bank_accounts.company_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "bank_accounts_insert" on bank_accounts;
+create policy "bank_accounts_insert" on bank_accounts
+  for insert with check (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = bank_accounts.company_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+        and upper(coalesce(m.role, '')) in ('OWNER','ADMIN')
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "bank_accounts_update" on bank_accounts;
+create policy "bank_accounts_update" on bank_accounts
+  for update using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = bank_accounts.company_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+        and upper(coalesce(m.role, '')) in ('OWNER','ADMIN')
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = bank_accounts.company_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+        and upper(coalesce(m.role, '')) in ('OWNER','ADMIN')
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
 -- Pagadores (catlogo de pagadores por organizacin)
 create table if not exists memberships (
   user_id uuid not null,
@@ -199,6 +266,10 @@ alter table funding_requests add constraint funding_requests_status_check
 alter table funding_requests add column if not exists file_path text;
 alter table funding_requests add column if not exists archived_at timestamptz;
 alter table funding_requests add column if not exists archived_by uuid references profiles(user_id) on delete set null;
+alter table funding_requests add column if not exists default_discount_rate numeric;
+alter table funding_requests add column if not exists default_operation_days integer;
+alter table funding_requests add column if not exists default_advance_pct numeric;
+alter table funding_requests add column if not exists default_settings_source text;
 
 -- Habilitar RLS
 alter table profiles enable row level security;
@@ -451,6 +522,339 @@ create policy "fri_member_insert" on funding_request_invoices for insert with ch
     select 1 from profiles p where p.user_id = auth.uid() and coalesce(p.is_staff, false) = true
   )
 );
+
+-- === TIMELINE DE SOLICITUDES Y COBRANZA ===
+create table if not exists request_events (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid not null references funding_requests(id) on delete cascade,
+  company_id uuid not null references companies(id) on delete cascade,
+  event_type text not null,
+  status text,
+  title text,
+  description text,
+  actor_role text,
+  actor_id uuid,
+  actor_name text,
+  metadata jsonb,
+  occurred_at timestamptz not null default timezone('utc', now()),
+  created_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists request_events_request_id_idx on request_events (request_id, occurred_at desc);
+create index if not exists request_events_company_idx on request_events (company_id);
+
+alter table request_events enable row level security;
+
+drop policy if exists "request_events_member_select" on request_events;
+create policy "request_events_member_select" on request_events
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = request_events.company_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "request_events_manage_staff" on request_events;
+create policy "request_events_manage_staff" on request_events
+  for all using (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+create table if not exists request_messages (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid not null references funding_requests(id) on delete cascade,
+  company_id uuid not null references companies(id) on delete cascade,
+  sender_id uuid,
+  sender_role text,
+  sender_name text,
+  subject text,
+  body text not null,
+  visibility text not null default 'client',
+  message_type text default 'note',
+  metadata jsonb,
+  sent_at timestamptz not null default timezone('utc', now()),
+  created_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists request_messages_request_idx on request_messages (request_id, sent_at desc);
+create index if not exists request_messages_company_idx on request_messages (company_id);
+
+alter table request_messages enable row level security;
+
+drop policy if exists "request_messages_member_select" on request_messages;
+create policy "request_messages_member_select" on request_messages
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = request_messages.company_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "request_messages_insert_member" on request_messages;
+create policy "request_messages_insert_member" on request_messages
+  for insert with check (
+    (
+      exists (
+        select 1
+        from memberships m
+        where m.company_id = request_messages.company_id
+          and m.user_id = auth.uid()
+          and m.status = 'ACTIVE'
+      ) and coalesce(request_messages.sender_id, auth.uid()) = auth.uid()
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "request_messages_manage_staff" on request_messages;
+create policy "request_messages_manage_staff" on request_messages
+  for update using (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+create table if not exists collection_cases (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid not null references funding_requests(id) on delete cascade,
+  company_id uuid not null references companies(id) on delete cascade,
+  status text not null default 'open',
+  priority text default 'normal',
+  assigned_to uuid,
+  notes text,
+  opened_at timestamptz not null default timezone('utc', now()),
+  closed_at timestamptz,
+  next_action_at timestamptz,
+  promise_amount numeric,
+  promise_date date,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists collection_cases_company_idx on collection_cases (company_id);
+create index if not exists collection_cases_request_idx on collection_cases (request_id);
+create index if not exists collection_cases_status_idx on collection_cases (status, next_action_at);
+
+alter table collection_cases enable row level security;
+
+drop policy if exists "collection_cases_member_select" on collection_cases;
+create policy "collection_cases_member_select" on collection_cases
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = collection_cases.company_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "collection_cases_manage_staff" on collection_cases;
+create policy "collection_cases_manage_staff" on collection_cases
+  for all using (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+create table if not exists collection_actions (
+  id uuid primary key default gen_random_uuid(),
+  case_id uuid not null references collection_cases(id) on delete cascade,
+  request_id uuid not null references funding_requests(id) on delete cascade,
+  company_id uuid not null references companies(id) on delete cascade,
+  action_type text not null,
+  note text,
+  due_at timestamptz,
+  completed_at timestamptz,
+  created_by uuid,
+  created_by_name text,
+  metadata jsonb,
+  created_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists collection_actions_case_idx on collection_actions (case_id, created_at desc);
+create index if not exists collection_actions_request_idx on collection_actions (request_id);
+
+alter table collection_actions enable row level security;
+
+drop policy if exists "collection_actions_member_select" on collection_actions;
+create policy "collection_actions_member_select" on collection_actions
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = collection_actions.company_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "collection_actions_manage_staff" on collection_actions;
+create policy "collection_actions_manage_staff" on collection_actions
+  for all using (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+create or replace view request_timeline_entries as
+select
+  e.id,
+  e.request_id,
+  e.company_id,
+  'event'::text as item_kind,
+  e.event_type,
+  e.status,
+  e.title,
+  e.description,
+  e.actor_role,
+  e.actor_id,
+  e.actor_name,
+  e.metadata,
+  e.occurred_at,
+  e.created_at
+from request_events e
+union all
+select
+  m.id,
+  m.request_id,
+  m.company_id,
+  'message'::text as item_kind,
+  m.message_type as event_type,
+  m.visibility as status,
+  coalesce(m.subject, 'Mensaje') as title,
+  m.body as description,
+  m.sender_role as actor_role,
+  m.sender_id as actor_id,
+  m.sender_name as actor_name,
+  m.metadata,
+  m.sent_at as occurred_at,
+  m.created_at
+from request_messages m;
+
+create or replace view collection_case_summaries as
+select
+  c.id,
+  c.request_id,
+  c.company_id,
+  c.status,
+  c.priority,
+  c.assigned_to,
+  c.notes,
+  c.opened_at,
+  c.closed_at,
+  c.next_action_at,
+  c.promise_amount,
+  c.promise_date,
+  c.created_at,
+  c.updated_at,
+  r.status as request_status,
+  r.requested_amount,
+  r.currency,
+  comp.name as company_name,
+  ca_total.actions_count,
+  ca_last.last_action_id,
+  ca_last.last_action_type,
+  ca_last.last_action_note,
+  ca_last.last_action_due_at,
+  ca_last.last_action_completed_at,
+  ca_last.last_action_created_at
+from collection_cases c
+left join funding_requests r on r.id = c.request_id
+left join companies comp on comp.id = c.company_id
+left join lateral (
+  select count(*)::bigint as actions_count
+  from collection_actions ca
+  where ca.case_id = c.id
+) ca_total on true
+left join lateral (
+  select
+    ca.id as last_action_id,
+    ca.action_type as last_action_type,
+    ca.note as last_action_note,
+    ca.due_at as last_action_due_at,
+    ca.completed_at as last_action_completed_at,
+    ca.created_at as last_action_created_at
+  from collection_actions ca
+  where ca.case_id = c.id
+  order by ca.created_at desc
+  limit 1
+) ca_last on true;
 
 -- === STORAGE (Bucket de facturas) ===
 -- Crear bucket privado para archivos de facturas (si no existe)
@@ -830,6 +1234,620 @@ create index if not exists payments_status_idx on payments (status, due_date);
 
 alter table payments enable row level security;
 
+drop policy if exists "payments_select" on payments;
+create policy "payments_select" on payments
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = payments.company_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "payments_insert" on payments;
+create policy "payments_insert" on payments
+  for insert with check (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = payments.company_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "payments_update" on payments;
+create policy "payments_update" on payments
+  for update using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = payments.company_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = payments.company_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+-- === NOTIFICACIONES IN-APP ===
+create table if not exists notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  type text not null,
+  message text not null,
+  data jsonb,
+  is_read boolean not null default false,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists notifications_user_idx on notifications (user_id, created_at desc);
+create index if not exists notifications_read_idx on notifications (user_id, is_read);
+
+alter table notifications enable row level security;
+
+drop policy if exists "notifications_select_owner" on notifications;
+create policy "notifications_select_owner" on notifications
+  for select using (auth.uid() = user_id);
+
+drop policy if exists "notifications_insert_owner" on notifications;
+create policy "notifications_insert_owner" on notifications
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "notifications_update_owner" on notifications;
+create policy "notifications_update_owner" on notifications
+  for update using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "notifications_delete_owner" on notifications;
+create policy "notifications_delete_owner" on notifications
+  for delete using (auth.uid() = user_id);
+
+-- === HQ CONFIGURACION ===
+create table if not exists hq_settings (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default timezone('utc', now()),
+  updated_by uuid references auth.users(id)
+);
+
+create index if not exists hq_settings_updated_at_idx on hq_settings (updated_at desc);
+
+alter table hq_settings enable row level security;
+
+drop policy if exists "hq_settings_select_staff" on hq_settings;
+create policy "hq_settings_select_staff" on hq_settings
+  for select using (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "hq_settings_modify_staff" on hq_settings;
+create policy "hq_settings_modify_staff" on hq_settings
+  for all using (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+insert into hq_settings (key, value, updated_at, updated_by)
+values (
+  'lending_parameters',
+  jsonb_build_object(
+    'discountRate', 24,
+    'creditLimits', jsonb_build_object(
+      'default', 250000000,
+      'startup', 150000000,
+      'pyme', 300000000,
+      'corporativo', 600000000
+    ),
+    'terms', jsonb_build_object(
+      'default', 90,
+      'startup', 75,
+      'pyme', 90,
+      'corporativo', 120
+    ),
+    'autoApproval', jsonb_build_object(
+      'maxExposureRatio', 1,
+      'maxTenorBufferDays', 5,
+      'minRiskLevel', 'medium'
+    )
+  ),
+  timezone('utc', now()),
+  null
+)
+on conflict (key) do nothing;
+
+create table if not exists hq_company_parameters (
+  company_id uuid primary key references companies(id) on delete cascade,
+  discount_rate numeric,
+  operation_days integer,
+  advance_pct numeric,
+  updated_at timestamptz not null default timezone('utc', now()),
+  updated_by uuid references auth.users(id)
+);
+
+create index if not exists hq_company_parameters_updated_at_idx on hq_company_parameters (updated_at desc);
+
+alter table hq_company_parameters enable row level security;
+
+drop policy if exists "hq_company_parameters_select_staff" on hq_company_parameters;
+create policy "hq_company_parameters_select_staff" on hq_company_parameters
+  for select using (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "hq_company_parameters_modify_staff" on hq_company_parameters;
+create policy "hq_company_parameters_modify_staff" on hq_company_parameters
+  for all using (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+-- === CONFIGURACION PORTAL INVERSIONISTAS ===
+create table if not exists investor_bank_accounts (
+  id uuid primary key default gen_random_uuid(),
+  investor_org_id uuid not null references companies(id) on delete cascade,
+  label text,
+  bank_name text not null,
+  account_type text not null,
+  account_number text not null,
+  account_holder_name text not null,
+  account_holder_id text,
+  is_default boolean not null default false,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'investor_bank_accounts'
+      and column_name = 'investor_org_id'
+  ) then
+    alter table investor_bank_accounts
+      add column investor_org_id uuid references companies(id) on delete cascade;
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'investor_bank_accounts'
+      and column_name = 'company_id'
+  ) then
+    update investor_bank_accounts
+    set investor_org_id = company_id
+    where investor_org_id is null;
+
+    alter table investor_bank_accounts
+      alter column investor_org_id set not null;
+
+    alter table investor_bank_accounts drop column company_id;
+  elsif exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'investor_bank_accounts'
+      and column_name = 'investor_org_id'
+  ) then
+    alter table investor_bank_accounts
+      alter column investor_org_id set not null;
+  end if;
+end;
+$$;
+
+create index if not exists investor_bank_accounts_org_idx on investor_bank_accounts (investor_org_id, updated_at desc);
+create index if not exists investor_bank_accounts_default_idx on investor_bank_accounts (investor_org_id) where is_default = true;
+
+alter table investor_bank_accounts enable row level security;
+
+drop policy if exists "investor_bank_accounts_select" on investor_bank_accounts;
+create policy "investor_bank_accounts_select" on investor_bank_accounts
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_bank_accounts.investor_org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "investor_bank_accounts_upsert" on investor_bank_accounts;
+create policy "investor_bank_accounts_upsert" on investor_bank_accounts
+  for all using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_bank_accounts.investor_org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_bank_accounts.investor_org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+create table if not exists investor_notification_preferences (
+  id uuid primary key default gen_random_uuid(),
+  investor_org_id uuid not null references companies(id) on delete cascade,
+  email_enabled boolean not null default true,
+  sms_enabled boolean not null default false,
+  frequency text not null default 'weekly',
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create unique index if not exists investor_notification_preferences_org_unique on investor_notification_preferences (investor_org_id);
+
+alter table investor_notification_preferences enable row level security;
+
+drop policy if exists "investor_notification_preferences_select" on investor_notification_preferences;
+create policy "investor_notification_preferences_select" on investor_notification_preferences
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_notification_preferences.investor_org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "investor_notification_preferences_upsert" on investor_notification_preferences;
+create policy "investor_notification_preferences_upsert" on investor_notification_preferences
+  for all using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_notification_preferences.investor_org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_notification_preferences.investor_org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+create table if not exists notification_preferences (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references companies(id) on delete cascade,
+  email_enabled boolean not null default true,
+  sms_enabled boolean not null default false,
+  frequency text not null default 'weekly',
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create unique index if not exists notification_preferences_org_unique on notification_preferences (org_id);
+
+alter table notification_preferences enable row level security;
+
+drop policy if exists "notification_preferences_select" on notification_preferences;
+create policy "notification_preferences_select" on notification_preferences
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = notification_preferences.org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "notification_preferences_upsert" on notification_preferences;
+create policy "notification_preferences_upsert" on notification_preferences
+  for all using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = notification_preferences.org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = notification_preferences.org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+-- === MODULO INVERSIONISTAS ===
+create table if not exists investor_positions (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references companies(id) on delete cascade,
+  name text not null,
+  strategy text,
+  invested_amount numeric(18,2) not null default 0,
+  current_value numeric(18,2) not null default 0,
+  currency text not null default 'COP',
+  irr numeric,
+  time_weighted_return numeric,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists investor_positions_org_idx on investor_positions (org_id);
+
+alter table investor_positions enable row level security;
+alter table investor_positions add column if not exists updated_at timestamptz not null default timezone('utc', now());
+
+drop policy if exists "investor_positions_select_members" on investor_positions;
+create policy "investor_positions_select_members" on investor_positions
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_positions.org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "investor_positions_manage_staff" on investor_positions;
+create policy "investor_positions_manage_staff" on investor_positions
+  for all using (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+create table if not exists investor_transactions (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references companies(id) on delete cascade,
+  position_id uuid references investor_positions(id) on delete set null,
+  type text not null check (type in ('contribution','distribution','interest','fee')),
+  status text not null default 'pending',
+  amount numeric(18,2) not null,
+  currency text not null default 'COP',
+  date timestamptz,
+  tx_date timestamptz,
+  description text,
+  metadata jsonb,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists investor_transactions_org_idx on investor_transactions (org_id, date desc);
+create index if not exists investor_transactions_status_idx on investor_transactions (org_id, status);
+
+alter table investor_transactions enable row level security;
+alter table investor_transactions add column if not exists updated_at timestamptz not null default timezone('utc', now());
+
+drop policy if exists "investor_transactions_select_members" on investor_transactions;
+create policy "investor_transactions_select_members" on investor_transactions
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_transactions.org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "investor_transactions_manage_staff" on investor_transactions;
+create policy "investor_transactions_manage_staff" on investor_transactions
+  for all using (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+create table if not exists investor_statements (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references companies(id) on delete cascade,
+  period text,
+  period_label text,
+  generated_at timestamptz,
+  download_url text,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists investor_statements_org_idx on investor_statements (org_id, generated_at desc);
+
+alter table investor_statements enable row level security;
+alter table investor_statements add column if not exists updated_at timestamptz not null default timezone('utc', now());
+
+drop policy if exists "investor_statements_select_members" on investor_statements;
+create policy "investor_statements_select_members" on investor_statements
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_statements.org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "investor_statements_manage_staff" on investor_statements;
+create policy "investor_statements_manage_staff" on investor_statements
+  for all using (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+alter view if exists investor_summary set (security_invoker = true);
+alter view if exists investor_vehicle_cashflows set (security_invoker = true);
+
 -- === AUDITORÃA ===
 create table if not exists audit_logs (
   id uuid primary key default gen_random_uuid(),
@@ -855,6 +1873,7 @@ drop policy if exists "audit_member_insert" on audit_logs;
 create policy "audit_member_insert" on audit_logs for insert with check (
   auth.uid() is not null
 );
-```
+
+`
 
 </details>

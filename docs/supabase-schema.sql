@@ -1439,6 +1439,239 @@ create policy "hq_company_parameters_modify_staff" on hq_company_parameters
     )
   );
 
+-- === CONFIGURACION PORTAL INVERSIONISTAS ===
+create table if not exists investor_bank_accounts (
+  id uuid primary key default gen_random_uuid(),
+  investor_org_id uuid not null references companies(id) on delete cascade,
+  label text,
+  bank_name text not null,
+  account_type text not null,
+  account_number text not null,
+  account_holder_name text not null,
+  account_holder_id text,
+  is_default boolean not null default false,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'investor_bank_accounts'
+      and column_name = 'investor_org_id'
+  ) then
+    alter table investor_bank_accounts
+      add column investor_org_id uuid references companies(id) on delete cascade;
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'investor_bank_accounts'
+      and column_name = 'company_id'
+  ) then
+    update investor_bank_accounts
+    set investor_org_id = company_id
+    where investor_org_id is null;
+
+    alter table investor_bank_accounts
+      alter column investor_org_id set not null;
+
+    alter table investor_bank_accounts drop column company_id;
+  elsif exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'investor_bank_accounts'
+      and column_name = 'investor_org_id'
+  ) then
+    alter table investor_bank_accounts
+      alter column investor_org_id set not null;
+  end if;
+end;
+$$;
+
+create index if not exists investor_bank_accounts_org_idx on investor_bank_accounts (investor_org_id, updated_at desc);
+create index if not exists investor_bank_accounts_default_idx on investor_bank_accounts (investor_org_id) where is_default = true;
+
+alter table investor_bank_accounts enable row level security;
+
+drop policy if exists "investor_bank_accounts_select" on investor_bank_accounts;
+create policy "investor_bank_accounts_select" on investor_bank_accounts
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_bank_accounts.investor_org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "investor_bank_accounts_upsert" on investor_bank_accounts;
+create policy "investor_bank_accounts_upsert" on investor_bank_accounts
+  for all using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_bank_accounts.investor_org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_bank_accounts.investor_org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+create table if not exists investor_notification_preferences (
+  id uuid primary key default gen_random_uuid(),
+  investor_org_id uuid not null references companies(id) on delete cascade,
+  email_enabled boolean not null default true,
+  sms_enabled boolean not null default false,
+  frequency text not null default 'weekly',
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create unique index if not exists investor_notification_preferences_org_unique on investor_notification_preferences (investor_org_id);
+
+alter table investor_notification_preferences enable row level security;
+
+drop policy if exists "investor_notification_preferences_select" on investor_notification_preferences;
+create policy "investor_notification_preferences_select" on investor_notification_preferences
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_notification_preferences.investor_org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "investor_notification_preferences_upsert" on investor_notification_preferences;
+create policy "investor_notification_preferences_upsert" on investor_notification_preferences
+  for all using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_notification_preferences.investor_org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = investor_notification_preferences.investor_org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+create table if not exists notification_preferences (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references companies(id) on delete cascade,
+  email_enabled boolean not null default true,
+  sms_enabled boolean not null default false,
+  frequency text not null default 'weekly',
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create unique index if not exists notification_preferences_org_unique on notification_preferences (org_id);
+
+alter table notification_preferences enable row level security;
+
+drop policy if exists "notification_preferences_select" on notification_preferences;
+create policy "notification_preferences_select" on notification_preferences
+  for select using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = notification_preferences.org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
+drop policy if exists "notification_preferences_upsert" on notification_preferences;
+create policy "notification_preferences_upsert" on notification_preferences
+  for all using (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = notification_preferences.org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from memberships m
+      where m.company_id = notification_preferences.org_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    ) or exists (
+      select 1
+      from profiles p
+      where p.user_id = auth.uid()
+        and coalesce(p.is_staff, false) = true
+    )
+  );
+
 -- === MODULO INVERSIONISTAS ===
 create table if not exists investor_positions (
   id uuid primary key default gen_random_uuid(),
@@ -1457,6 +1690,7 @@ create table if not exists investor_positions (
 create index if not exists investor_positions_org_idx on investor_positions (org_id);
 
 alter table investor_positions enable row level security;
+alter table investor_positions add column if not exists updated_at timestamptz not null default timezone('utc', now());
 
 drop policy if exists "investor_positions_select_members" on investor_positions;
 create policy "investor_positions_select_members" on investor_positions
@@ -1514,6 +1748,7 @@ create index if not exists investor_transactions_org_idx on investor_transaction
 create index if not exists investor_transactions_status_idx on investor_transactions (org_id, status);
 
 alter table investor_transactions enable row level security;
+alter table investor_transactions add column if not exists updated_at timestamptz not null default timezone('utc', now());
 
 drop policy if exists "investor_transactions_select_members" on investor_transactions;
 create policy "investor_transactions_select_members" on investor_transactions
@@ -1558,12 +1793,14 @@ create table if not exists investor_statements (
   period_label text,
   generated_at timestamptz,
   download_url text,
-  created_at timestamptz not null default timezone('utc', now())
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
 );
 
 create index if not exists investor_statements_org_idx on investor_statements (org_id, generated_at desc);
 
 alter table investor_statements enable row level security;
+alter table investor_statements add column if not exists updated_at timestamptz not null default timezone('utc', now());
 
 drop policy if exists "investor_statements_select_members" on investor_statements;
 create policy "investor_statements_select_members" on investor_statements
