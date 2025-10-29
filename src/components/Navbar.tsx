@@ -50,6 +50,8 @@ export function Navbar() {
   const isInPortal =
     currentPath.startsWith('/c/') ||
     (currentPath.startsWith('/hq') && !currentPath.startsWith('/hq/login')) ||
+    currentPath.startsWith('/i/') ||
+    currentPath === '/i' ||
     currentPath.startsWith('/select-org');
 
   return (
