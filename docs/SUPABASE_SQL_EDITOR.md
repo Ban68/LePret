@@ -1828,6 +1828,40 @@ create table if not exists investor_statements (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+do $$
+begin
+  if not exists (
+    select 1
+    from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'investor_statements'
+        and column_name = 'period'
+  ) then
+    alter table investor_statements add column period text;
+  end if;
+
+  if not exists (
+    select 1
+    from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'investor_statements'
+        and column_name = 'period_label'
+  ) then
+    alter table investor_statements add column period_label text;
+  end if;
+
+  if not exists (
+    select 1
+    from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'investor_statements'
+        and column_name = 'download_url'
+  ) then
+    alter table investor_statements add column download_url text;
+  end if;
+end;
+$$;
+
 create index if not exists investor_statements_org_idx on investor_statements (org_id, generated_at desc);
 
 alter table investor_statements enable row level security;
