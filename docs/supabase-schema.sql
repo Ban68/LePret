@@ -1687,6 +1687,30 @@ create table if not exists investor_positions (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+do $$
+begin
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'investor_positions'
+      and column_name = 'irr'
+  ) then
+    alter table investor_positions add column irr numeric;
+  end if;
+
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'investor_positions'
+      and column_name = 'time_weighted_return'
+  ) then
+    alter table investor_positions add column time_weighted_return numeric;
+  end if;
+end;
+$$;
+
 create index if not exists investor_positions_org_idx on investor_positions (org_id);
 
 alter table investor_positions enable row level security;
