@@ -102,6 +102,44 @@ type DeletionFlags = {
   statements: string[];
 };
 
+type PositionInput = {
+  id?: string;
+  name: string;
+  strategy: string | null;
+  investedAmount: number;
+  currentValue: number;
+  currency: string;
+  irr: number | null;
+  timeWeightedReturn: number | null;
+};
+
+type TransactionInput = {
+  id?: string;
+  type: string;
+  status: string | null;
+  amount: number;
+  currency: string;
+  date: string | null;
+  description: string | null;
+  positionId: string | null;
+};
+
+type StatementInput = {
+  id?: string;
+  period: string | null;
+  periodLabel: string | null;
+  generatedAt: string | null;
+  downloadUrl: string | null;
+};
+
+type PortfolioPayload = {
+  positions?: PositionInput[];
+  transactions?: TransactionInput[];
+  statements?: StatementInput[];
+  replace?: ReplaceFlags;
+  delete?: Partial<DeletionFlags>;
+};
+
 function createDraftKey() {
   return Math.random().toString(36).slice(2);
 }
@@ -1413,25 +1451,6 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
     </div>
   );
 }
-
-type PositionInput = PositionPreview & { id?: string };
-type TransactionInput = TransactionPreview & { id?: string };
-type StatementInput = StatementPreview & { id?: string };
-type PortfolioPayload = {
-  positions?: PositionInput[];
-  transactions?: TransactionInput[];
-  statements?: StatementInput[];
-  replace?: ReplaceFlags;
-  delete?: Partial<DeletionFlags>;
-};
-
-
-
-
-
-
-
-
 
 
 
