@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { InlineBanner } from "@/components/ui/inline-banner";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
@@ -125,10 +126,40 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
   const [replace, setReplace] = useState<ReplaceFlags>({ positions: false, transactions: false, statements: false });
   const [submitting, setSubmitting] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [manualType, setManualType] = useState<"contribution" | "distribution">("contribution");
+  const [manualAmount, setManualAmount] = useState("");
+  const [manualCurrency, setManualCurrency] = useState("COP");
+  const [manualDate, setManualDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [manualStatus, setManualStatus] = useState("settled");
+  const [manualDescription, setManualDescription] = useState("");
+  const [manualPositionId, setManualPositionId] = useState("");
+  const [manualBusy, setManualBusy] = useState(false);
+  const [manualError, setManualError] = useState<string | null>(null);
+  const resetManualForm = useCallback(() => {
+    setManualType("contribution");
+    setManualAmount("");
+    setManualCurrency("COP");
+    setManualDescription("");
+    setManualPositionId("");
+    setManualDate(new Date().toISOString().slice(0, 10));
+    setManualStatus("settled");
+    setManualError(null);
+  }, []);
 
   const selectedCompany = useMemo(
     () => companies.find((company) => company.id === selectedOrg) ?? null,
     [companies, selectedOrg],
+  );
+  const availablePositions = useMemo(() => portfolio?.positions ?? [], [portfolio]);
+  const statusOptions = useMemo(
+    () => [
+      { value: "settled", label: "Liquidado" },
+      { value: "pending", label: "Pendiente" },
+      { value: "processing", label: "En proceso" },
+      { value: "scheduled", label: "Programado" },
+      { value: "cancelled", label: "Cancelado" },
+    ],
+    [],
   );
 
   const loadPortfolio = useCallback(
@@ -172,6 +203,17 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
       void loadPortfolio(selectedOrg);
     }
   }, [selectedOrg, loadPortfolio]);
+
+  useEffect(() => {
+    if (!manualPositionId) return;
+    if (!availablePositions.some((position) => position.id === manualPositionId)) {
+      setManualPositionId("");
+    }
+  }, [availablePositions, manualPositionId]);
+
+  useEffect(() => {
+    resetManualForm();
+  }, [selectedOrg, resetManualForm]);
 
   const handleSubmit = useCallback(
     async (event: React.FormEvent) => {
@@ -246,6 +288,71 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
       }
     },
     [include, positionsJson, transactionsJson, statementsJson, selectedOrg, replace],
+  );
+
+
+  const handleManualMovement = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!selectedOrg) {
+        toast.error("Selecciona una organizacion de inversionistas.");
+        return;
+      }
+
+      const numericAmount = Number(manualAmount);
+      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+        const message = "Ingresa un monto valido (mayor a cero).";
+        setManualError(message);
+        toast.error(message);
+        return;
+      }
+
+      setManualBusy(true);
+      setManualError(null);
+
+      try {
+        const response = await fetch(`/api/hq/investors/${selectedOrg}/transactions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: manualType,
+            amount: manualAmount,
+            currency: manualCurrency,
+            date: manualDate,
+            description: manualDescription,
+            positionId: manualPositionId || null,
+            status: manualStatus,
+          }),
+        });
+        const result = (await response.json()) as { ok: boolean; error?: string };
+        if (!response.ok || !result.ok) {
+          throw new Error(result.error || "No se pudo registrar el movimiento.");
+        }
+
+        toast.success("Movimiento registrado correctamente.");
+        resetManualForm();
+        await loadPortfolio(selectedOrg);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Error inesperado al registrar el movimiento.";
+        setManualError(message);
+        toast.error(message);
+      } finally {
+        setManualBusy(false);
+      }
+    },
+    [
+      selectedOrg,
+      manualAmount,
+      manualCurrency,
+      manualDate,
+      manualDescription,
+      manualPositionId,
+      manualStatus,
+      manualType,
+      loadPortfolio,
+      resetManualForm,
+    ],
   );
 
   if (companies.length === 0) {
@@ -366,6 +473,145 @@ export function InvestorDataManager({ companies }: { companies: InvestorCompany[
         <div className="mt-6">{renderSummary()}</div>
       </section>
 
+      <form className="space-y-4" onSubmit={handleManualMovement}>
+        <Card className="border-lp-sec-5/40">
+          <CardHeader>
+            <CardTitle>Movimientos manuales</CardTitle>
+            <CardDescription>
+              Registra adiciones (aportes) o retiros sin necesidad de editar el JSON completo. Los movimientos se guardan como transacciones tipo contribution o distribution.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {manualError ? (
+              <InlineBanner
+                tone="error"
+                title="No se pudo registrar el movimiento"
+                description={manualError}
+              />
+            ) : null}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="manual-type">Tipo de movimiento</Label>
+                <select
+                  id="manual-type"
+                  className="rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm"
+                  value={manualType}
+                  onChange={(event) => {
+                    setManualType(event.target.value as "contribution" | "distribution");
+                    setManualError(null);
+                  }}
+                  disabled={manualBusy}
+                >
+                  <option value="contribution">Adicion (aporte)</option>
+                  <option value="distribution">Retiro</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="manual-amount">Monto</Label>
+                <Input
+                  id="manual-amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={manualAmount}
+                  onChange={(event) => {
+                    setManualAmount(event.target.value);
+                    if (manualError) setManualError(null);
+                  }}
+                  disabled={manualBusy}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="manual-currency">Moneda</Label>
+                <select
+                  id="manual-currency"
+                  className="rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm"
+                  value={manualCurrency}
+                  onChange={(event) => setManualCurrency(event.target.value)}
+                  disabled={manualBusy}
+                >
+                  <option value="COP">COP</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="manual-date">Fecha del movimiento</Label>
+                <Input
+                  id="manual-date"
+                  type="date"
+                  value={manualDate}
+                  onChange={(event) => setManualDate(event.target.value)}
+                  disabled={manualBusy}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="manual-status">Estado</Label>
+                <select
+                  id="manual-status"
+                  className="rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm"
+                  value={manualStatus}
+                  onChange={(event) => setManualStatus(event.target.value)}
+                  disabled={manualBusy}
+                >
+                  {statusOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-lp-sec-4">
+                  Por defecto registramos los movimientos como liquidados. Ajusta el estado si aun esta en proceso.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="manual-position">Asociar a posicion</Label>
+                <select
+                  id="manual-position"
+                  className="rounded-md border border-lp-sec-4/60 px-3 py-2 text-sm"
+                  value={manualPositionId}
+                  onChange={(event) => setManualPositionId(event.target.value)}
+                  disabled={manualBusy || availablePositions.length === 0}
+                >
+                  <option value="">Sin posicion (general)</option>
+                  {availablePositions.map((position) => (
+                    <option key={position.id} value={position.id}>
+                      {position.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-lp-sec-4">
+                  Si no seleccionas una posicion, el movimiento se asociara al portafolio general del inversionista.
+                </p>
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="manual-description">Descripcion</Label>
+                <Textarea
+                  id="manual-description"
+                  rows={3}
+                  value={manualDescription}
+                  onChange={(event) => setManualDescription(event.target.value)}
+                  disabled={manualBusy}
+                  placeholder="Detalle opcional del movimiento"
+                />
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter className="flex flex-wrap items-center justify-end gap-3">
+            <Button type="button" variant="ghost" disabled={manualBusy} onClick={resetManualForm}>
+              Limpiar campos
+            </Button>
+            <Button
+              type="submit"
+              className="bg-lp-primary-1 text-white hover:bg-lp-primary-1/90"
+              disabled={manualBusy}
+            >
+              {manualBusy ? "Registrando..." : "Registrar movimiento"}
+            </Button>
+          </CardFooter>
+        </Card>
+      </form>
       <form className="space-y-6" onSubmit={handleSubmit}>
         <Card className="border-lp-sec-5/40">
           <CardHeader>
@@ -517,3 +763,14 @@ type PortfolioPayload = {
   statements?: StatementInput[];
   replace?: ReplaceFlags;
 };
+
+
+
+
+
+
+
+
+
+
+
