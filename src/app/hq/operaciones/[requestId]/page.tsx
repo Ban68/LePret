@@ -4,7 +4,6 @@ import { ArrowLeft, Building2, Calendar, FileText } from "lucide-react";
 
 import { supabaseServer } from "@/lib/supabase-server";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { OfferManagementPanel } from "./OfferManagementPanel";
 
 export default async function OperationDetailPage({
@@ -50,6 +49,7 @@ export default async function OperationDetailPage({
         .maybeSingle();
 
     // Safe casting for potentially loose Supabase types
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const requestData = request as any;
     const company = Array.isArray(requestData.companies) ? requestData.companies[0] : requestData.companies;
     const invoicesData = Array.isArray(requestData.invoices) ? requestData.invoices[0] : requestData.invoices;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, X, Loader2, Info } from "lucide-react";
+import { Check, Loader2, Info } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
