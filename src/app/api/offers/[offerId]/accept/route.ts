@@ -1,101 +1,102 @@
-﻿import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+﻿import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { logAudit, logStatusChange, logIntegrationWarning } from "@/lib/audit";
-import { generateContractForRequest, ContractGenerationError } from "@/lib/contracts";
+import { NextResponse } from "next/server";
 
 export async function POST(
-  _req: Request,
+  request: Request,
   { params }: { params: Promise<{ offerId: string }> }
 ) {
   try {
     const { offerId } = await params;
-    const cookieStore = cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+
+    const supabase = createRouteHandlerClient({ cookies });
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    if (!session) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
-    const { data: offer, error: rErr } = await supabase
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // 1. Get Offer and Request
+    const { data: offer, error: offerError } = await supabase
       .from("offers")
-      .select("id, company_id, request_id, status")
+      .select("*, funding_requests(id, status, company_id)")
       .eq("id", offerId)
       .single();
-    if (rErr || !offer) throw new Error(rErr?.message || "Offer not found");
-    if (offer.status !== "offered") throw new Error("Offer not in offered status");
 
-    const { error: upErr } = await supabase
-      .from("offers")
-      .update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: session.user.id })
-      .eq("id", offerId);
-    if (upErr) throw upErr;
+    if (offerError || !offer) {
+      return NextResponse.json({ error: "Oferta no encontrada" }, { status: 404 });
+    }
 
-    await supabase
-      .from("funding_requests")
-      .update({ status: "accepted" })
-      .eq("id", offer.request_id)
-      .eq("company_id", offer.company_id);
+    if (offer.status !== "offered") {
+      return NextResponse.json({ error: "Esta oferta no está disponible para aceptación" }, { status: 400 });
+    }
 
-    try {
-      const { notifyStaffOfferAccepted } = await import("@/lib/notifications");
-      await notifyStaffOfferAccepted(offer.company_id, offerId);
-    } catch {}
+    // 2. Verify Membership permissions (Owner/Admin of the company)
+    // Staff can also accept on behalf? Maybe not for now. Strict client acceptance.
+    const { data: membership } = await supabase
+      .from("memberships")
+      .select("role, status")
+      .eq("company_id", offer.company_id)
+      .eq("user_id", session.user.id)
+      .eq("status", "ACTIVE")
+      .single();
 
-    let contractResult: Awaited<ReturnType<typeof generateContractForRequest>> | null = null;
-    try {
-      contractResult = await generateContractForRequest({
-        orgId: offer.company_id,
-        requestId: offer.request_id,
-        actorId: session.user.id,
-        fallbackEmail: session.user.email,
-        skipIfExists: true,
-      });
-    } catch (error) {
-      if (!(error instanceof ContractGenerationError)) {
-        const message = error instanceof Error ? error.message : String(error);
-        await logIntegrationWarning({
-          company_id: offer.company_id,
-          actor_id: session.user.id,
-          provider: "pandadoc",
-          message,
-          meta: { request_id: offer.request_id, offer_id: offerId, code: "contract_generation_failed" },
-        });
+    const allowedRoles = ["OWNER", "ADMIN", "OWNER_ORG", "ADMIN_ORG"]; // Adjust based on exact roles in DB
+    const isAuthorized = membership && allowedRoles.includes(membership.role.toUpperCase());
+
+    if (!isAuthorized) {
+      // Check if staff (maybe staff can mark as accepted manually?) - For now, enforce client action or staff overwrite.
+      // Let's allow staff to accept on behalf if needed, but primary is client.
+      const { data: profile } = await supabase.from("profiles").select("is_staff").eq("user_id", session.user.id).single();
+      if (!profile?.is_staff) {
+        return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
       }
     }
 
-    if (contractResult && (contractResult.document || contractResult.skipped)) {
-      try {
-        const { notifyStaffContractReady } = await import("@/lib/notifications");
-        const doc = contractResult.document as { id?: string | null; provider_envelope_id?: string | null } | null;
-        const appBase = process.env.PANDADOC_APP_URL || "https://app.pandadoc.com/a/#/documents/";
-        const appUrl = doc?.provider_envelope_id ? `${appBase}${doc.provider_envelope_id}` : null;
-        await notifyStaffContractReady(offer.company_id, offer.request_id, {
-          documentId: doc?.id ?? null,
-          appUrl,
-        });
-      } catch {}
-    }
+    // 3. Update Offer Status
+    const { error: updateOfferError } = await supabase
+      .from("offers")
+      .update({
+        status: "accepted",
+        accepted_by: session.user.id,
+        accepted_at: new Date().toISOString(),
+      })
+      .eq("id", offerId);
 
-    await logStatusChange({
+    if (updateOfferError) throw updateOfferError;
+
+    // 4. Update Request Status
+    await supabase
+      .from("funding_requests")
+      .update({ status: "accepted" })
+      .eq("id", offer.request_id);
+
+    // 5. Log Event
+    await supabase.from("request_events").insert({
+      request_id: offer.request_id,
       company_id: offer.company_id,
+      event_type: "status_change",
+      status: "accepted",
+      title: "Oferta aceptada",
+      description: "El cliente ha aceptado la oferta.",
+      actor_role: "client", // or staff depending on who clicked
       actor_id: session.user.id,
-      entity_id: offer.request_id,
-      from_status: offer.status,
-      to_status: "accepted",
     });
-    await logAudit({
+
+    // 6. Audit
+    await supabase.from("audit_logs").insert({
       company_id: offer.company_id,
       actor_id: session.user.id,
       entity: "offer",
       entity_id: offerId,
-      action: "status_changed",
-      data: { from_status: offer.status, to_status: "accepted" },
+      action: "accepted",
     });
 
     return NextResponse.json({ ok: true });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+  } catch (error) {
+    console.error("Error accepting offer:", error);
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }

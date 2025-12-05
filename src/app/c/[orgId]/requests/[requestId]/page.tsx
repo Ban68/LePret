@@ -7,6 +7,7 @@ import { TimelineNextSteps } from "@/components/app/timeline/TimelineNextSteps";
 import { TimelineRealtimeBridge } from "@/components/app/timeline/TimelineRealtimeBridge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DisbursementPanel } from "./DisbursementPanel";
+import { ClientOfferCard } from "./ClientOfferCard";
 import { computeClientNextSteps, getRequestTimeline } from "@/lib/request-timeline";
 import { supabaseServer } from "@/lib/supabase-server";
 
@@ -77,6 +78,15 @@ export default async function ClientRequestTimelinePage({
   }
 
   const timeline = await getRequestTimeline(supabase, requestId);
+
+  // Fetch Offer
+  const { data: offer } = await supabase
+    .from("offers")
+    .select("*")
+    .eq("request_id", requestId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   const { data: bankAccounts } = await supabase
     .from("bank_accounts")
@@ -152,6 +162,11 @@ export default async function ClientRequestTimelinePage({
             </div>
           </div>
         </div>
+
+        {/* Offer Section */}
+        {offer && (
+          <ClientOfferCard offer={offer} requestedAmount={request.requested_amount} />
+        )}
 
         <DisbursementPanel
           orgId={orgId}
