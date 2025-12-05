@@ -124,7 +124,7 @@ export async function POST(
     } catch (error) {
         console.error("Error creating offer:", error);
         if (error instanceof z.ZodError) {
-            return NextResponse.json({ error: "Datos inválidos", details: error.errors }, { status: 400 });
+            return NextResponse.json({ error: "Datos inválidos", details: error.issues }, { status: 400 });
         }
         return NextResponse.json({ error: "Error interno" }, { status: 500 });
     }
