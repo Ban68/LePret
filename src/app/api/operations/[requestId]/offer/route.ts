@@ -6,7 +6,7 @@ import { z } from "zod";
 const offerSchema = z.object({
     annual_rate: z.number().min(0).max(100),
     advance_pct: z.number().min(0).max(100),
-    fees: z.record(z.number().min(0)).optional(),
+    fees: z.record(z.string(), z.number().min(0)).optional(),
     valid_until: z.string().optional(),
 });
 
