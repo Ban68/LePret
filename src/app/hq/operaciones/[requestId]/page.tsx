@@ -49,6 +49,14 @@ export default async function OperationDetailPage({
         .limit(1)
         .maybeSingle();
 
+    // Safe casting for potentially loose Supabase types
+    const requestData = request as any;
+    const company = Array.isArray(requestData.companies) ? requestData.companies[0] : requestData.companies;
+    const invoicesData = Array.isArray(requestData.invoices) ? requestData.invoices[0] : requestData.invoices;
+    const companyName = company?.name ?? "N/A";
+    const companyTaxId = company?.tax_id ?? "N/A";
+    const invoiceCount = invoicesData?.count ?? 0;
+
     return (
         <div className="space-y-6">
             <div className="flex items-center gap-4">
@@ -83,9 +91,9 @@ export default async function OperationDetailPage({
                                 <span className="block text-xs uppercase text-gray-400">Cliente</span>
                                 <div className="flex items-center gap-2 font-medium">
                                     <Building2 className="h-4 w-4 text-gray-400" />
-                                    {request.companies?.name}
+                                    {companyName}
                                 </div>
-                                <span className="text-xs text-gray-500">{request.companies?.tax_id}</span>
+                                <span className="text-xs text-gray-500">{companyTaxId}</span>
                             </div>
                             <div>
                                 <span className="block text-xs uppercase text-gray-400">Monto Solicitado</span>
@@ -104,7 +112,7 @@ export default async function OperationDetailPage({
                                 <span className="block text-xs uppercase text-gray-400">Facturas</span>
                                 <div className="flex items-center gap-2 text-sm">
                                     <FileText className="h-4 w-4 text-gray-400" />
-                                    {request.invoices[0]?.count ?? 0} Facturas
+                                    {invoiceCount} Facturas
                                 </div>
                             </div>
                         </div>
