@@ -8,7 +8,7 @@ export function Logo() {
         alt="Monograma LP de LePrêt Capital"
         width={32}
         height={32}
-        className="h-7 w-7 object-contain"
+        className="h-7 w-7 object-contain invert"
         priority
       />
     </div>
