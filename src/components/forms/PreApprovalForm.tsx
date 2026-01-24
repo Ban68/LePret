@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Toaster, toast } from "sonner";
 import { useState } from "react";
-import { format } from 'd3-format';
+
 import { FormError } from "./FormError";
 
 export function PreApprovalForm() {
@@ -91,7 +91,7 @@ export function PreApprovalForm() {
             Tu cupo de factoring preaprobado es de:
           </p>
           <p className="font-colette text-4xl font-bold my-4 text-lp-primary-1">
-            ${format(",.0f")(result.cupoEstimado).replace(/,/g, '.')}
+            ${new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(result.cupoEstimado)}
           </p>
           <p className="text-base">{result.nextSteps}</p>
         </AlertDescription>
@@ -118,7 +118,7 @@ export function PreApprovalForm() {
             <Input id="razonSocial" autoComplete="organization" {...form.register("razonSocial")} />
           </div>
         </div>
-        
+
         <div>
           <Label htmlFor="ventasAnuales" className="mb-2">Ventas Anuales (COP)</Label>
           <Controller
@@ -136,41 +136,41 @@ export function PreApprovalForm() {
             )}
           />
           <FormError
-              message={form.formState.errors.ventasAnuales?.message}
-              className="mt-1"
-            />
+            message={form.formState.errors.ventasAnuales?.message}
+            className="mt-1"
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
-            <div>
-                <Label htmlFor="facturasMes" className="mb-2"># Facturas/Mes</Label>
-                <Input id="facturasMes" type="number" min={0} autoComplete="off" {...form.register("facturasMes")} />
-                <FormError
-                  message={form.formState.errors.facturasMes?.message}
-                  className="mt-1"
+          <div>
+            <Label htmlFor="facturasMes" className="mb-2"># Facturas/Mes</Label>
+            <Input id="facturasMes" type="number" min={0} autoComplete="off" {...form.register("facturasMes")} />
+            <FormError
+              message={form.formState.errors.facturasMes?.message}
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <Label htmlFor="ticketPromedio" className="mb-2">Ticket Promedio Factura (COP)</Label>
+            <Controller
+              name="ticketPromedio"
+              control={form.control}
+              render={({ field }) => (
+                <Input
+                  id="ticketPromedio"
+                  autoComplete="off"
+                  value={formatCurrency(field.value)}
+                  onChange={(e) => {
+                    field.onChange(parseCurrency(e.target.value));
+                  }}
                 />
-            </div>
-            <div>
-                <Label htmlFor="ticketPromedio" className="mb-2">Ticket Promedio Factura (COP)</Label>
-                <Controller
-                    name="ticketPromedio"
-                    control={form.control}
-                    render={({ field }) => (
-                        <Input
-                            id="ticketPromedio"
-                            autoComplete="off"
-                            value={formatCurrency(field.value)}
-                            onChange={(e) => {
-                                field.onChange(parseCurrency(e.target.value));
-                            }}
-                        />
-                    )}
-                />
-                <FormError
-                  message={form.formState.errors.ticketPromedio?.message}
-                  className="mt-1"
-                />
-            </div>
+              )}
+            />
+            <FormError
+              message={form.formState.errors.ticketPromedio?.message}
+              className="mt-1"
+            />
+          </div>
         </div>
 
         <div>

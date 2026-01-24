@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 const metrics = [
   { name: 'Facturas financiadas', value: '+1,200' },
-  { name: 'Fondos desembolsados', value: '+$15M' },
+  { name: 'Fondos desembolsados', value: '+$30MM' },
   { name: 'Clientes satisfechos', value: '99%' },
   { name: 'Tiempo de aprobación', value: '<24h' },
 ];

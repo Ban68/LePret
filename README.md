@@ -15,6 +15,7 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
 *   **Validación de Formularios:** Zod + React Hook Form
 *   **Base de Datos:** Supabase (PostgreSQL)
 *   **Emails:** Resend (integración preparada, requiere configuración)
+*   **Procesamiento de PDF:** [`pdf-parse`](./packages/pdf-parse) (paquete local usado para prellenar facturas)
 *   **Despliegue:** Vercel
 
 ## Características Principales (MVP)
@@ -59,10 +60,14 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
     ```
     SUPABASE_URL="https://TU_PROYECTO.supabase.co"
     SUPABASE_SERVICE_ROLE_KEY="TU_SERVICE_ROLE_KEY"
+    NEXT_PUBLIC_SUPABASE_URL="https://TU_PROYECTO.supabase.co"
+    NEXT_PUBLIC_SUPABASE_ANON_KEY="TU_ANON_KEY"
     RESEND_API_KEY="re_YOUR_RESEND_API_KEY"
     ```
     *   `SUPABASE_URL`: URL de tu proyecto Supabase.
     *   `SUPABASE_SERVICE_ROLE_KEY`: Clave de servicio de Supabase para operaciones del lado del servidor.
+    *   `NEXT_PUBLIC_SUPABASE_URL`: URL del proyecto expuesta al cliente (debe coincidir con `SUPABASE_URL`).
+    *   `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Clave pública (`anon`) usada por el cliente para establecer sesiones temporales.
     *   `RESEND_API_KEY`: Clave API de Resend para el envío de correos. (Opcional para el funcionamiento básico, pero necesaria para notificaciones).
 
 4.  **Ejecutar el Servidor de Desarrollo:**
@@ -75,8 +80,9 @@ El objetivo principal del sitio es captar y convertir PYMES B2B interesadas en a
 
 Este proyecto está optimizado para despliegue en Vercel.
 
+0.  **Prepara Supabase:** Antes del primer deploy crea un proyecto en Supabase (prod) y ejecuta el script `docs/supabase-schema.sql` desde el SQL Editor. Esto crea las tablas, políticas RLS y buckets privados (`invoices`, `requests`, `kyc`, `contracts`) necesarios. Marca al menos un usuario con `is_staff = true` para poder operar el backoffice.
 1.  **Conectar Repositorio:** Conecta tu repositorio de GitHub/GitLab/Bitbucket a Vercel.
-2.  **Configurar Variables de Entorno:** En la configuración del proyecto en Vercel, añade las mismas variables de entorno (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`) que usaste localmente.
+2.  **Configurar Variables de Entorno:** En la configuración del proyecto en Vercel, añade las mismas variables de entorno (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RESEND_API_KEY`) que usaste localmente.
 3.  **Despliegue Automático:** Cada push a la rama principal (o a una PR, si configuras los preview deploys) activará un nuevo despliegue.
 
 ## Supabase como Base de Datos
@@ -90,16 +96,37 @@ Asegúrate de definir en tu archivo `.env` las variables:
 ```
 SUPABASE_URL="https://TU_PROYECTO.supabase.co"
 SUPABASE_SERVICE_ROLE_KEY="TU_SERVICE_ROLE_KEY"
+NEXT_PUBLIC_SUPABASE_URL="https://TU_PROYECTO.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="TU_ANON_KEY"
 ```
 
-Estas permiten que el servidor se conecte a tu instancia de Supabase.
+Las variables sin el prefijo `NEXT_PUBLIC_` se utilizan del lado del servidor, mientras que las públicas permiten que el cliente establezca sesiones válidas para operaciones como el restablecimiento de contraseñas.
 
 ### Aplicar el esquema inicial
 
 1. Ingresa al panel de Supabase y abre el SQL Editor, o utiliza la CLI de Supabase.
-2. Ejecuta el contenido del archivo `docs/supabase-schema.sql` para crear las tablas requeridas.
+2. Crea una nueva consulta y copia/pega **todo** el contenido del archivo `docs/supabase-schema.sql`. Puedes abrirlo en tu editor local o desde GitHub usando el botón **Raw** de este enlace directo: `https://raw.githubusercontent.com/LePret/LePret/main/docs/supabase-schema.sql`. Copia ese texto completo y pégalo sin modificarlo en el SQL Editor. Si prefieres copiarlo directamente desde este repositorio sin salir del README, consulta `docs/SUPABASE_SQL_EDITOR.md`, donde encontrarás el script completo dentro de un bloque expandible.
+3. Ejecuta la consulta; el script es idempotente y creará/actualizará tablas, políticas RLS y buckets necesarios.
 
 Con esto, la base de datos quedará lista para su uso en el proyecto.
+
+## Pruebas y pipeline local
+
+- **Unitarias del parser de facturas:**
+  ```bash
+  npm run test:unit
+  ```
+  El comando utiliza `node --test` junto con el registro TS incluido en `tests/helpers/register-ts.js` para evaluar la extracción de datos desde PDFs de ejemplo.
+- **End-to-end (Playwright):**
+  ```bash
+  npm run test:e2e
+  ```
+  Requiere levantar la app (`npm run dev`) automáticamente y definir `PLAYWRIGHT_STORAGE_STATE`, `E2E_ORG_ID` (obligatorio) y, opcionalmente, `E2E_REQUEST_ID`/`E2E_SIMULATOR_REQUEST_ID` para escenarios adicionales.
+- **Pipeline local completo:**
+  ```bash
+  npm run pipeline:local
+  ```
+  Ejecuta `lint`, pruebas unitarias del parser y las pruebas e2e.
 
 ## Cómo Cambiar Reglas del "Cupo Estimado"
 
