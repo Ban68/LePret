@@ -1,7 +1,7 @@
 // src/app/api/contact/route.ts
 export const runtime = "nodejs";
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   try {
@@ -35,6 +35,7 @@ export async function POST(req: Request) {
     const utm_content  = body.utm_content  ?? qs.get("utm_content");
     const referrer     = body.referrer     ?? req.headers.get("referer");
 
+    const supabaseAdmin = getSupabaseAdminClient();
     const { error } = await supabaseAdmin.from("contacts").insert({
       full_name: nombre,
       email,
