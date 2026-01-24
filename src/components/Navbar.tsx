@@ -84,7 +84,7 @@ export function Navbar() {
           </nav>
 
           <div className="flex flex-1 items-center justify-end gap-4 md:pl-4">
-            <NotificationCenter />
+            {isInPortal && <NotificationCenter />}
 
             <div className="hidden md:block">
               <Button
