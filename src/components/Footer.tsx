@@ -17,21 +17,27 @@ export function Footer() {
             </p>
           </div>
           <div>
-            <h3 className="font-colette text-lg font-semibold">Soluciones</h3>
+            <div className="flex h-10 items-center">
+              <h3 className="font-colette text-lg font-semibold">Soluciones</h3>
+            </div>
             <ul className="mt-4 space-y-2 text-sm">
               <li><Link href="/soluciones/factoring-electronico" className="hover:underline">Factoring Electrónico</Link></li>
               <li><Link href="/soluciones/confirming" className="hover:underline">Confirming (Próximamente)</Link></li>
             </ul>
           </div>
           <div>
-            <h3 className="font-colette text-lg font-semibold">Legal</h3>
+            <div className="flex h-10 items-center">
+              <h3 className="font-colette text-lg font-semibold">Legal</h3>
+            </div>
             <ul className="mt-4 space-y-2 text-sm">
               <li><Link href="/legal/privacidad" className="hover:underline">Política de Privacidad</Link></li>
               <li><Link href="/legal/terminos" className="hover:underline">Términos y Condiciones</Link></li>
             </ul>
           </div>
           <div>
-            <h3 className="font-colette text-lg font-semibold">Contacto</h3>
+            <div className="flex h-10 items-center">
+              <h3 className="font-colette text-lg font-semibold">Contacto</h3>
+            </div>
             <ul className="mt-4 space-y-2 text-sm">
               <li>
                 Email: <a href="mailto:info@lepretcapital.com" className="hover:underline transition-colors">info@lepretcapital.com</a>
