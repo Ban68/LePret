@@ -349,7 +349,7 @@ export function LoginForm({ audience = "auto" }: LoginFormProps) {
         throw new Error("Ingresa un email válido");
       }
 
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://lepretcapital.com";
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${siteUrl}/reset-password`,
       });
