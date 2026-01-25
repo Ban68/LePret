@@ -349,8 +349,9 @@ export function LoginForm({ audience = "auto" }: LoginFormProps) {
         throw new Error("Ingresa un email válido");
       }
 
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${siteUrl}/reset-password`,
       });
 
       if (resetError) {
