@@ -58,6 +58,13 @@ function ResetForm() {
     const run = async () => {
       let handled = false;
 
+      // Check if we already have a session (handled by middleware or auto-refresh)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setInitializing(false);
+        return;
+      }
+
       try {
         const code = search.get("code");
         if (code) {
