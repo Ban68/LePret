@@ -21,7 +21,7 @@ export function HqNavigation() {
 
   return (
     <nav aria-label="Secciones del HQ" className="border-b border-lp-sec-6">
-      <ul className="-mb-px flex flex-wrap gap-4 text-sm font-medium text-lp-sec-4">
+      <ul className="-mb-px flex flex-wrap gap-4 text-sm font-medium text-gray-500">
         {links.map((link) => {
           const isActive =
             pathname === link.href || pathname.startsWith(`${link.href}/`);
