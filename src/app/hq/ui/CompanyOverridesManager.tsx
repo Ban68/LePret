@@ -55,6 +55,30 @@ export function CompanyOverridesManager() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
+  const [selected, setSelected] = useState<CompanyDetail | null>(null);
+  const [form, setForm] = useState<FormState>(INITIAL_FORM);
+  const [saving, setSaving] = useState(false);
+
+  const loadOverrides = useCallback(async () => {
+    setLoadingOverrides(true);
+    try {
+      const response = await fetch("/api/hq/settings/companies?withOverrides=true");
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = payload?.error || "No se pudieron cargar las personalizaciones";
+        throw new Error(error);
+      }
+      const items: OverrideSummary[] = Array.isArray(payload.companies) ? payload.companies : [];
+      setOverrides(items);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error inesperado";
+      toast.error(message);
+      setOverrides([]);
+    } finally {
+      setLoadingOverrides(false);
+    }
+  }, []);
+
   const loadAllCompanies = useCallback(async () => {
     try {
       // Fetch a larger list to populate the dropdown (limit 100 for now)
@@ -83,11 +107,138 @@ export function CompanyOverridesManager() {
     return allCompanies.filter((c) => c.name.toLowerCase().includes(lower));
   }, [allCompanies, searchTerm]);
 
+  const loadCompanyDetail = useCallback(async (companyId: string) => {
+    try {
+      const response = await fetch(`/api/hq/settings/companies/${companyId}`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = payload?.error || "No se pudo cargar el cliente";
+        throw new Error(error);
+      }
+
+      const detail: CompanyDetail = {
+        id: payload.company.id,
+        name: payload.company.name,
+        type: payload.company.type ?? null,
+        overrides: payload.overrides ?? null,
+      };
+
+      setSelected(detail);
+      setForm({
+        discountRate: detail.overrides?.discountRate != null ? String(detail.overrides.discountRate) : "",
+        operationDays: detail.overrides?.operationDays != null ? String(detail.overrides.operationDays) : "",
+        advancePct: detail.overrides?.advancePct != null ? String(detail.overrides.advancePct) : "",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error inesperado";
+      toast.error(message);
+    }
+  }, []);
+
+  const resetSelection = useCallback(() => {
+    setSelected(null);
+    setForm(INITIAL_FORM);
+  }, []);
+
   const handleSelectCompany = (company: OverrideSummary) => {
     loadCompanyDetail(company.id);
     setSearchTerm(""); // Clear search on select? or keep name? Let's clear for now or separate display.
     setIsDropdownOpen(false);
   };
+
+  const parsedForm = useMemo(() => {
+    return {
+      discountRate: sanitizeDecimal(form.discountRate, 0, 200),
+      operationDays: sanitizeInteger(form.operationDays, 1, 720),
+      advancePct: sanitizeDecimal(form.advancePct, 0, 100),
+    };
+  }, [form]);
+
+  const hasChanges = useMemo(() => {
+    if (!selected) return false;
+    const current = selected.overrides;
+    return (
+      parsedForm.discountRate.value !== (current?.discountRate ?? null) ||
+      parsedForm.operationDays.value !== (current?.operationDays ?? null) ||
+      parsedForm.advancePct.value !== (current?.advancePct ?? null)
+    );
+  }, [parsedForm, selected]);
+
+  const validateForm = useCallback(() => {
+    const fields = [
+      parsedForm.discountRate,
+      parsedForm.operationDays,
+      parsedForm.advancePct,
+    ] as const;
+
+    for (const field of fields) {
+      if (field.error) {
+        toast.error(field.error);
+        return false;
+      }
+    }
+    return true;
+  }, [parsedForm]);
+
+  const handleSave = useCallback(async () => {
+    if (!selected) return;
+    if (!validateForm()) return;
+
+    setSaving(true);
+    try {
+      const body = {
+        discountRate: parsedForm.discountRate.value,
+        operationDays: parsedForm.operationDays.value,
+        advancePct: parsedForm.advancePct.value,
+      };
+
+      const response = await fetch(`/api/hq/settings/companies/${selected.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = payload?.error || "No se pudieron guardar los cambios";
+        throw new Error(error);
+      }
+
+      toast.success("Parámetros personalizados actualizados");
+      await Promise.all([loadOverrides(), loadCompanyDetail(selected.id)]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error inesperado";
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  }, [loadCompanyDetail, loadOverrides, parsedForm, selected, validateForm]);
+
+  const handleClear = useCallback(async () => {
+    if (!selected) return;
+
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/hq/settings/companies/${selected.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clear: true }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = payload?.error || "No se pudo eliminar la personalización";
+        throw new Error(error);
+      }
+
+      toast.success("Se restablecieron los valores predeterminados");
+      resetSelection();
+      await loadOverrides();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error inesperado";
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  }, [loadOverrides, resetSelection, selected]);
 
   return (
     <section className="space-y-6">
