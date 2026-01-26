@@ -51,201 +51,43 @@ const INITIAL_FORM: FormState = {
 export function CompanyOverridesManager() {
   const [overrides, setOverrides] = useState<OverrideSummary[]>([]);
   const [loadingOverrides, setLoadingOverrides] = useState(true);
+  const [allCompanies, setAllCompanies] = useState<OverrideSummary[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<OverrideSummary[]>([]);
-  const [selected, setSelected] = useState<CompanyDetail | null>(null);
-  const [form, setForm] = useState<FormState>(INITIAL_FORM);
-  const [saving, setSaving] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const loadOverrides = useCallback(async () => {
-    setLoadingOverrides(true);
+  const loadAllCompanies = useCallback(async () => {
     try {
-      const response = await fetch("/api/hq/settings/companies?withOverrides=true");
+      // Fetch a larger list to populate the dropdown (limit 100 for now)
+      const response = await fetch("/api/hq/settings/companies?limit=100");
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const error = payload?.error || "No se pudieron cargar las personalizaciones";
-        throw new Error(error);
+        console.error("Failed to load companies list", payload.error);
+        return;
       }
       const items: OverrideSummary[] = Array.isArray(payload.companies) ? payload.companies : [];
-      setOverrides(items);
+      setAllCompanies(items);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Error inesperado";
-      toast.error(message);
-      setOverrides([]);
-    } finally {
-      setLoadingOverrides(false);
+      console.error("Error loading companies", error);
     }
   }, []);
 
   useEffect(() => {
     loadOverrides().catch(() => null);
-  }, [loadOverrides]);
+    loadAllCompanies().catch(() => null);
+  }, [loadOverrides, loadAllCompanies]);
 
-  useEffect(() => {
-    if (!searchTerm.trim()) {
-      setSearchResults([]);
-      return;
-    }
+  // Filter companies locally based on search term
+  const filteredCompanies = useMemo(() => {
+    if (!searchTerm.trim()) return allCompanies;
+    const lower = searchTerm.toLowerCase();
+    return allCompanies.filter((c) => c.name.toLowerCase().includes(lower));
+  }, [allCompanies, searchTerm]);
 
-    const controller = new AbortController();
-    const handle = window.setTimeout(async () => {
-      setSearching(true);
-      try {
-        const query = new URLSearchParams({
-          search: searchTerm.trim(),
-          limit: "10",
-        }).toString();
-        const response = await fetch(`/api/hq/settings/companies?${query}`, { signal: controller.signal });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          const error = payload?.error || "No se pudieron buscar clientes";
-          throw new Error(error);
-        }
-        const items: OverrideSummary[] = Array.isArray(payload.companies) ? payload.companies : [];
-        setSearchResults(items);
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        const message = error instanceof Error ? error.message : "Error inesperado";
-        toast.error(message);
-        setSearchResults([]);
-      } finally {
-        setSearching(false);
-      }
-    }, 350);
-
-    return () => {
-      controller.abort();
-      window.clearTimeout(handle);
-    };
-  }, [searchTerm]);
-
-  const loadCompanyDetail = useCallback(async (companyId: string) => {
-    try {
-      const response = await fetch(`/api/hq/settings/companies/${companyId}`);
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const error = payload?.error || "No se pudo cargar el cliente";
-        throw new Error(error);
-      }
-
-      const detail: CompanyDetail = {
-        id: payload.company.id,
-        name: payload.company.name,
-        type: payload.company.type ?? null,
-        overrides: payload.overrides ?? null,
-      };
-
-      setSelected(detail);
-      setForm({
-        discountRate: detail.overrides?.discountRate != null ? String(detail.overrides.discountRate) : "",
-        operationDays: detail.overrides?.operationDays != null ? String(detail.overrides.operationDays) : "",
-        advancePct: detail.overrides?.advancePct != null ? String(detail.overrides.advancePct) : "",
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Error inesperado";
-      toast.error(message);
-    }
-  }, []);
-
-  const resetSelection = useCallback(() => {
-    setSelected(null);
-    setForm(INITIAL_FORM);
-  }, []);
-
-  const parsedForm = useMemo(() => {
-    return {
-      discountRate: sanitizeDecimal(form.discountRate, 0, 200),
-      operationDays: sanitizeInteger(form.operationDays, 1, 720),
-      advancePct: sanitizeDecimal(form.advancePct, 0, 100),
-    };
-  }, [form]);
-
-  const hasChanges = useMemo(() => {
-    if (!selected) return false;
-    const current = selected.overrides;
-    return (
-      parsedForm.discountRate.value !== (current?.discountRate ?? null) ||
-      parsedForm.operationDays.value !== (current?.operationDays ?? null) ||
-      parsedForm.advancePct.value !== (current?.advancePct ?? null)
-    );
-  }, [parsedForm, selected]);
-
-  const validateForm = useCallback(() => {
-    const fields = [
-      parsedForm.discountRate,
-      parsedForm.operationDays,
-      parsedForm.advancePct,
-    ] as const;
-
-    for (const field of fields) {
-      if (field.error) {
-        toast.error(field.error);
-        return false;
-      }
-    }
-    return true;
-  }, [parsedForm]);
-
-  const handleSave = useCallback(async () => {
-    if (!selected) return;
-    if (!validateForm()) return;
-
-    setSaving(true);
-    try {
-      const body = {
-        discountRate: parsedForm.discountRate.value,
-        operationDays: parsedForm.operationDays.value,
-        advancePct: parsedForm.advancePct.value,
-      };
-
-      const response = await fetch(`/api/hq/settings/companies/${selected.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const error = payload?.error || "No se pudieron guardar los cambios";
-        throw new Error(error);
-      }
-
-      toast.success("Parámetros personalizados actualizados");
-      await Promise.all([loadOverrides(), loadCompanyDetail(selected.id)]);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Error inesperado";
-      toast.error(message);
-    } finally {
-      setSaving(false);
-    }
-  }, [loadCompanyDetail, loadOverrides, parsedForm, selected, validateForm]);
-
-  const handleClear = useCallback(async () => {
-    if (!selected) return;
-
-    setSaving(true);
-    try {
-      const response = await fetch(`/api/hq/settings/companies/${selected.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clear: true }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const error = payload?.error || "No se pudo eliminar la personalización";
-        throw new Error(error);
-      }
-
-      toast.success("Se restablecieron los valores predeterminados");
-      resetSelection();
-      await loadOverrides();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Error inesperado";
-      toast.error(message);
-    } finally {
-      setSaving(false);
-    }
-  }, [loadOverrides, resetSelection, selected]);
+  const handleSelectCompany = (company: OverrideSummary) => {
+    loadCompanyDetail(company.id);
+    setSearchTerm(""); // Clear search on select? or keep name? Let's clear for now or separate display.
+    setIsDropdownOpen(false);
+  };
 
   return (
     <section className="space-y-6">
@@ -258,41 +100,57 @@ export function CompanyOverridesManager() {
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <div className="space-y-4 rounded-lg border border-lp-sec-4/60 bg-white p-4 shadow-sm">
-          <div>
-            <Label htmlFor="company-search">Buscar cliente</Label>
-            <Input
-              id="company-search"
-              placeholder="Nombre del cliente"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-            />
-            {searchTerm.trim().length > 0 ? (
-              <div className="mt-2 max-h-48 overflow-y-auto rounded-md border border-lp-sec-4/40 bg-white">
-                {searching ? (
-                  <div className="p-3 text-sm text-lp-sec-3">Buscando...</div>
-                ) : searchResults.length === 0 ? (
-                  <div className="p-3 text-sm text-lp-sec-3">Sin resultados.</div>
-                ) : (
-                  <ul>
-                    {searchResults.map((company) => (
-                      <li key={company.id}>
-                        <button
-                          type="button"
-                          className={cn(
-                            "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm",
-                            selected?.id === company.id ? "bg-lp-primary-1/10" : "hover:bg-lp-sec-4/40",
-                          )}
-                          onClick={() => loadCompanyDetail(company.id)}
-                        >
-                          <span className="font-medium text-lp-primary-1">{company.name}</span>
-                          {company.overrides ? <span className="text-xs text-lp-sec-3">Personalizado</span> : null}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ) : null}
+          <div className="relative">
+            <Label htmlFor="company-search">Seleccionar cliente</Label>
+            <div className="relative mt-1">
+              <Input
+                id="company-search"
+                placeholder="Buscar en la lista..."
+                value={searchTerm}
+                onChange={(event) => {
+                  setSearchTerm(event.target.value);
+                  setIsDropdownOpen(true);
+                }}
+                onFocus={() => setIsDropdownOpen(true)}
+              // We might want to handle blur, but typical combobox behavior is tricky with blur closing immediately
+              />
+              {isDropdownOpen && (
+                <div className="absolute top-full z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-lp-sec-4/60 bg-white shadow-lg">
+                  {filteredCompanies.length === 0 ? (
+                    <div className="p-3 text-sm text-lp-sec-3">No se encontraron clientes.</div>
+                  ) : (
+                    <ul>
+                      {filteredCompanies.map((company) => (
+                        <li key={company.id}>
+                          <button
+                            type="button"
+                            className={cn(
+                              "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-lp-sec-4/40",
+                              selected?.id === company.id ? "bg-lp-primary-1/10" : ""
+                            )}
+                            onClick={() => handleSelectCompany(company)}
+                          >
+                            <span className="font-medium text-lp-primary-1">{company.name}</span>
+                            {company.overrides ? <span className="text-xs text-lp-sec-3">Personalizado</span> : null}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+            {/* Overlay to close dropdown when clicking outside could be added here or handled via event listeners, 
+                but for simplicity we leave it manual or rely on selection closing it. 
+                A simple "backdrop" approach for mobile/desktop:
+            */}
+            {isDropdownOpen && (
+              <div
+                className="fixed inset-0 z-0 bg-transparent"
+                onClick={() => setIsDropdownOpen(false)}
+                aria-hidden="true"
+              />
+            )}
           </div>
 
           {selected ? (
